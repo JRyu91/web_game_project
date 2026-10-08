@@ -47,6 +47,7 @@ public class PlayerController : MonoBehaviour {
     SpriteRenderer _sr;
     GearAttachment _gear;
     ActorVisual _vis;
+    public ActorVisual Visual => _vis;
     float _atkCd;
     float _regenTimer;
     float _hitTimer;
@@ -61,7 +62,7 @@ public class PlayerController : MonoBehaviour {
     // field/core.js 의 px 단위 상수를 그대로 옮기면 유니티 유닛(월드가 대략 -10~10) 기준으로 터무니없이 커진다
     // (몬스터가 화면을 한 프레임에 가로질러 "순간이동"처럼 보이던 버그의 원인). 1 unit = 40 "game px" 로 환산.
     const float PX_TO_UNIT = 1f / 40f;
-    public static float MovePx = 78.75f; // game px/s, 기본 이속 +5%(캡처 비교용 static)
+    public static float MovePx = 86.625f; // game px/s, 기본 75 → +5%(v3.0.6) → +10%(v3.0.9) (캡처 비교용 static)
     static float MOVE_SPEED => MovePx * PX_TO_UNIT;
     float _regenAcc; // 비전투 리젠 소수 누적(프레임레이트 무관). 지연·비율 = CombatMath.RegenDelay/RegenRate (balance.json)
     const float RESPAWN_SEC = 3f;
@@ -366,7 +367,9 @@ public class PlayerController : MonoBehaviour {
         int real = CombatMath.Mitigate(rawAtk, Defense);
         Hp -= real;
         _hitTimer = CombatMath.RegenDelay;
-        _vis.Flash(0.033f);
+        _vis.Flash(0.09f, 0.6f);
+        var pb = _vis.Body.bounds; Game.Rendering.HitFx.Number(real, new Vector3(pb.center.x, pb.max.y + 0.35f, 0), "normal_yellow");
+        if (real >= MaxHp / 10) Game.Rendering.HitFx.Shake(2, 0.15f); // 큰 피격(보스 등)만 화면 흔들림
         _anim.React("hurt"); // Visual reaction only: automatic attack/skill/cooldown timelines are not interrupted.
         CombatLog?.Invoke($"player hit -{real}");
         OnHpChanged?.Invoke(Hp, MaxHp);
@@ -385,6 +388,7 @@ public class PlayerController : MonoBehaviour {
         OnHpChanged?.Invoke(Hp, MaxHp);
     }
 
+    bool _stateApplied;
     public Game.Network.InvState Inv { get; private set; } // 마지막 서버 상태(UI 가 읽음)
 
     // 서버 inv.state → 레벨·경험치·골드·포션·장착 장비. 레벨이 오르면 풀피(기존 관례).
@@ -401,6 +405,8 @@ public class PlayerController : MonoBehaviour {
         var a = Find(st.equip.armor); ArmorTierIdx = a != null ? a.tier : -1; ArmorEnhance = a != null ? a.enh : 0;
         MaxHp = CombatMath.PlayerMaxHp(Level);
         if (up) Hp = MaxHp; else Hp = Mathf.Min(Hp, MaxHp);
+        if (up && _stateApplied) { Game.Rendering.HitFx.Play("obj_levelup", new Vector3(_vis.BodyX, WorldConfig.GroundY + 0.1f + 1.2f, 0), 7f, 1f, false, 12, transform); Game.Rendering.HitFx.Shake(1, 0.2f); } // 접속 첫 동기화는 제외
+        _stateApplied = true;
         _pendingSkills.RemoveAll(skill => !CanCast(skill));
         RefreshGearVisual();
         OnHpChanged?.Invoke(Hp, MaxHp);
@@ -409,7 +415,11 @@ public class PlayerController : MonoBehaviour {
 
     // potion 응답 ok 일 때 회복(차감은 서버)
     public void DrinkPotion() {
+        int before = Hp;
         Hp = Mathf.Min(MaxHp, Hp + Mathf.RoundToInt(MaxHp * POTION_HEAL_PCT));
+        var pb = _vis.Body.bounds;
+        Game.Rendering.HitFx.Play("obj_heal", new Vector3(pb.center.x, pb.center.y, 0), 10f, 1f, false, 11, transform);
+        Game.Rendering.HitFx.Number(Hp - before, new Vector3(pb.center.x, pb.max.y + 0.35f, 0), "heal");
         OnHpChanged?.Invoke(Hp, MaxHp);
     }
 

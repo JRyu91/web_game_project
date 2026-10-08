@@ -218,9 +218,9 @@ public static class CombatRegression {
             Call(spawner, "SpawnBoss", 19);
             for (int i = 0; i < 7; i++) Call(spawner, "Spawn", def, 10f + i);
             spawner.SetPopulation(2);
-            Check(spawner.MapMonsterCap == 10 && spawner.MaxAlive == 5 && spawner.Alive.Count == 5 && spawner.Boss != null, "per-player five slots / total population cap / boss counting failed");
+            Check(spawner.MapMonsterCap == 10 && spawner.MaxAlive == 5 && spawner.Alive.Count == 6 && spawner.Boss != null && spawner.CanSummon(19) == false, "per-player five regular slots + boss slot (v3.0.9) / boss counting failed");
             spawner.SetPopulation(1);
-            Check(spawner.MapMonsterCap == 5 && spawner.Alive.Count == 5, "departed player's slots inflated map limit");
+            Check(spawner.MapMonsterCap == 5 && spawner.Alive.Count == 6 && spawner.Boss != null, "departed player's slots inflated map limit");
             spawner.SetPopulation(0);
             Check(spawner.MaxAlive == 0 && spawner.MapMonsterCap == 0 && spawner.Alive.Count == 0 && spawner.Boss == null, "disconnect retained encounters or boss");
             Check(spawner.TickBoss(1000000) == 0 && spawner.Alive.Count == 0, "zero population spawned a boss");

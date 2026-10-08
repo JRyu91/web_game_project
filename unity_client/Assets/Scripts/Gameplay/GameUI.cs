@@ -25,6 +25,8 @@ public class GameUI : MonoBehaviour {
     Font _font, _fontB; Sprite _panel, _btn, _btnDown, _btnOff;
     RectTransform _root, _skillHudRoot;
     readonly Dictionary<string, GameObject> _panels = new Dictionary<string, GameObject>();
+    Image _toastBg;
+    Text _versionLabel;
     Text _toast, _invList, _invDetail, _enhInfo, _enhResult, _shopInfo, _sumInfo;
     readonly List<Button> _rows = new List<Button>();
     Button _bEquip, _bSell, _bEnh, _bS19, _bS20, _bSellMany, _bEnhTry, _bBuyOne, _bBuyTen;
@@ -104,7 +106,7 @@ public class GameUI : MonoBehaviour {
         _growthDot.color = Color.red; _growthDot.gameObject.SetActive(false);
         BuildHud();
         _channel = Label(_root, "", new Vector2(-10 - menu.Length * 78, -10), new Vector2(120, BtnH), TextAnchor.MiddleRight, new Vector2(1, 1), true); // 채널: 메뉴 왼쪽
-        Label(_root, $"v{Application.version}", new Vector2(-10, 10), new Vector2(100, 20), TextAnchor.MiddleRight, new Vector2(1, 0), true);
+        _versionLabel = Label(_root, $"v{Application.version}", new Vector2(-10, 10), new Vector2(100, 20), TextAnchor.MiddleRight, new Vector2(1, 0), true);
         _toast = Label(_root, "", new Vector2(0, -64), new Vector2(600, 24), TextAnchor.MiddleCenter, new Vector2(0.5f, 1), true); // 상단 중앙, 보스 HP 바(위 8px + 48px) 아래
 
         // 인벤토리·장비
@@ -248,6 +250,7 @@ public class GameUI : MonoBehaviour {
         _bS19 = Btn(sum, "드래곤 소환", new Vector2(20, -120), new Vector2(130, BtnH), () => Summon(19), new Vector2(0, 1));
         _bS20 = Btn(sum, "염제 소환", new Vector2(166, -120), new Vector2(130, BtnH), () => Summon(20), new Vector2(0, 1));
         Redraw();
+        _toast.transform.SetAsLastSibling(); // 토스트는 패널 위(관리·상점 결과가 열린 패널에 가려지지 않게)
         CaptureLayout();
         ResponsiveLayout();
     }
@@ -385,7 +388,7 @@ public class GameUI : MonoBehaviour {
 
     void Summon(int tier) {
         if (_pendingSummon > 0) return;
-        if (_sp != null && !_sp.CanSummon(tier)) { Toast("지금 이 존에서는 소환할 수 없습니다", new Color(1f, 0.5f, 0.4f)); return; }
+        if (_sp != null && !_sp.CanSummon(tier)) { Toast(!_sp.SummonZoneOk(tier) ? "이 존에서는 소환할 수 없습니다" : _sp.Boss != null ? "보스가 이미 나와 있습니다" : "지금은 소환할 수 없습니다", new Color(1f, 0.5f, 0.4f)); return; }
         _summonMonsterId = 0; _pendingSummon = tier; _summonSeq = Send(new InvReq { type = "summon", tier = tier });
     }
     void Check(int row) { var list = Items(); int i = _page * PageSize + row; if (i >= list.Length || Equipped(list[i])) return; int u = list[i].uid; if (!_checked.Remove(u)) _checked.Add(u); Redraw(); }
@@ -396,7 +399,17 @@ public class GameUI : MonoBehaviour {
     public void Toggle(string id) { foreach (var kv in _panels) kv.Value.SetActive(kv.Key == id && !kv.Value.activeSelf); Redraw(); }
     public void Show(string id) { foreach (var kv in _panels) kv.Value.SetActive(kv.Key == id); Redraw(); }
     public void SelectUid(int uid) { _sel = uid; Redraw(); }
-    void Toast(string s, Color c) { _toast.text = s; _toast.color = c; _toastT = 3f; }
+    void Toast(string s, Color c) { _toast.text = s; _toast.color = c; _toastT = 3f; ToastBg(); }
+    // 토스트 뒤 반투명 띠: 패널·버튼 위에서도 읽히게(글자 폭 + 여백)
+    void ToastBg() {
+        if (_toastBg == null) { _toastBg = new GameObject("ToastBg").AddComponent<Image>(); _toastBg.raycastTarget = false; _toastBg.color = new Color(0, 0, 0, 0.6f); _toastBg.transform.SetParent(_toast.transform.parent, false); }
+        _toastBg.transform.SetAsLastSibling(); _toast.transform.SetAsLastSibling(); // 글자 바로 뒤(형제 순서 = 그리는 순서)
+        _toastBg.enabled = _toast.text.Length > 0;
+        var t = _toast.rectTransform; var r = _toastBg.rectTransform;
+        r.anchorMin = t.anchorMin; r.anchorMax = t.anchorMax; r.pivot = new Vector2(.5f, .5f);
+        r.anchoredPosition = t.anchoredPosition + new Vector2((.5f - t.pivot.x) * t.rect.width, (.5f - t.pivot.y) * t.rect.height);
+        r.sizeDelta = new Vector2(Mathf.Min(_toast.preferredWidth, t.rect.width) + 16, Mathf.Min(_toast.preferredHeight, t.rect.height) + 6);
+    }
 
     // ── 그리기(항상 state 에서) ──
     void Redraw() {
@@ -534,7 +547,7 @@ public class GameUI : MonoBehaviour {
         UpdateHud();
         _skillHudTick -= dt;
         if (_skillHudTick <= 0) { RedrawSkills(); UpdateSkillHud(); _skillHudTick = 0.2f; }
-        if (_toastT > 0 && (_toastT -= dt) <= 0) _toast.text = "";
+        if (_toastT > 0 && (_toastT -= dt) <= 0) { _toast.text = ""; ToastBg(); }
         if (_fxT >= 0 && _fxPlay == null) _fxT = -1;
         if (_fxT >= 0) {
             int f = (int)(_fxT * 10); // 10fps (MANIFEST 기본값)
@@ -635,6 +648,7 @@ public class GameUI : MonoBehaviour {
         foreach (var text in GetComponentsInChildren<Text>(true)) text.fontSize = _mobile && text.rectTransform.sizeDelta.y >= 20 ? 16 : FontSize;
         foreach (var card in _statCards)
             foreach (var text in card.GetComponentsInChildren<Text>(true)) text.fontSize = 14;
+        ToastBg(); // 재배치(SetParent)로 형제 순서가 바뀌므로 토스트·배경을 다시 맨 위로
         if (!_mobile) return;
         int columns = Mathf.Max(1, Mathf.Min(_menus.Count, Mathf.FloorToInt((width - 20) / 120)));
         float menuWidth = (width - 20f) / columns;
@@ -646,6 +660,7 @@ public class GameUI : MonoBehaviour {
             ResizeButtonText(_menus[i], menuWidth - 4, 44);
         }
         _channel.rectTransform.anchoredPosition = new Vector2(-10, -10);
+        _versionLabel.rectTransform.anchorMin = _versionLabel.rectTransform.anchorMax = _versionLabel.rectTransform.pivot = new Vector2(1, 1); _versionLabel.rectTransform.anchoredPosition = new Vector2(-10, -40); // 모바일: 하단 스킬 카드와 안 겹치게 채널 아래
         _toast.rectTransform.anchoredPosition = new Vector2(0, -98 - Mathf.CeilToInt((float)_menus.Count / columns) * 48);
         _toast.rectTransform.sizeDelta = new Vector2(width - 20, 52);
         _toast.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -694,6 +709,7 @@ public class GameUI : MonoBehaviour {
             var close = widgets[1].GetComponent<Button>();
             ((RectTransform)close.transform).sizeDelta = new Vector2(44, 44); ResizeButtonText(close, 44, 44);
         }
+        ToastBg();
     }
     void ResizeButtonText(Button button, float width, float height) {
         var text = button.GetComponentInChildren<Text>(true);

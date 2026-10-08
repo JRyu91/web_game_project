@@ -8,7 +8,7 @@ const base = process.argv.slice(2).find(x=>!x.startsWith('--')) || 'http://local
 const mobile=process.argv.includes('--mobile');
 const checkPeer=process.argv.includes('--peer');
 const checkSystems=process.argv.includes('--systems'),systemResponses=new Map();
-const checkChat=process.argv.includes('--chat'),chats=[];
+const checkChat=process.argv.includes('--chat'),chats=[],invReqs=[];
 assert(!checkSystems || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'systems fixture is local-only');
 assert(!checkPeer || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'peer fixture is local-only');
 const stage=new URL(base).host.replace(/[^a-zA-Z0-9_-]/g,'_');
@@ -44,10 +44,10 @@ async function evaluate(expression) {
     if(e.method==='Runtime.consoleAPICalled') {
       const text=e.params.args.map(a=>a.value||a.description||'').join(' ');
       if(e.params.type==='error') {errors.push(text);console.error(text.slice(0,1600));}
-      if(/Exception|\[net\]|\[save\]|\[fps\]/.test(text)) notes.push(text);
+      if(/Exception|\[net\]|\[save\]|\[fps\]|\[fx\]/.test(text)) notes.push(text);
     }
     if(e.method==='Network.webSocketFrameReceived') {
-      try {const m=JSON.parse(e.params.response.payloadData);if(m.type==='chat')chats.push(m.text);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
+      try {const m=JSON.parse(e.params.response.payloadData);if(m.type==='chat')chats.push(m.text);if(m.type==='inv')invReqs.push(m.req+(m.ok?'':':'+m.code));if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
     }
   });
   await new Promise(resolve=>ws.once('open',resolve));
@@ -58,7 +58,7 @@ async function evaluate(expression) {
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.8');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.9');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   const adminPw=process.argv.includes('--admin')&&process.env.ADMIN_PASSWORD; // 로컬 관리자(메모리 서버 시드)
@@ -73,7 +73,18 @@ async function evaluate(expression) {
   assert(latest.gold>0&&latest.exp>=0&&latest.inv.length>=1);
   await rewardCapture;
   if(adminPw) {
-    for(const id of ['admin','allocate']){await evaluate(`gameInstance.SendMessage('GameUI','Show','${id}')`);await pause(800);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-${id}.png`),Buffer.from(r.data,'base64'));}
+    for(const id of ['admin','allocate','sum']){await evaluate(`gameInstance.SendMessage('GameUI','Show','${id}')`);await pause(800);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-${id}.png`),Buffer.from(r.data,'base64'));}
+    // --click x,y;x,y : 관리 패널을 연 상태에서 실제 마우스 클릭 → 서버 inv 응답 + 클릭마다 캡처
+    const clicks=(process.argv.find(a=>a.startsWith('--click='))||'').slice(8);
+    if(clicks){
+      await evaluate(`gameInstance.SendMessage('GameUI','Show','${(process.argv.find(a=>a.startsWith('--panel='))||'--panel=admin').slice(8)}')`);await pause(800);
+      let n=0;for(const xy of clicks.split(';')){const [x,y]=xy.split(',').map(Number);invReqs.length=0;
+        await call('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});await call('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});await pause(80);await call('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});
+        await pause(Number((process.argv.find(a=>a.startsWith('--clickwait='))||'--clickwait=900').slice(12)));const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-click${n++}.png`),Buffer.from(r.data,'base64'));
+        console.log('click',x,y,'->',JSON.stringify(invReqs),'gold',latest?.gold,'lv',latest?.level,'stones',latest?.stones);}
+    }
+    const watch=Number((process.argv.find(a=>a.startsWith('--watch='))||'--watch=0').slice(8)); // 패널 닫고 전투 연속 캡처(브레스·타격 연출 확인)
+    if(watch){await evaluate("gameInstance.SendMessage('GameUI','Show','')");for(let n=0;n<watch;n++){await pause(400);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-watch${n}.png`),Buffer.from(r.data,'base64'));}}
     await evaluate("gameInstance.SendMessage('GameUI','Show','')");
   }
   if(process.argv.includes('--shots')) {

@@ -97,7 +97,7 @@ public class ActorVisual : MonoBehaviour {
     void OnDestroy() { All.Remove(this); if (_mat != null) Destroy(_mat); }
     float _flash;
     // 피격 흰 플래시(초). 머티리얼이 액터별이라 이 액터만.
-    public void Flash(float sec) { _flash = sec; _mat?.SetFloat("_Flash", 1); }
+    public void Flash(float sec, float amount = 1f) { _flash = sec; _mat?.SetFloat("_Flash", amount); } // amount: 흰색 섞는 비율(큰 보스는 낮게)
     void LateUpdate() {
         if (_flash > 0 && (_flash -= Time.deltaTime) <= 0) _mat?.SetFloat("_Flash", 0);
         Refresh();

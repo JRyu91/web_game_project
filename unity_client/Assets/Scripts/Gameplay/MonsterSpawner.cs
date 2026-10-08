@@ -17,7 +17,7 @@ public class MonsterSpawner : MonoBehaviour {
         MapMonsterCap = Mathf.Max(0, playersOnMap) * 5;
         // Five owned encounters per real player keep the whole-map total <= population * 5.
         MaxAlive = playersOnMap > 0 ? 5 : 0;
-        foreach (var monster in _alive.Skip(MaxAlive).ToArray()) Remove(monster);
+        foreach (var monster in _alive.Where(m => MaxAlive == 0 || m != Boss).Skip(MaxAlive).ToArray()) Remove(monster); // 보스는 상한 밖 1칸, 인원 0이면 보스도 정리
     }
     public float SpawnInterval = 1.2f;
     // 보스 등장 방식 미정이라 weight 0 티어(t19-21)가 풀에 있으면 이 값으로 드물게 등장. USER_DECISION.
@@ -36,15 +36,18 @@ public class MonsterSpawner : MonoBehaviour {
     float _bossTick, _bossAge;
 
     // 소환 카운트는 서버 권위(state.killCountT19/T20). 여기선 필드 조건(보스 없음·등장 존)만.
-    public bool CanSummon(int tier) => Boss == null && _alive.Count < MaxAlive && Bosses.Any(b => b.tier == tier && b.need > 0 && b.zones.Contains(CurZone));
+    // 보스는 일반 상한(MaxAlive) 밖 1칸. 필드가 꽉 차도 소환 가능(server.js spawn 도 같은 규칙)
+    int RegularAlive => _alive.Count(m => m != Boss);
+    public bool SummonZoneOk(int tier) => Bosses.Any(b => b.tier == tier && b.need > 0 && b.zones.Contains(CurZone));
+    public bool CanSummon(int tier) => Boss == null && MaxAlive > 0 && Bosses.Any(b => b.tier == tier && b.need > 0 && b.zones.Contains(CurZone));
     public static int Need(int tier) => Bosses.First(b => b.tier == tier).need;
     static Zone CurZone => ZoneController.Current != null ? ZoneController.Current.Zone : Zone.A;
-    public bool SpawnSummoned(int tier) { if (!CanSummon(tier)) return false; SpawnBoss(tier); return true; } // 서버 summon ok 후에만 호출
+    public bool SpawnSummoned(int tier) { if (!CanSummon(tier)) return false; var pl = PlayerController.Local; SpawnBossAt(tier, pl != null ? pl.transform.position.x + pl.Face * 4f : (float?)null); return true; } // 소환 보스는 플레이어 앞 160px(화면 안) // 서버 summon ok 후에만 호출
 
     // 관리자 소환: 서버 admin_spawn ok 후에만 호출. 등록(영수증)은 OnMonsterSpawned → 일반 spawn 경로가 한다
     public bool SpawnTier(int tier, float x) {
         int idx = Array.FindIndex(GameData.Monsters, m => m.tier == tier); // MonsterDef 는 struct
-        if (idx < 0 || _alive.Count >= MaxAlive || (tier >= 19 && Boss != null)) return false;
+        if (idx < 0 || (tier < 19 ? RegularAlive >= MaxAlive : Boss != null)) return false;
         var mc = Spawn(GameData.Monsters[idx], Mathf.Clamp(x, WorldMinX, WorldMaxX));
         if (tier >= 19) { Boss = mc; _bossAge = 0; }
         return true;
@@ -57,7 +60,7 @@ public class MonsterSpawner : MonoBehaviour {
             if (Boss.Def.tier == 21 && _bossAge >= T21_LIFETIME && !Boss.IsDead) { Remove(Boss); } // 10분 내 못 잡으면 사라짐
             return 0;
         }
-        if (_alive.Count >= MaxAlive) { _bossTick = 0; return 0; }
+        if (RegularAlive >= MaxAlive) { _bossTick = 0; return 0; }
         _bossTick += dt * BossTimeScale;
         while (_bossTick >= 1f) {
             _bossTick -= 1f;
@@ -69,10 +72,12 @@ public class MonsterSpawner : MonoBehaviour {
 
     void CountKill(MonsterController m) { if (m == Boss) Boss = null; }
 
-    void SpawnBoss(int tier) {
+    void SpawnBoss(int tier) => SpawnBossAt(tier, null);
+    void SpawnBossAt(int tier, float? x) {
         var def = GameData.Monsters.First(m => m.tier == tier);
-        Boss = Spawn(def, Mathf.Lerp(WorldMinX, WorldMaxX, (float)_rng.NextDouble()));
+        Boss = Spawn(def, x.HasValue ? Mathf.Clamp(x.Value, WorldMinX, WorldMaxX) : Mathf.Lerp(WorldMinX, WorldMaxX, (float)_rng.NextDouble()));
         _bossAge = 0;
+        if (Application.isPlaying) { Game.Rendering.HitFx.Play("fx_boss_warning", new Vector3(Boss.transform.position.x, WorldConfig.GroundY + 0.6f, 0), 10f, 2f, false, 4); Game.Rendering.HitFx.Shake(2, 0.4f); } // 보스 등장 마법진(몸 뒤)
     }
 
     [System.Serializable] class PoolCfg { public int[] A, B, C; }
@@ -117,7 +122,7 @@ public class MonsterSpawner : MonoBehaviour {
         _alive.RemoveAll(m => m == null);
         _timer -= Time.deltaTime;
         TickBoss(Time.deltaTime);
-        if (_timer <= 0f && _alive.Count < MaxAlive) {
+        if (_timer <= 0f && RegularAlive < MaxAlive) {
             _timer = SpawnInterval;
             SpawnOne();
         }

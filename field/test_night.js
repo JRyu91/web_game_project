@@ -221,7 +221,7 @@ async function receipts() {
 }
 async function adminFlow() {
  const {spawn}=require('child_process'),WebSocket=require('ws');
- const base='127.0.0.1:18392',child=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:'18392',DATABASE_URL:'',REDIS_URL:'',ADMIN_PASSWORD:'adminpw1'},stdio:'ignore'});
+ const base='127.0.0.1:18392',child=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:'18392',DATABASE_URL:'',REDIS_URL:'',ADMIN_PASSWORD:'adminpw1',LOCAL_ADMIN:'1'},stdio:'ignore'});
  const sockets=[];
  try {
   for(let n=0;n<100;n++){try{if((await fetch('http://'+base+'/healthz')).ok)break;}catch{}await new Promise(r=>setTimeout(r,30));}
@@ -269,6 +269,23 @@ async function adminFlow() {
   admin.ws.send(JSON.stringify({type:'bot',delta:-1}));assert.equal((await admin.wait(m=>m.type==='inv'&&m.req==='bot')).code,'no_bot');
   for(let n=0;n<8;n++){admin.ws.send(JSON.stringify({type:'bot',delta:1,level:1}));await admin.wait(m=>m.type==='inv'&&m.req==='bot');}
   admin.ws.send(JSON.stringify({type:'bot',delta:1,level:1}));assert.equal((await admin.wait(m=>m.type==='inv'&&m.req==='bot')).code,'full');
+  { // 보스는 일반 상한 밖 1칸: 필드 꽉 참(5)이어도 보스 등록 OK, 보스 중복은 거절
+   const sp=async(id,tier)=>{admin.ws.send(JSON.stringify({type:'spawn',monsterId:id,tier}));return admin.wait(m=>m.type==='spawn'&&m.monsterId===id);};
+   await new Promise(r=>setTimeout(r,2300));
+   for(let id=10;id<15;id++){const r=await sp(id,3);if(!r.ok&&r.code==='spawn_rate'){await new Promise(r=>setTimeout(r,1200));id--;continue;}assert.equal(r.ok,true,r.code);}
+   await new Promise(r=>setTimeout(r,1200));
+   assert.equal((await sp(15,3)).code,'spawn_full');
+   await new Promise(r=>setTimeout(r,1200));
+   assert.equal((await sp(16,21)).ok,true,'boss over regular cap');
+   await new Promise(r=>setTimeout(r,1200));
+   assert.equal((await sp(17,21)).code,'boss_alive');
+  }
+  { // LOCAL_ADMIN 없으면(운영 DATABASE_URL 누락 상황) 메모리 관리자 로그인 불가
+   const c2=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:'18393',DATABASE_URL:'',REDIS_URL:'',ADMIN_PASSWORD:'adminpw1',LOCAL_ADMIN:''},stdio:'ignore'});
+   try { for(let n=0;n<100;n++){try{if((await fetch('http://127.0.0.1:18393/healthz')).ok)break;}catch{}await new Promise(r=>setTimeout(r,30));}
+     const r=await fetch('http://127.0.0.1:18393/account/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:'admin',pw:'adminpw1'})});assert.notEqual(r.status,200,'memory admin must need LOCAL_ADMIN=1');
+   } finally { c2.kill('SIGKILL'); }
+  }
   console.log('PASS admin gold/exp/level/items/spawn(receipt kill) succeed for admin, forbidden for normal user, bot add/remove/full/empty with roster effect');
  } finally { for(const ws of sockets)ws.terminate();child.kill('SIGKILL');await new Promise(r=>child.once('exit',r)); }
 }

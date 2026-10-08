@@ -235,7 +235,7 @@ async function ensureAdmin() {
 }
 
 const localAccounts = new Map();
-if (process.env.ADMIN_PASSWORD && !DATABASE_URL) localAccounts.set('admin', { id: 'admin', name: '관리자', gender: 'male', role: 'admin', pw_hash: hashPw(process.env.ADMIN_PASSWORD) }); //DB 없는 로컬/테스트에서도 관리자 로그인
+if (process.env.LOCAL_ADMIN === '1' && process.env.ADMIN_PASSWORD && !DATABASE_URL) localAccounts.set('admin', { id: 'admin', name: '관리자', gender: 'male', role: 'admin', pw_hash: hashPw(process.env.ADMIN_PASSWORD) }); //로컬/테스트 전용(LOCAL_ADMIN=1 명시). 운영에서 DATABASE_URL 이 빠져도 메모리 관리자가 열리지 않게
 const sessions = new Map();
 const SESSION_SEC = 86400;
 const AUTH_REQUIRED = !!DATABASE_URL;
@@ -571,6 +571,7 @@ const server = http.createServer(async (req, res) => {
 /* ---------- 아이템 (권위 서버) ---------- */
 // Server-issued per-connection receipts prevent duplicate, unknown and tier-swapped rewards.
 // ponytail: the client still simulates damage/spawns; fully authoritative combat is needed to stop plausible fabricated encounters.
+const regularMonsters = p => p.monsters ? [...p.monsters.values()].filter(m => m.tier < 19).length : 0;
 const KILL_BURST = 14, KILL_PER_SEC = 3, BOSS_GAP_MS = 60000;
 const ITEM_REQ = new Set(['inv', 'kill', 'equip', 'enhance', 'buy', 'sell', 'potion', 'summon', 'learn', 'disassemble', 'expand', 'auto_sell', 'auto_disassemble', 'allocate_stat', 'allocate_auto', 'reset_stats', 'summon_ack', 'map', 'admin_gold', 'admin_exp', 'admin_level', 'admin_item', 'admin_spawn']);
 
@@ -705,7 +706,7 @@ wss.on('connection', (ws, req) => {
         me.spawnTokens = Math.min(5,me.spawnTokens+(now-me.spawnAt)/1000); me.spawnAt = now;
         let r = I.spawnAllowed(me.save,msg.tier);
         if (!Number.isSafeInteger(msg.monsterId) || msg.monsterId < 1 || [...me.monsters.values()].some(m=>m.id===msg.monsterId)) r={ok:false,code:'bad_spawn'};
-        else if (me.monsters.size >= 5 || mapPlayers(me.save.zone).reduce((total,p)=>total+(p.monsters?.size||0),0) >= mapPlayers(me.save.zone).length*5) r={ok:false,code:'spawn_full'};
+        else if (msg.tier < 19 && (regularMonsters(me) >= 5 || mapPlayers(me.save.zone).reduce((total,p)=>total+regularMonsters(p),0) >= mapPlayers(me.save.zone).length*5)) r={ok:false,code:'spawn_full'}; // 보스(19~21)는 상한 밖 1칸(중복은 boss_alive)
         else if (me.spawnTokens < 1) r={ok:false,code:'spawn_rate'};
         else if (msg.tier >= 19 && [...me.monsters.values()].some(m=>m.tier>=19)) r={ok:false,code:'boss_alive'};
         let receipt;

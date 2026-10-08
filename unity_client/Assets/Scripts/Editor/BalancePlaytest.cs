@@ -21,12 +21,12 @@ public static class BalancePlaytest {
         try {
             foreach (int level in new[] { 20, 35, 70, 100 })
                 foreach (string weapon in new[] { "sword", "staff" })
-                    rows.Append(Trial(level, weapon, 78.75f));
+                    rows.Append(Trial(level, weapon, oldSpeed));
             foreach (string weapon in new[] { "sword", "staff" }) rows.Append(Trial(35, weapon, 75f));
             foreach (int level in new[] { 20, 35, 40, 60, 70, 80, 100 })
-                foreach (string weapon in new[] { "sword", "staff" }) rows.Append(Trial(level, weapon, 78.75f, false));
+                foreach (string weapon in new[] { "sword", "staff" }) rows.Append(Trial(level, weapon, oldSpeed, false));
             foreach (int level in new[] { 35, 70 })
-                foreach (string weapon in new[] { "sword", "staff" }) rows.Append(Trial(level, weapon, 78.75f, false, true));
+                foreach (string weapon in new[] { "sword", "staff" }) rows.Append(Trial(level, weapon, oldSpeed, false, true));
             File.WriteAllText("Logs/balance-playtest.csv", rows.ToString());
             Debug.Log("[BalancePlaytest] PASS: twenty-eight 30-minute actual-controller simulations, fixed progression, seeds and economy exclusions\n" + rows);
         } finally { PlayerController.MovePx = oldSpeed; WorldConfig.GroundY = oldGround; }
