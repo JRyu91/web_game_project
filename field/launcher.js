@@ -68,7 +68,7 @@ $('play').onclick = async () => {
     const build = await api('/web/build.json');
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
-    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.4',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
+    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.5',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
     window.gameInstance = instance;
     $('loading').textContent = ''; $('unity-canvas').focus();
   } catch (e) { document.body.classList.remove('playing');$('entry').hidden=false;$('game').hidden=true;$('status').textContent=e.message;$('play').disabled=false; }

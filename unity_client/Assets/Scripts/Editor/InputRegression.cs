@@ -213,7 +213,10 @@ public static class InputRegression {
                 cam.targetTexture = rt; cam.backgroundColor = new Color(0.12f, 0.2f, 0.16f);
                 var actor = new GameObject("Player"); actor.transform.SetParent(root.transform);
                 var pl = actor.AddComponent<PlayerController>(); pl.Init(false, "male", () => Array.Empty<MonsterController>());
-                var ui = new GameObject("GameUI").AddComponent<GameUI>(); ui.transform.SetParent(root.transform); ui.Init(cam, pl, null, null);
+                var fixtureNet = root.AddComponent<NetworkClient>(); fixtureNet.enabled = false;
+                typeof(NetworkClient).GetProperty("Connected").SetValue(fixtureNet, true);
+                typeof(NetworkClient).GetProperty("Joined").SetValue(fixtureNet, true);
+                var ui = new GameObject("GameUI").AddComponent<GameUI>(); ui.transform.SetParent(root.transform); ui.Init(cam, pl, null, fixtureNet);
                 var state = new InvState { level = 20, exp = 3000, gold = 45210, stones = 37, potions = 4,
                     str = 30, dex = 10, luk = 10, statPoints = 45,
                     equip = new InvEquip { weapon = 1, helmet = 2 }, skills = new[] { Game.Data.GameData.Skills[0].key },
@@ -225,6 +228,18 @@ public static class InputRegression {
                 if (values["class"].text != "전사" || values["gold"].text != "45,210 G" || values["exp"].text != "3,000 / 12,000 (25.0%)") throw new Exception("Stats authoritative state display mismatch");
                 int expectedDef = 10 + Game.Data.CombatMath.GearDefWithEnhance(Game.Data.GameData.Helmets[3], 2);
                 if (values["defense"].text != expectedDef.ToString("N0")) throw new Exception("Stats enhanced defense mismatch");
+                var hud = (System.Collections.Generic.Dictionary<string, Text>)typeof(GameUI).GetField("_cooldownHud", flags).GetValue(ui);
+                var skillKey = Game.Data.GameData.Skills[0].key;
+                if (!hud.ContainsKey(skillKey) || !hud[skillKey].text.Contains("준비")) throw new Exception("Skill cooldown HUD missing ready state");
+                var timers = (System.Collections.Generic.Dictionary<string, float>)typeof(PlayerController).GetField("_skillCd", flags).GetValue(pl);
+                timers[skillKey] = 7.5f; ui.Tick(.3f);
+                if (!hud[skillKey].text.Contains("7.5초")) throw new Exception("Skill HUD does not reflect actual cooldown");
+                Canvas.ForceUpdateCanvases();
+                var hudCorners = new Vector3[4]; ((RectTransform)hud[skillKey].transform.parent).GetWorldCorners(hudCorners);
+                foreach (var corner in hudCorners) {
+                    var point = RectTransformUtility.WorldToScreenPoint(cam, corner);
+                    if (point.x < 0 || point.x > size.x || point.y < 0 || point.y > size.y) throw new Exception("Skill HUD exceeds viewport");
+                }
                 pl.TakeDamage(20); ui.Tick(.3f);
                 if (values["hp"].text != $"{pl.Hp:N0} / {pl.MaxHp:N0}") throw new Exception("Stats live HP did not update");
                 Canvas.ForceUpdateCanvases();
@@ -249,9 +264,32 @@ public static class InputRegression {
                 System.IO.File.WriteAllBytes($"Logs/allocate-{size.x}x{size.y}.png", image.EncodeToPNG());
                 var allocationText = (Text)typeof(GameUI).GetField("_allocationInfo", flags).GetValue(ui);
                 if (!allocationText.text.Contains("45")) throw new Exception("Allocation points do not reflect server state");
+                var growthDot = (Text)typeof(GameUI).GetField("_growthDot", flags).GetValue(ui);
+                if (!growthDot.gameObject.activeSelf) throw new Exception("Unspent points growth badge missing");
+                var allocationButtons = (System.Collections.Generic.List<Button>)typeof(GameUI).GetField("_allocationButtons", flags).GetValue(ui);
+                if (!allocationButtons.All(b => b.interactable) || allocationButtons.Count != 8 || allocationButtons[1].GetComponentInChildren<Text>().text != "+10") throw new Exception("Ten point allocation button missing");
+                state.statPoints = 0; ui.OnInv(new InvMsg { req = "allocate_stat", ok = true, state = state });
+                if (growthDot.gameObject.activeSelf || allocationButtons.Any(b => b.interactable)) throw new Exception("Empty points badge/button state incorrect");
+                state.statPoints = 9; ui.OnInv(new InvMsg { req = "join", ok = true, state = state });
+                if (!allocationButtons.Where((b, i) => i % 2 == 0).All(b => b.interactable) || allocationButtons.Where((b, i) => i % 2 == 1).Any(b => b.interactable)) throw new Exception("Ten point button enabled below ten points");
+
                 state.inv[0].kind = "staff"; state.level = Game.Data.GameData.LEVEL_MAX;
                 ui.OnInv(new InvMsg { req = "join", ok = true, state = state }); ui.Tick(.3f);
                 if (values["class"].text != "마법사" || !pl.Penetrating || values["exp"].text != "MAX") throw new Exception("Stats staff/max-level display mismatch");
+                if (hud[skillKey].transform.parent.gameObject.activeSelf) throw new Exception("Sword HUD remains after staff switch");
+                state.skills = Game.Data.GameData.Skills.Select(s => s.key).ToArray();
+                ui.OnInv(new InvMsg { req = "join", ok = true, state = state }); ui.Show(""); ui.Tick(.3f);
+                if (hud.Values.Count(t => t.transform.parent.gameObject.activeSelf) != 5) throw new Exception("Skill HUD does not show five current weapon skills");
+                foreach (var text in hud.Values.Where(t => t.transform.parent.gameObject.activeSelf)) {
+                    ((RectTransform)text.transform.parent).GetWorldCorners(hudCorners);
+                    foreach (var corner in hudCorners) {
+                        var point = RectTransformUtility.WorldToScreenPoint(cam, corner);
+                        if (point.x < 0 || point.x > size.x || point.y < 0 || point.y > size.y) throw new Exception("Five skill HUD exceeds viewport");
+                    }
+                }
+                Canvas.ForceUpdateCanvases(); cam.Render(); cam.Render(); RenderTexture.active = rt;
+                image.ReadPixels(new Rect(0, 0, size.x, size.y), 0, 0); image.Apply(); RenderTexture.active = null;
+                System.IO.File.WriteAllBytes($"Logs/skill-hud-{size.x}x{size.y}.png", image.EncodeToPNG());
                 if (state.gold != 45210 || state.stones != 37 || state.potions != 4) throw new Exception("Stats mutated economy");
                 Debug.Log($"[StatsRegression] PASS {size}: state, enhanced defense, live HP, staff/MAX, panel bounds, economy unchanged");
                 cam.targetTexture = null;

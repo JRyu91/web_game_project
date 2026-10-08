@@ -22,13 +22,14 @@ public class GameUI : MonoBehaviour {
 
     PlayerController _pl; MonsterSpawner _sp; NetworkClient _net; Camera _cam;
     Font _font, _fontB; Sprite _panel, _btn, _btnDown, _btnOff;
-    RectTransform _root;
+    RectTransform _root, _skillHudRoot;
     readonly Dictionary<string, GameObject> _panels = new Dictionary<string, GameObject>();
     Text _toast, _invList, _invDetail, _enhInfo, _enhResult, _shopInfo, _sumInfo;
     readonly List<Button> _rows = new List<Button>();
     Button _bEquip, _bSell, _bEnh, _bS19, _bS20, _bSellMany, _bEnhTry, _bBuyOne, _bBuyTen;
     readonly List<Button> _checks = new List<Button>();
     readonly HashSet<int> _checked = new HashSet<int>();
+    readonly Dictionary<string, Text> _cooldownHud = new Dictionary<string, Text>();
     Text _channel, _hpText, _expText, _lvText, _goldText, _potText; Image _hpFill, _expFill;
     Image _fx, _icon; Sprite[] _fxDestroy, _fxSuccess, _fxFail, _fxPlay; float _fxT = -1;
     int _sel, _page, _pendingSummon; float _toastT;
@@ -44,7 +45,7 @@ public class GameUI : MonoBehaviour {
     Text _bagInfo, _filterText, _autoText, _autoBreakText, _confirmText;
     readonly List<Button> _skillButtons = new List<Button>(), _mapButtons = new List<Button>();
     readonly Dictionary<string, Text> _statValues = new Dictionary<string, Text>();
-    Text _allocationInfo;
+    Text _allocationInfo, _growthDot;
     Button _allocateAuto;
     readonly Dictionary<string, Text> _allocationValues = new Dictionary<string, Text>();
     readonly List<Button> _allocationButtons = new List<Button>();
@@ -84,6 +85,8 @@ public class GameUI : MonoBehaviour {
             var kv = menu[i].Split(':'); string id = kv[0];
             _menus.Add(Btn(_root, kv[1], new Vector2(-10 - (menu.Length - 1 - i) * 78, -10), new Vector2(74, BtnH), () => Toggle(id), new Vector2(1, 1)));
         }
+        _growthDot = Label(_menus[4].transform, "●", new Vector2(-6, -2), new Vector2(12, 16), TextAnchor.MiddleCenter, new Vector2(1, 1));
+        _growthDot.color = Color.red; _growthDot.gameObject.SetActive(false);
         BuildHud();
         _channel = Label(_root, "", new Vector2(-10 - menu.Length * 78, -10), new Vector2(120, BtnH), TextAnchor.MiddleRight, new Vector2(1, 1), true); // 채널: 메뉴 왼쪽
         Label(_root, $"v{Application.version}", new Vector2(-10, 10), new Vector2(100, 20), TextAnchor.MiddleRight, new Vector2(1, 0), true);
@@ -187,9 +190,10 @@ public class GameUI : MonoBehaviour {
             var kv = attributes[i].Split(':'); string key = kv[0];
             var row = Img(allocate, null, new Vector2(20, -110 - i * 46), new Vector2(440, 44));
             row.color = new Color(0.94f, 0.92f, 0.85f); _statCards.Add(row.rectTransform);
-            Label(row.transform, kv[1], new Vector2(8, 0), new Vector2(160, 44), TextAnchor.MiddleLeft, new Vector2(0, 1));
-            _allocationValues[key] = Label(row.transform, "", new Vector2(-110, 0), new Vector2(60, 44), TextAnchor.MiddleRight, new Vector2(1, 1));
-            _allocationButtons.Add(Btn(row.transform, "+1", new Vector2(-8, 0), new Vector2(90, 44), () => Allocate(key, 1), new Vector2(1, 1)));
+            Label(row.transform, kv[1], new Vector2(8, 0), new Vector2(130, 44), TextAnchor.MiddleLeft, new Vector2(0, 1));
+            _allocationValues[key] = Label(row.transform, "", new Vector2(-136, 0), new Vector2(44, 44), TextAnchor.MiddleRight, new Vector2(1, 1));
+            _allocationButtons.Add(Btn(row.transform, "+1", new Vector2(-72, 0), new Vector2(60, 44), () => Allocate(key, 1), new Vector2(1, 1)));
+            _allocationButtons.Add(Btn(row.transform, "+10", new Vector2(-8, 0), new Vector2(60, 44), () => Allocate(key, 10), new Vector2(1, 1)));
         }
         _allocateAuto = Btn(allocate, "직업에 맞춰 남은 포인트 전부 배분", new Vector2(20, -306), new Vector2(440, 44), () => Confirm("남은 포인트를 현재 무기의 주 능력치에 전부 배분해. 되돌릴 수 없어.", () => Send(new InvReq { type = "allocate_auto" })), new Vector2(0, 1));
 
@@ -392,7 +396,8 @@ public class GameUI : MonoBehaviour {
         _allocationValues["dex"].text = (st?.dex ?? 0).ToString();
         _allocationValues["int"].text = (st?.intelligence ?? 0).ToString();
         _allocationValues["luk"].text = (st?.luk ?? 0).ToString();
-        foreach (var button in _allocationButtons) button.interactable = online && (st?.statPoints ?? 0) > 0;
+        for (int i = 0; i < _allocationButtons.Count; i++) _allocationButtons[i].interactable = online && (st?.statPoints ?? 0) >= (i % 2 == 0 ? 1 : 10);
+        _growthDot.gameObject.SetActive((st?.statPoints ?? 0) > 0);
         _allocateAuto.interactable = online && (st?.statPoints ?? 0) > 0;
         RedrawSkills();
         _bEnh.interactable = s != null;
@@ -479,7 +484,7 @@ public class GameUI : MonoBehaviour {
         }
         UpdateHud();
         _skillHudTick -= dt;
-        if (_skillHudTick <= 0) { RedrawSkills(); _skillHudTick = 0.2f; }
+        if (_skillHudTick <= 0) { RedrawSkills(); UpdateSkillHud(); _skillHudTick = 0.2f; }
         if (_toastT > 0 && (_toastT -= dt) <= 0) _toast.text = "";
         if (_fxT >= 0 && _fxPlay == null) _fxT = -1;
         if (_fxT >= 0) {
@@ -493,6 +498,9 @@ public class GameUI : MonoBehaviour {
 
     // ── HUD(좌상단, B/C안 HUD 바: frame 120x14 border L8 R8, fill 2x8) ──
     void BuildHud() {
+        _skillHudRoot = new GameObject("SkillCooldownHud").AddComponent<RectTransform>();
+        _skillHudRoot.SetParent(_root, false); _skillHudRoot.anchorMin = Vector2.zero; _skillHudRoot.anchorMax = Vector2.one;
+        _skillHudRoot.offsetMin = _skillHudRoot.offsetMax = Vector2.zero;
         var root = new GameObject("Hud").AddComponent<RectTransform>(); root.SetParent(_root, false);
         root.anchorMin = root.anchorMax = root.pivot = new Vector2(0, 1); root.anchoredPosition = new Vector2(10, -10); root.sizeDelta = new Vector2(220, 80);
         var badge = Img(root, null, new Vector2(0, 0), new Vector2(40, 14)); badge.color = new Color32(0x7A, 0x4A, 0x1E, 255); // Lv 배지(make_c3d lvbadge 색)
@@ -504,6 +512,30 @@ public class GameUI : MonoBehaviour {
         _goldText = Label(root, "", new Vector2(18, -54), new Vector2(90, 14), TextAnchor.MiddleLeft, new Vector2(0, 1), true);
         Img(root, Resources.Load<Sprite>(KeyPotion), new Vector2(110, -48), Vector2.zero);
         _potText = Label(root, "", new Vector2(144, -54), new Vector2(60, 14), TextAnchor.MiddleLeft, new Vector2(0, 1), true);
+    }
+    void UpdateSkillHud() {
+        _skillHudRoot.gameObject.SetActive(!_panels.Values.Any(panel => panel.activeSelf));
+        var skills = GameData.Skills.Where(s => _pl.OwnsSkill(s.key) && s.weapon == _pl.WeaponKind).ToArray();
+        float width = Mathf.Min(100, (_cam.pixelWidth / GetComponent<CanvasScaler>().scaleFactor - 20) / Mathf.Max(1, skills.Length));
+        foreach (var entry in _cooldownHud) entry.Value.transform.parent.gameObject.SetActive(false);
+        for (int i = 0; i < skills.Length; i++) {
+            var skill = skills[i];
+            if (!_cooldownHud.TryGetValue(skill.key, out var text)) {
+                var card = Img(_skillHudRoot, _panel, Vector2.zero, new Vector2(width - 4, 54)); card.type = Image.Type.Sliced;
+                card.gameObject.name = "Cooldown_" + skill.key;
+                card.rectTransform.anchorMin = card.rectTransform.anchorMax = card.rectTransform.pivot = new Vector2(.5f, 0);
+                text = Label(card.transform, "", Vector2.zero, new Vector2(width - 8, 44), TextAnchor.MiddleCenter, new Vector2(.5f, .5f));
+                text.rectTransform.pivot = new Vector2(.5f, .5f); text.fontSize = 12;
+                _cooldownHud.Add(skill.key, text);
+            }
+            var rect = (RectTransform)text.transform.parent;
+            rect.gameObject.SetActive(true); rect.sizeDelta = new Vector2(width - 4, 54);
+            rect.anchoredPosition = new Vector2((i - (skills.Length - 1) * .5f) * width, 26);
+            text.rectTransform.sizeDelta = new Vector2(width - 8, 44); text.fontSize = 12;
+            float remaining = _pl.SkillCooldown(skill.key);
+            text.text = skill.name + "\n" + (!_pl.CanCast(skill) ? "조건 미충족" : remaining > 0 ? $"{remaining:0.0}초" : "준비");
+            text.color = remaining > 0 || !_pl.CanCast(skill) ? new Color(.45f, .35f, .22f) : new Color(.15f, .4f, .12f);
+        }
     }
     (Image, Text) Bar(RectTransform root, string fillKey, string icon, float y) {
         Img(root, Resources.Load<Sprite>(KeyIcon + icon), new Vector2(0, y), Vector2.zero);

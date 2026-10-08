@@ -52,6 +52,33 @@ public static class Stage3Capture {
         } finally { Object.DestroyImmediate(root); }
     }
 
+    public static void MonkGroundRegression() {
+        Begin(); Setup("monk_ground_B", Zone.B, "m", "sword", 60);
+        var monster = Mob(12, PX + 2, 99999);
+        var animator = monster.GetComponent<FrameAnimator>();
+        var visual = monster.GetComponent<ActorVisual>();
+        int checkedFrames = 0;
+        foreach (var clip in new[] { "walk", "attack", "hurt" }) {
+            for (int frame = 0; frame < animator.FrameCount(clip); frame++) {
+                animator.Still(clip, frame); visual.Refresh();
+                var sprite = visual.Body.sprite; var rect = sprite.textureRect; var pixels = sprite.texture.GetPixels32();
+                int bottom = int.MaxValue;
+                for (int y = (int)rect.yMin; y < (int)rect.yMax; y++)
+                    for (int x = (int)rect.xMin; x < (int)rect.xMax; x++)
+                        if (pixels[y * sprite.texture.width + x].a == 255) bottom = Mathf.Min(bottom, y);
+                float localFoot = (bottom - rect.yMin - sprite.pivot.y) / sprite.pixelsPerUnit;
+                float worldFoot = monster.transform.TransformPoint(new Vector3(0, localFoot, 0)).y;
+                if (Mathf.Abs(worldFoot - WorldConfig.GroundY) > 0.001f)
+                    throw new System.Exception($"t12 {clip}/{frame}: foot {worldFoot} ground {WorldConfig.GroundY}");
+                checkedFrames++;
+                if (frame == 0 || clip == "attack" && frame == 6)
+                    Shot($"team_v6/f_round/code/final/monk_ground_B_{clip}_{frame}");
+            }
+        }
+        Debug.Log($"PASS MonkGroundRegression: t12 {checkedFrames} walk/attack/hurt frames opaque feet = B GroundY {WorldConfig.GroundY}");
+        ZoneController.AnimTime = 0;
+    }
+
     public static void RenderingCapture() {
         Begin();
         foreach (var skill in GameData.Skills) {
