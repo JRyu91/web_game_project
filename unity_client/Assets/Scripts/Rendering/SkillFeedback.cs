@@ -61,7 +61,7 @@ public class SkillFeedback : MonoBehaviour {
         float x = _player.transform.position.x; int face = _player.Face;
         var center = new Vector3(x, WorldConfig.GroundY + 0.8f, 0);
         var targets = (_monsters?.Invoke() ?? Enumerable.Empty<MonsterController>()).Where(m => m != null && !m.IsDead)
-            .Where(m => skill.kind == "map" || skill.kind == "facing" && (m.transform.position.x - x) * face >= 0 || skill.kind == "area" && ActorVisual.Gap(m.transform, _player.transform) <= 3.2f || skill.kind == "line" && (m.transform.position.x - x) * face >= 0 && ActorVisual.Gap(m.transform, _player.transform) <= _player.Range * 3)
+            .Where(m => skill.kind == "map" || skill.kind == "facing" && (m.transform.position.x - x) * face >= 0 || skill.kind == "area" && ActorVisual.Gap(m.transform, _player.transform) <= 3.2f || skill.kind == "line" && (m.transform.position.x - x) * face >= 0 && ActorVisual.Gap(m.transform, _player.transform) <= _player.LineRange)
             .OrderBy(m => Mathf.Abs(m.transform.position.x - x)).Take(12).Select(m => new Vector3(m.transform.position.x, WorldConfig.GroundY + 0.6f, 0)).ToArray();
         var ahead = center + Vector3.right * face * 2;
         var cyan = new Color(0.45f, 0.9f, 1); var gold = new Color(1, 0.85f, 0.3f);

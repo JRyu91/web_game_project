@@ -9,6 +9,13 @@ assert.equal(I.view(s).expandCost,208);
 assert.equal(I.learn(s,'qi_sword').ok,true);assert.equal(I.learn(s,'qi_sword').code,'owned');
 assert.equal(I.learn(s,'fake').code,'bad_item');
 assert.equal(I.buy(s,'potion',0).code,'bad_qty');assert.equal(I.buy(s,'potion',NaN).code,'bad_qty');assert.equal(I.equip(s,'helmet',NaN).code,'bad_uid');
+{ // 능력치 초기화: 1,000G, 배분 0이면 거절, 골드 부족 거절, 포인트 전부 환급 / INT·STR 1점 +2%
+  const r = I.normalize({level:11,gold:1500}); assert.equal(I.resetStats(r).code,'no_stats');
+  assert.equal(I.allocateStat(r,'int',50).ok,true); assert.equal(I.statPoints(r),0);
+  assert.equal(I.resetStats(r).ok,true); assert.equal(r.gold,500); assert.equal(r.intelligence,0); assert.equal(I.statPoints(r),50);
+  I.allocateStat(r,'str',1); assert.equal(I.resetStats(r).code,'no_gold'); assert.equal(r.str,1);
+  assert.equal(I.COMBAT.statDamagePerPoint,0.02); assert.equal(I.COMBAT.staffRange,218.4);
+}
 const low = I.normalize({});assert.equal(I.learn(low,'qi_staff').code,'level');
 assert.equal(I.autoSell(s,true,20).ok,true);assert.equal(I.autoSell(s,true,20.5).code,'bad_filter');
 s.inv.push({uid:s.nextUid++,slot:'weapon',kind:'staff',tier:5,enh:0});
@@ -197,4 +204,72 @@ async function receipts() {
     console.log('PASS real issued receipt, tier/zone/age boundaries, replay protection, map invalidation and five owned encounters per real player, same-map 2x5 total, departure and real roster metadata');
   } finally { if(peer)peer.terminate();if(ws)ws.terminate();child.kill('SIGKILL');await new Promise(r=>child.once('exit',r)); }
 }
-receipts().catch(e=>{console.error(e);process.exitCode=1;});
+
+// 관리자 도구: 순수 규칙 + 실제 서버(ADMIN_PASSWORD 로컬 관리자). 일반 유저는 거부, 봇 증감 효과 확인.
+{
+ const a=I.normalize({});
+ assert.equal(I.admin(a,{type:'admin_gold',qty:1000}).ok,true);assert.equal(a.gold,1000+I.normalize({}).gold);
+ for(const qty of [0,-1,1.5,'5',NaN,2e9])assert.equal(I.admin(a,{type:'admin_gold',qty}).code,'bad_qty');
+ const r=I.admin(a,{type:'admin_exp',qty:100});assert.equal(r.drop.levelUp,1);assert.equal(a.level,2);
+ assert.equal(I.admin(a,{type:'admin_exp',qty:1001}).code,'bad_qty');
+ assert.equal(I.admin(a,{type:'admin_level',qty:500}).code,'bad_qty'); assert.equal(I.admin(a,{type:'admin_level',qty:99}).ok,true);assert.equal(a.level,100);assert.equal(I.admin(a,{type:'admin_exp',qty:10}).code,'max');
+ assert.equal(I.view(I.normalize(JSON.parse(JSON.stringify(a)))).level,100);
+ const st=a.stones;assert.equal(I.admin(a,{type:'admin_item',item:'stone',qty:100}).ok,true);assert.equal(a.stones,st+100);
+ assert.equal(I.admin(a,{type:'admin_item',item:'potion',qty:100000}).code,'bad_qty');assert.equal(I.admin(a,{type:'admin_item',item:'x',qty:1}).code,'bad_item');
+ assert.equal(I.admin(I.normalize({}),{type:'admin_spawn',tier:7}).code,'wrong_zone');assert.equal(I.admin(I.normalize({}),{type:'admin_spawn',tier:1}).ok,true);
+ console.log('PASS admin rules: caps, level-up reuse, max level, item caps, spawn zone check');
+}
+async function adminFlow() {
+ const {spawn}=require('child_process'),WebSocket=require('ws');
+ const base='127.0.0.1:18392',child=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:'18392',DATABASE_URL:'',REDIS_URL:'',ADMIN_PASSWORD:'adminpw1'},stdio:'ignore'});
+ const sockets=[];
+ try {
+  for(let n=0;n<100;n++){try{if((await fetch('http://'+base+'/healthz')).ok)break;}catch{}await new Promise(r=>setTimeout(r,30));}
+  const post=(path,body,cookie)=>fetch('http://'+base+path,{method:'POST',headers:{'content-type':'application/json',...(cookie?{Cookie:cookie}:{})},body:JSON.stringify(body)});
+  assert.equal((await post('/account/login',{id:'admin',pw:'wrong'})).status,400);
+  assert.equal((await post('/account/signup',{id:'plain',name:'Plain',pw:'plainpw1'})).status,200);
+  const login=async(id,pw)=>{const r=await post('/account/login',{id,pw});assert.equal(r.status,200);return r.headers.get('set-cookie').split(';')[0];};
+  const open=async cookie=>{
+   const ws=new WebSocket('ws://'+base,{headers:{Cookie:cookie}});sockets.push(ws);const c={ws,msgs:[],seq:0};
+   ws.on('message',raw=>c.msgs.push(JSON.parse(raw)));await new Promise((res,rej)=>{ws.once('open',res);ws.once('error',rej);});
+   c.wait=async pred=>{for(let n=0;n<150;n++){const i=c.msgs.findIndex(pred);if(i>=0)return c.msgs.splice(i,1)[0];await new Promise(r=>setTimeout(r,20));}throw new Error('wait timeout');};
+   c.req=async(type,body={})=>{const seq=++c.seq;ws.send(JSON.stringify({type,seq,...body}));return c.wait(m=>m.type==='inv'&&m.req===type&&m.seq===seq);};
+   ws.send(JSON.stringify({type:'join',name:'tester'}));assert.equal((await c.wait(m=>m.type==='inv'&&m.req==='join')).ok,true);return c;
+  };
+  const admin=await open(await login('admin','adminpw1')),user=await open(await login('plain','plainpw1'));
+  const g0=(await admin.req('inv')).state.gold;
+  const gold=await admin.req('admin_gold',{qty:100000});assert.equal(gold.ok,true);assert.equal(gold.state.gold,g0+100000);
+  assert.equal((await admin.req('admin_gold',{qty:-5})).code,'bad_qty');
+  const exp=await admin.req('admin_exp',{qty:100});assert.equal(exp.ok,true);assert.equal(exp.state.level,2);assert.equal(exp.drop.levelUp,1);
+  const lvl=await admin.req('admin_level',{qty:10});assert.equal(lvl.state.level,12);
+  assert.equal((await admin.req('admin_item',{item:'stone',qty:100})).state.stones,100);
+  assert.equal((await admin.req('admin_item',{item:'potion',qty:100})).state.potions,100+I.normalize({}).potions);
+  // 소환: 서버 검증 후 일반 spawn 경로로 영수증을 받아야 보상이 나간다.
+  assert.equal((await admin.req('admin_spawn',{tier:19})).code,'wrong_zone');
+  assert.equal((await admin.req('admin_spawn',{tier:3})).ok,true);
+  admin.ws.send(JSON.stringify({type:'spawn',monsterId:1,tier:3}));
+  const sp=await admin.wait(m=>m.type==='spawn'&&m.monsterId===1);assert.equal(sp.ok,true);await new Promise(r=>setTimeout(r,350));
+  assert.equal((await admin.req('kill',{tier:3,receipt:sp.receipt})).ok,true);
+  assert.equal((await admin.req('kill',{tier:3,receipt:sp.receipt})).code,'bad_receipt');
+  // 일반 유저는 전부 거부되고 상태가 안 바뀐다.
+  const before=(await user.req('inv')).state;
+  for(const [type,body] of [['admin_gold',{qty:1000}],['admin_exp',{qty:100}],['admin_level',{qty:10}],['admin_item',{item:'stone',qty:100}],['admin_spawn',{tier:1}]]){
+   const r=await user.req(type,body);assert.equal(r.ok,false,type);assert.equal(r.code,'forbidden',type);
+  }
+  const after=(await user.req('inv')).state;assert.equal(after.gold,before.gold);assert.equal(after.level,before.level);assert.equal(after.stones,before.stones);
+  // 봇 증감: 관리자만, 명부와 응답에 반영된다. 일반 유저는 무반응.
+  let roster=[];admin.ws.on('message',raw=>{const m=JSON.parse(raw);if(m.roster)roster=m.roster;});
+  user.ws.send(JSON.stringify({type:'bot',delta:1,level:5}));await user.req('inv');await new Promise(r=>setTimeout(r,50));
+  assert.equal(roster.filter(p=>p.bot).length,0,'user cannot add bot');
+  admin.ws.send(JSON.stringify({type:'bot',delta:1,level:5}));
+  const added=await admin.wait(m=>m.type==='inv'&&m.req==='bot');assert.equal(added.ok,true);assert.equal(added.bots,1);assert.equal(added.pop,3);
+  await new Promise(r=>setTimeout(r,50));assert.deepEqual(roster.filter(p=>p.bot).map(p=>p.level),[5]);
+  admin.ws.send(JSON.stringify({type:'bot',delta:-1}));
+  const removed=await admin.wait(m=>m.type==='inv'&&m.req==='bot');assert.equal(removed.ok,true);assert.equal(removed.bots,0);
+  admin.ws.send(JSON.stringify({type:'bot',delta:-1}));assert.equal((await admin.wait(m=>m.type==='inv'&&m.req==='bot')).code,'no_bot');
+  for(let n=0;n<8;n++){admin.ws.send(JSON.stringify({type:'bot',delta:1,level:1}));await admin.wait(m=>m.type==='inv'&&m.req==='bot');}
+  admin.ws.send(JSON.stringify({type:'bot',delta:1,level:1}));assert.equal((await admin.wait(m=>m.type==='inv'&&m.req==='bot')).code,'full');
+  console.log('PASS admin gold/exp/level/items/spawn(receipt kill) succeed for admin, forbidden for normal user, bot add/remove/full/empty with roster effect');
+ } finally { for(const ws of sockets)ws.terminate();child.kill('SIGKILL');await new Promise(r=>child.once('exit',r)); }
+}
+receipts().then(adminFlow).catch(e=>{console.error(e);process.exitCode=1;});

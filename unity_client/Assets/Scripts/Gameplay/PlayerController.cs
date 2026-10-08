@@ -94,6 +94,8 @@ public class PlayerController : MonoBehaviour {
         + (Inv?.dex ?? 0) * Combat.dexDefensePerPoint;
     public float Range => (WeaponKind == "sword" ? (WeaponTierIdx <= 1 ? Combat.swordShortRange : Combat.swordRange) : Combat.staffRange) * PX_TO_UNIT;
     public float SkillBaseCooldown(SkillDef skill) => Combat.skillCooldowns[Mathf.Clamp(skill.lv / 20 - 1, 0, Combat.skillCooldowns.Length - 1)];
+    // 직선 스킬 사거리. 지팡이는 기본 사거리가 ×3(218.4px) 돼서 그대로 씀(×3 이면 화면 밖까지 맞음). SkillFeedback 도 이걸 쓴다
+    public float LineRange => WeaponKind == "staff" ? Range : Range * 3f;
     int GrowthDamage(int damage) => CombatMath.ApplyGrowthDamage(damage, AttackMultiplier, CriticalChance, CriticalDamageMultiplier, _rng);
     public bool Penetrating => WeaponKind == "staff";
 
@@ -271,7 +273,7 @@ public class PlayerController : MonoBehaviour {
             if (m == null || m.IsDead) continue;
             float dist = ActorVisual.Gap(m.transform, transform);
             bool hit = s.kind switch {
-                "line" => AheadOf(m) && dist <= Range * 3f,
+                "line" => AheadOf(m) && dist <= LineRange,
                 "area" => dist <= 3.2f,
                 "facing" => AheadOf(m),
                 "map" => true,

@@ -15,9 +15,10 @@ const monExp = t => t <= 18 ? Math.max(1, Math.round(MONS[t - 1][3] * 0.69 / 0.7
 const ENH_SUCC = [100,100,95,90,85,80,80,79,79,78,78,77,77,77,77,77,66,66,66,66,66,49,49,49,49,49]; //인덱스 = 목표 단계(+1~+25)
 const ENH_MAX = 25;
 const DESTROY_FROM = 15, DESTROY_P = 0.3; //현재 +15 이상(= +16 도전부터) 실패 시 30% 파괴
-const GEAR_DROP = { basic: 0.10, rare: 0.30, unique: 0.90 };          //sim DROP × drop_mult 2
-const STONE_DROP = { basic: 0.0195, rare: 0.0389, unique: 0.0623 };   //개수 = ceil(드랍레벨/5+1)
+const GEAR_DROP = { basic: 0.12, rare: 0.36, unique: 1.00 };          //sim DROP × drop_mult 2, 261008 형 결정 ×1.2(상한 1)
+const STONE_DROP = { basic: 0.039, rare: 0.0778, unique: 0.1246 };   //개수 = ceil(드랍레벨/5+1), 261008 형 결정 ×2
 const BOSS_GEAR = { 19: [85, 90], 20: [90, 95, 100], 21: [100] };
+const GOLD_MULT = 2; // 261008 형 결정: 골드 드랍 ×2(보스 포함)
 const INV_CAP = 60, INV_MAX = 200;
 const SKILLS = ['qi', 'rain', 'volc', 'king', 'end'].flatMap((prefix, n) => ['sword', 'staff'].map(weapon => ({ key: prefix + '_' + weapon, weapon, level: (n + 1) * 20, name: [['참격파','마력탄'],['반월참','화염구'],['대지가르기','연쇄낙뢰'],['검왕강림','블리자드'],['천지개벽','메테오']][n][weapon === 'staff' ? 1 : 0] })));
 //각 습득 레벨의 사냥터에서 r5 30분 사냥한 총 골드(무기별 시뮬 결과).
@@ -27,7 +28,7 @@ const expandCost = s => Math.round(200 * 1.04 ** s.bagExpansions);
 const disassembleYield = it => Math.ceil((itemLevel(it) / 5 + 1) * 0.8);
 const LEVEL_MAX = 100;
 const MAP_LEVELS = {A:1,B:35,C:70};
-const COMBAT = Object.freeze({weaponDamageMultiplier:1, statDamagePerPoint:0.005, dexDefensePerPoint:1, luckCritPerPoint:0.001, critCap:0.3, critDamage:1.5, swordShortRange:26, swordRange:44, staffRange:72.8, skillCooldowns:[10,20,30,60,120], naturalStoneChances:[STONE_DROP.basic,STONE_DROP.rare,STONE_DROP.unique]});
+const COMBAT = Object.freeze({weaponDamageMultiplier:1, statDamagePerPoint:0.02, dexDefensePerPoint:1, luckCritPerPoint:0.001, critCap:0.3, critDamage:1.5, swordShortRange:26, swordRange:44, staffRange:218.4, skillCooldowns:[10,20,30,60,120], naturalStoneChances:[STONE_DROP.basic,STONE_DROP.rare,STONE_DROP.unique]});
 const STAT_KEYS = ['str','dex','intelligence','luk'];
 const statPoints = s => 5 * (s.level - 1) - STAT_KEYS.reduce((sum,k)=>sum+s[k],0);
 function normalizeStats(s) {
@@ -168,21 +169,28 @@ function spawnAllowed(s, tier) {
   return {ok:true};
 }
 
+//경험치를 더하고 레벨업 규칙(xpToLevel, 만렙 100)을 적용한다. 올린 레벨 수를 돌려준다.
+function addExp(s, n) {
+  let up = 0; s.exp += n;
+  while (s.level < LEVEL_MAX && s.exp >= xpToLevel(s.level)) { s.exp -= xpToLevel(s.level); s.level++; up++; }
+  if (s.level >= LEVEL_MAX) s.exp = 0;
+  return up;
+}
+
 //처치 보상. 몬스터 판정은 클라가 하고 서버는 "그 처치가 말이 되는지"만 거른다(server.js 의 속도 제한 + 여기 레벨 제한).
 function kill(s, tier, rng = Math.random) {
   if (s.pendingDrop) return fail('bag_full');
   const allowed = spawnAllowed(s, tier);
   if (!allowed.ok) return allowed;
   tier = Number(tier);
-  const [, rank, minLv, , g] = MONS[tier - 1];
+  const [, rank, minLv, , baseGold] = MONS[tier - 1];
+  const g = baseGold * GOLD_MULT;
   const boss = tier >= 19;
   const drop = { tier, gold: boss ? g : Math.floor(Math.round(g * 0.8) + rng() * (Math.round(g * 1.4) - Math.round(g * 0.8) + 1)), exp: monExp(tier), stones: 0, item: null, sold: 0, disassembled: 0, levelUp: 0 };
   s.gold += drop.gold;
   if (tier >= 7 && tier <= 18) s.killCountT19 = (s.killCountT19 || 0) + 1; //B+C 일반 처치(spec_boss_spawn 소환 버튼)
   if (tier >= 13 && tier <= 18) s.killCountT20 = (s.killCountT20 || 0) + 1; //C 만
-  s.exp += drop.exp;
-  while (s.level < LEVEL_MAX && s.exp >= xpToLevel(s.level)) { s.exp -= xpToLevel(s.level); s.level++; drop.levelUp++; }
-  if (s.level >= LEVEL_MAX) s.exp = 0;
+  drop.levelUp = addExp(s, drop.exp);
   const dropLv = Math.floor(minLv / 5) * 5;
   if (!boss && rng() < STONE_DROP[rank]) { drop.stones = Math.ceil(dropLv / 5 + 1); s.stones += drop.stones; }
   if (boss || rng() < GEAR_DROP[rank]) {
@@ -342,6 +350,13 @@ function allocateStat(s, key, qty) {
   s[k] += qty;
   return {ok:true};
 }
+const STAT_RESET_COST = 1000;
+function resetStats(s) {
+  if (STAT_KEYS.every(k => s[k] === 0)) return fail('no_stats');
+  if (s.gold < STAT_RESET_COST) return fail('no_gold');
+  s.gold -= STAT_RESET_COST; for (const k of STAT_KEYS) s[k] = 0;
+  return {ok:true};
+}
 function allocateAuto(s) {
   return allocateStat(s, gearClass(s) === 'mage' ? 'int' : 'str', statPoints(s));
 }
@@ -426,8 +441,35 @@ function usePotion(s) {
   return { ok: true };
 }
 
+//관리자 도구. 호출 전에 server.js 가 관리자 세션을 확인한다. 모든 수량은 정수·상한 검사. 소환(admin_spawn)은 검증만 하고 실제 등록은 일반 spawn 경로(영수증)를 탄다.
+const ADMIN_GOLD_MAX = 1e12, ADMIN_ITEM_MAX = 99999;
+function admin(s, msg) {
+  const q = msg.qty;
+  switch (msg.type) {
+    case 'admin_gold':
+      if (!Number.isSafeInteger(q) || q < 1 || q > 1e9 || s.gold + q > ADMIN_GOLD_MAX) return fail('bad_qty');
+      s.gold += q; return { ok: true };
+    case 'admin_exp': //q = 현재 레벨 필요 경험치의 % (100 = 1레벨)
+      if (!Number.isSafeInteger(q) || q < 1 || q > 1000) return fail('bad_qty');
+      if (s.level >= LEVEL_MAX) return fail('max');
+      return { ok: true, drop: { levelUp: addExp(s, Math.ceil(xpToLevel(s.level) * q / 100)) } };
+    case 'admin_level': //q = 올릴 레벨 수(내리기는 능력치 배분이 깨져서 막음)
+      if (!Number.isSafeInteger(q) || q < 1 || q > LEVEL_MAX) return fail('bad_qty');
+      if (s.level >= LEVEL_MAX) return fail('max');
+      s.level = Math.min(LEVEL_MAX, s.level + q); s.exp = 0; return { ok: true };
+    case 'admin_item': {
+      const k = msg.item === 'stone' ? 'stones' : msg.item === 'potion' ? 'potions' : '';
+      if (!k) return fail('bad_item');
+      if (!Number.isSafeInteger(q) || q < 1 || s[k] + q > ADMIN_ITEM_MAX) return fail('bad_qty');
+      s[k] += q; return sync(s) && { ok: true };
+    }
+    case 'admin_spawn': return spawnAllowed(s, msg.tier);
+  }
+  return fail('bad_req');
+}
+
 //서버만 바꾸는 세이브 키. POST /save 로 클라가 보내도 이 값들은 서버 쪽 것으로 덮어쓴다.
 const OWNED = ['str', 'dex', 'intelligence', 'luk', 'statPoints', 'combat', 'zone', 'level', 'exp', 'gold', 'stones', 'potions', 'inv', 'nextUid', 'equip', 'skills', 'bagExpansions', 'autoSell', 'autoSellLevel', 'autoDisassemble', 'autoDisassembleLevel', 'pendingDrop', 'pendingSummon', 'summonSerial',
   'weaponKind', 'weaponTier', 'weaponEnh', 'helmetTier', 'helmetEnh', 'armorTier', 'armorEnh', 'gearClass', 'potionCount', 'killCountT19', 'killCountT20'];
 
-module.exports = { allocateStat, allocateAuto, statPoints, COMBAT, spawnAllowed, transport, map, summonAck, learn, expand, autoSell, autoDisassemble, disassemble, disassembleYield, normalize, view, kill, equip, enhance, buy, sell, usePotion, summon, OWNED, ENH_SUCC, DESTROY_FROM, DESTROY_P, enhCost, potionPrice, sellPrice, xpToLevel, monExp };
+module.exports = { admin, addExp, allocateStat, allocateAuto, resetStats, STAT_RESET_COST, statPoints, COMBAT, spawnAllowed, transport, map, summonAck, learn, expand, autoSell, autoDisassemble, disassemble, disassembleYield, normalize, view, kill, equip, enhance, buy, sell, usePotion, summon, OWNED, ENH_SUCC, DESTROY_FROM, DESTROY_P, enhCost, potionPrice, sellPrice, xpToLevel, monExp };

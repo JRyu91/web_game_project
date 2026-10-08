@@ -5,9 +5,9 @@ using UnityEngine;
 using Game.Rendering;
 
 namespace Game.Gameplay {
-// 정본 staff_bolt_tier: Lv50부터 fire, 지팡이 끝에서 73px / 400px/s.
+// 정본 staff_bolt_tier: Lv50부터 fire, 지팡이 끝에서 219px / 400px/s (261008 사거리 ×3).
 public sealed class StaffProjectile : IDisposable {
-    public const float Range = 73f / 40f, Speed = 400f / 40f;
+    public const float Range = 219f / 40f, Speed = 400f / 40f;
     public readonly GameObject Visual;
     public readonly string Effect;
     readonly HashSet<MonsterController> _hit = new HashSet<MonsterController>();

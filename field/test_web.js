@@ -12,7 +12,7 @@ const checkChat=process.argv.includes('--chat'),chats=[];
 assert(!checkSystems || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'systems fixture is local-only');
 assert(!checkPeer || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'peer fixture is local-only');
 const stage=new URL(base).host.replace(/[^a-zA-Z0-9_-]/g,'_');
-const captureName=`web-${stage}-${mobile?'mobile':'desktop'}`;
+const captureName=`web-${stage}-${mobile?(process.argv.includes('--short')?'mobile-short':'mobile'):'desktop'}`;
 const out = path.resolve(__dirname, '../unity_client/Logs');
 const account = 'webqa_' + crypto.randomBytes(6).toString('hex');
 const password = crypto.randomBytes(16).toString('hex');
@@ -53,14 +53,17 @@ async function evaluate(expression) {
   await new Promise(resolve=>ws.once('open',resolve));
   await call('Runtime.enable');await call('Network.enable');await call('Page.enable');
   if(process.argv.includes('--stats')&&!mobile) await call('Emulation.setDeviceMetricsOverride',{width:1280,height:1304,deviceScaleFactor:1,mobile:false});
-  if(mobile){await call('Emulation.setDeviceMetricsOverride',{width:393,height:852,deviceScaleFactor:1,mobile:true});await call('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});}
+  const short=process.argv.includes('--short'); // 짧은 가로 모바일
+  if(mobile){await call('Emulation.setDeviceMetricsOverride',{width:short?852:393,height:short?393:852,deviceScaleFactor:1,mobile:true});await call('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});}
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.7');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.8');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
-  await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);
+  const adminPw=process.argv.includes('--admin')&&process.env.ADMIN_PASSWORD; // 로컬 관리자(메모리 서버 시드)
+  if(adminPw) await evaluate(`const f=document.getElementById('auth');f.elements.id.value='admin';f.elements.pw.value=${JSON.stringify(adminPw)};f.requestSubmit();`);
+  else await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);
   await until(()=>evaluate("!document.getElementById('ready').hidden"),'signup and login');
   assert.equal(await evaluate("document.cookie.includes('game_session')"),false,'session must be HttpOnly');
   await evaluate("document.getElementById('play').click()");
@@ -69,6 +72,17 @@ async function evaluate(expression) {
   await until(()=>kills>=2,'automatic combat rewards',90000);
   assert(latest.gold>0&&latest.exp>=0&&latest.inv.length>=1);
   await rewardCapture;
+  if(adminPw) {
+    for(const id of ['admin','allocate']){await evaluate(`gameInstance.SendMessage('GameUI','Show','${id}')`);await pause(800);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-${id}.png`),Buffer.from(r.data,'base64'));}
+    await evaluate("gameInstance.SendMessage('GameUI','Show','')");
+  }
+  if(process.argv.includes('--shots')) {
+    // 시각 검토용: 전투 중 스킬/피해/드롭 피드백 연속 캡처 + 가방 열린 화면
+    for(let n=0;n<8;n++){await pause(700);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-fx${n}.png`),Buffer.from(r.data,'base64'));}
+    await evaluate("gameInstance.SendMessage('GameUI','Show','inv')");await pause(800);
+    const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-bag.png'),Buffer.from(r.data,'base64'));
+    await evaluate("gameInstance.SendMessage('GameUI','Show','')");await pause(300);
+  }
   if(checkChat) {
     // HTML 채팅 독: Unity 패널을 열어도 유지, 실제 IME 조합(ㅎ→하→한, 글) + 백스페이스 + 조합 중 Enter 무시 + Enter 전송 → 서버 왕복 → 독에 표시
     const visible="(()=>{const c=document.getElementById('chat');return !c.hidden&&c.getBoundingClientRect().height>0;})()";
@@ -171,7 +185,7 @@ async function evaluate(expression) {
     await pause(300); // Allow Unity's render surface to settle after viewport resize.
     const bounds=await evaluate("(()=>{const c=document.getElementById('unity-canvas'),r=c.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,renderWidth:c.width,renderHeight:c.height};})()");
     assert(Math.abs(bounds.renderWidth/bounds.renderHeight-bounds.width/bounds.height)<0.03,'Unity render aspect must track display aspect');
-    assert(bounds.width>=300&&bounds.height>300,'usable mobile render surface');
+    assert(bounds.width>=300&&bounds.height>(short?200:300),'usable mobile render surface');
     const point=(x,y)=>({x:bounds.x+x*bounds.width/bounds.renderWidth,y:bounds.y+y*bounds.height/bounds.renderHeight});
     const columns=Math.max(1,Math.min(7,Math.floor((bounds.renderWidth-20)/120)));
     const touch=point(10+(bounds.renderWidth-20)/columns/2,116);

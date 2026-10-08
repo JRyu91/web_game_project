@@ -233,7 +233,7 @@ public static class InputRegression {
                 if (!hud.ContainsKey(skillKey) || !hud[skillKey].text.Contains("준비")) throw new Exception("Skill cooldown HUD missing ready state");
                 var timers = (System.Collections.Generic.Dictionary<string, float>)typeof(PlayerController).GetField("_skillCd", flags).GetValue(pl);
                 timers[skillKey] = 7.5f; ui.Tick(.3f);
-                if (!hud[skillKey].text.Contains("7.5초")) throw new Exception("Skill HUD does not reflect actual cooldown");
+                if (!hud[skillKey].text.Contains("8초")) throw new Exception("Skill HUD does not reflect actual cooldown");
                 Canvas.ForceUpdateCanvases();
                 var hudCorners = new Vector3[4]; ((RectTransform)hud[skillKey].transform.parent).GetWorldCorners(hudCorners);
                 foreach (var corner in hudCorners) {

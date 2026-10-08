@@ -5,6 +5,8 @@ public class ActorNameplate : MonoBehaviour {
     TextMesh _label;
     TextMesh[] _outline;
     SpriteRenderer _body;
+    MeshRenderer _mesh;
+    static readonly System.Collections.Generic.List<ActorNameplate> All = new System.Collections.Generic.List<ActorNameplate>();
 
     public void Init(string text, Color color) {
         _body = GetComponent<SpriteRenderer>();
@@ -22,6 +24,7 @@ public class ActorNameplate : MonoBehaviour {
             o.color = Color.black; o.transform.localPosition = new Vector3(i < 2 ? (i == 0 ? -1 : 1) : 0, i < 2 ? 0 : (i == 2 ? -1 : 1), 0) * (1f / 40);
             o.GetComponent<MeshRenderer>().sortingOrder = 9; _outline[i] = o;
         }
+        _mesh = _label.GetComponent<MeshRenderer>(); All.Add(this);
         SetText(text); LateUpdate();
     }
 
@@ -30,6 +33,16 @@ public class ActorNameplate : MonoBehaviour {
         if (_label == null || _body == null || _body.sprite == null) return;
         var bounds = SpriteBBox.Get(_body.sprite);
         _label.transform.localPosition = new Vector3(_body.flipX ? -bounds.center.x : bounds.center.x, bounds.yMax + 0.2f, 0);
+        // 같은 자리에 선 캐릭터끼리 이름표가 겹치면 먼저 생긴 이름표 위로 한 줄씩 쌓는다(목록 순서 = 생성 순서)
+        for (int i = 0, guard = 0, idx = All.IndexOf(this); i < idx && guard < 8; i++) {
+            var other = All[i];
+            if (other == null || other._mesh == null || !other._mesh.enabled || !other.gameObject.activeInHierarchy) continue;
+            var a = _mesh.bounds; var b = other._mesh.bounds;
+            if (a.min.x < b.max.x && b.min.x < a.max.x && a.min.y < b.max.y && b.min.y < a.max.y) {
+                _label.transform.position += Vector3.up * (b.max.y - a.min.y + 1f / 40); i = -1; guard++;
+            }
+        }
     }
+    void OnDestroy() => All.Remove(this);
 }
 }

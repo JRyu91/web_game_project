@@ -57,7 +57,8 @@ public class GameUI : MonoBehaviour {
     readonly List<Button> _skillButtons = new List<Button>(), _mapButtons = new List<Button>();
     readonly Dictionary<string, Text> _statValues = new Dictionary<string, Text>();
     Text _allocationInfo, _growthDot;
-    Button _allocateAuto;
+    Button _allocateAuto, _resetStats;
+    const int StatResetCost = 1000; // field/items.js STAT_RESET_COST
     readonly Dictionary<string, Text> _allocationValues = new Dictionary<string, Text>();
     readonly List<Button> _allocationButtons = new List<Button>();
     readonly List<RectTransform> _statCards = new List<RectTransform>();
@@ -68,7 +69,7 @@ public class GameUI : MonoBehaviour {
     readonly Dictionary<RectTransform, (Transform parent, Vector2 min, Vector2 max, Vector2 pivot, Vector2 pos, Vector2 size)> _desktop = new Dictionary<RectTransform, (Transform, Vector2, Vector2, Vector2, Vector2, Vector2)>();
     readonly Dictionary<string, ScrollRect> _mobileScroll = new Dictionary<string, ScrollRect>();
     int _screenWidth, _screenHeight;
-    bool _mobile;
+    bool _mobile, _rowsChanged;
 
     public void Init(Camera cam, PlayerController pl, MonsterSpawner sp, NetworkClient net, Action savePreferences = null, bool isAdmin = false) {
         _cam = cam; _pl = pl; _sp = sp; _net = net; _savePreferences = savePreferences;
@@ -146,12 +147,24 @@ public class GameUI : MonoBehaviour {
         Label(inv, "자동 처리는 새 드롭·보류 장비만 적용 (판매 / 분해 중 하나)", new Vector2(20, -568), new Vector2(560, 24), TextAnchor.MiddleLeft, new Vector2(0, 1));
 
         if (isAdmin) {
-            var admin = Panel("admin", "관리 / 채널", new Vector2(420, 250));
+            var admin = Panel("admin", "관리 / 채널", new Vector2(420, 470));
             Label(admin, "봇은 부하 시험용이며 실제 플레이어가 아니야.", new Vector2(20, -50), new Vector2(380, 40), TextAnchor.MiddleLeft, new Vector2(0, 1));
             Btn(admin, "봇 +1", new Vector2(20, -100), new Vector2(180, 40), () => { if (Online) _net.SendBot(1); }, new Vector2(0, 1));
             Btn(admin, "봇 −1", new Vector2(220, -100), new Vector2(180, 40), () => { if (Online) _net.SendBot(-1); }, new Vector2(0, 1));
             Btn(admin, "홈 채널", new Vector2(20, -160), new Vector2(180, 40), () => { if (Online) _net.SwitchChannel(0); }, new Vector2(0, 1));
             Btn(admin, "채널 2", new Vector2(220, -160), new Vector2(180, 40), () => { if (Online) _net.SwitchChannel(1); }, new Vector2(0, 1));
+            // 관리자 도구(서버가 관리자 세션을 매번 확인). 결과는 inv 응답으로 와서 OnInv 가 그린다.
+            Btn(admin, "골드 +1,000", new Vector2(20, -210), new Vector2(180, 40), () => Send(new InvReq { type = "admin_gold", qty = 1000 }), new Vector2(0, 1));
+            Btn(admin, "골드 +100,000", new Vector2(220, -210), new Vector2(180, 40), () => Send(new InvReq { type = "admin_gold", qty = 100000 }), new Vector2(0, 1));
+            Btn(admin, "경험치 +10%", new Vector2(20, -260), new Vector2(180, 40), () => Send(new InvReq { type = "admin_exp", qty = 10 }), new Vector2(0, 1));
+            Btn(admin, "레벨 +1", new Vector2(220, -260), new Vector2(180, 40), () => Send(new InvReq { type = "admin_exp", qty = 100 }), new Vector2(0, 1));
+            Btn(admin, "레벨 +10", new Vector2(20, -310), new Vector2(180, 40), () => Send(new InvReq { type = "admin_level", qty = 10 }), new Vector2(0, 1));
+            Btn(admin, "강화석 +100", new Vector2(220, -310), new Vector2(180, 40), () => Send(new InvReq { type = "admin_item", item = "stone", qty = 100 }), new Vector2(0, 1));
+            Btn(admin, "포션 +100", new Vector2(20, -360), new Vector2(180, 40), () => Send(new InvReq { type = "admin_item", item = "potion", qty = 100 }), new Vector2(0, 1));
+            Btn(admin, "일반 몬스터", new Vector2(220, -360), new Vector2(180, 40), () => AdminSpawn(_pl.Inv?.zone == "C" ? 13 : _pl.Inv?.zone == "B" ? 7 : 1), new Vector2(0, 1));
+            Btn(admin, "드래곤", new Vector2(20, -410), new Vector2(120, 40), () => AdminSpawn(19), new Vector2(0, 1));
+            Btn(admin, "염제", new Vector2(150, -410), new Vector2(120, 40), () => AdminSpawn(20), new Vector2(0, 1));
+            Btn(admin, "히든", new Vector2(280, -410), new Vector2(120, 40), () => AdminSpawn(21), new Vector2(0, 1));
         }
 
         var confirm = Panel("confirm", "확인", new Vector2(440, 160));
@@ -197,7 +210,7 @@ public class GameUI : MonoBehaviour {
             GameData.Skills.Select(skill => "skill_" + skill.key + ":" + skill.name).ToArray());
 
         Btn(stats, "능력치 배분", new Vector2(-52, -12), new Vector2(128, BtnH), () => Show("allocate"), new Vector2(1, 1));
-        var allocate = Panel("allocate", "능력치 배분", new Vector2(480, 370));
+        var allocate = Panel("allocate", "능력치 배분", new Vector2(480, 420));
         _allocationInfo = Label(allocate, "", new Vector2(20, -50), new Vector2(440, 56), TextAnchor.UpperLeft, new Vector2(0, 1));
         string[] attributes = { "str:STR · 검 공격", "dex:DEX · 방어력", "int:INT · 지팡이 공격", "luk:LUK · 치명타" };
         for (int i = 0; i < attributes.Length; i++) {
@@ -209,7 +222,8 @@ public class GameUI : MonoBehaviour {
             _allocationButtons.Add(Btn(row.transform, "+1", new Vector2(-72, 0), new Vector2(60, 44), () => Allocate(key, 1), new Vector2(1, 1)));
             _allocationButtons.Add(Btn(row.transform, "+10", new Vector2(-8, 0), new Vector2(60, 44), () => Allocate(key, 10), new Vector2(1, 1)));
         }
-        _allocateAuto = Btn(allocate, "직업에 맞춰 남은 포인트 전부 배분", new Vector2(20, -306), new Vector2(440, 44), () => Confirm("남은 포인트를 현재 무기의 주 능력치에 전부 배분해. 되돌릴 수 없어.", () => Send(new InvReq { type = "allocate_auto" })), new Vector2(0, 1));
+        _allocateAuto = Btn(allocate, "직업에 맞춰 남은 포인트 전부 배분", new Vector2(20, -306), new Vector2(440, 44), () => Confirm("남은 포인트를 현재 무기의 주 능력치에 전부 배분해.", () => Send(new InvReq { type = "allocate_auto" })), new Vector2(0, 1));
+        _resetStats = Btn(allocate, $"능력치 초기화 ({StatResetCost:N0}G)", new Vector2(20, -356), new Vector2(440, 44), () => Confirm($"배분한 능력치를 전부 되돌려. {StatResetCost:N0}G가 들어.", () => Send(new InvReq { type = "reset_stats" })), new Vector2(0, 1));
 
         var chat = Panel("chat", HtmlChat ? "포션 설정" : "채팅 / 포션 설정", new Vector2(480, HtmlChat ? 120 : 390));
         if (!HtmlChat) {
@@ -268,6 +282,10 @@ public class GameUI : MonoBehaviour {
                 Toast(string.Join("  ", parts), Color.white);
                 break;
             case "potion": _pl.DrinkPotion(); break;
+            case "bot": Toast($"봇 {m.bots}마리 · 접속 {m.pop}/{m.cap}", Color.white); break;
+            case "admin_gold": case "admin_item": case "admin_level": Toast("관리자 지급 완료", Color.white); break;
+            case "admin_exp": Toast(m.drop != null && m.drop.levelUp > 0 ? $"레벨 업! Lv{m.state.level}" : "경험치 지급 완료", Color.white); break;
+            case "admin_spawn": Toast(_sp != null && _sp.SpawnTier(_adminTier, _pl.transform.position.x + 3f) ? "몬스터 소환 완료" : "지금은 소환할 수 없습니다", Color.white); break;
             case "enhance": ShowEnh(m.enh); break;
             case "learn": Toast("스킬 습득 완료", Color.white); break;
             case "disassemble": Toast($"{m.disassemble?.removed?.Length ?? 0}개 분해 · 강화석 +{m.disassemble?.stones ?? 0}" + ((m.disassemble?.skipped?.Length ?? 0) > 0 ? $" · 제외 {m.disassemble.skipped.Length}개" : ""), Color.white); _checked.Clear(); break;
@@ -276,6 +294,7 @@ public class GameUI : MonoBehaviour {
             case "auto_disassemble": Toast("자동 분해 설정 저장" + (m.drop?.disassembled > 0 ? $" · 보류 장비 분해 +{m.drop.disassembled}강화석" : ""), Color.white); break;
             case "map": Toast("맵 변경 완료", Color.white); Toggle("map"); break;
             case "allocate_stat": case "allocate_auto": Toast("능력치 배분 완료", Color.white); break;
+            case "reset_stats": Toast($"능력치 초기화 완료 · -{StatResetCost:N0}G", Color.white); break;
             case "buy": Toast("구매 완료", Color.white); break;
             case "sell":
                 int n = m.sell?.sold?.Length ?? 1; foreach (var u in m.sell?.sold ?? new int[0]) _checked.Remove(u);
@@ -312,8 +331,9 @@ public class GameUI : MonoBehaviour {
         "equipped" => "장착 중인 장비는 판매·분해할 수 없습니다", "class" => "현재 무기와 다른 직업의 방어구입니다", "owned" => "이미 습득한 스킬입니다", "unavailable" => "아직 구매할 수 없습니다", "no_potion" => "포션이 없습니다", "not_enough" => "처치 수가 부족합니다",
         "bag_full" => "가방을 정리하면 보관된 드롭을 회수합니다",
         "save_failed" => "저장에 실패해 요청을 취소했습니다",
-        "bad_stat" => "잘못된 능력치입니다", "no_points" => "배분할 포인트가 부족합니다", "bad_qty" => "잘못된 배분 수량입니다",
-        "bad_slot" => "무기는 해제할 수 없습니다", "none_sold" => "팔 수 있는 장비가 없습니다(장착 중 제외)", "empty" => "선택한 장비가 없습니다", "rate" => "처치 보고가 너무 빠름", _ => $"실패: {c}",
+        "bad_stat" => "잘못된 능력치입니다", "no_stats" => "초기화할 능력치가 없습니다", "no_points" => "배분할 포인트가 부족합니다", "bad_qty" => "잘못된 배분 수량입니다",
+        "bad_slot" => "무기는 해제할 수 없습니다", "none_sold" => "팔 수 있는 장비가 없습니다(장착 중 제외)", "empty" => "선택한 장비가 없습니다", "rate" => "처치 보고가 너무 빠름",
+        "forbidden" => "관리자만 쓸 수 있습니다", "full" => "채널이 가득 차서 봇을 못 늘립니다", "no_bot" => "지울 봇이 없습니다", "wrong_zone" => "이 존에서는 소환할 수 없습니다", "too_strong" => "레벨이 낮아 소환할 수 없습니다", _ => $"실패: {c}",
     };
 
     void ShowEnh(InvEnh e) {
@@ -360,6 +380,9 @@ public class GameUI : MonoBehaviour {
     }
     void Allocate(string key, int qty) => Send(new InvReq { type = "allocate_stat", item = key, qty = qty });
     void Buy(int n) => Send(new InvReq { type = "buy", item = "potion", qty = n });
+    int _adminTier;
+    void AdminSpawn(int tier) { _adminTier = tier; Send(new InvReq { type = "admin_spawn", tier = tier }); }
+
     void Summon(int tier) {
         if (_pendingSummon > 0) return;
         if (_sp != null && !_sp.CanSummon(tier)) { Toast("지금 이 존에서는 소환할 수 없습니다", new Color(1f, 0.5f, 0.4f)); return; }
@@ -382,6 +405,7 @@ public class GameUI : MonoBehaviour {
         int pages = Mathf.Max(1, (items.Length + PageSize - 1) / PageSize); _page = Mathf.Clamp(_page, 0, pages - 1);
         for (int r = 0; r < PageSize; r++) {
             int i = _page * PageSize + r; var b = _rows[r]; bool has = i < items.Length;
+            if (b.gameObject.activeSelf != has) _rowsChanged = true;
             b.gameObject.SetActive(has); _checks[r].gameObject.SetActive(has); if (!has) continue;
             var it = items[i];
             _checks[r].GetComponentInChildren<Text>(true).text = _checked.Contains(it.uid) ? "V" : "";
@@ -414,7 +438,7 @@ public class GameUI : MonoBehaviour {
             _mapButtons[i].GetComponentInChildren<Text>(true).text = $"맵 {zone}" + (st?.zone == zone ? " · 현재" : min < 0 ? " · 조건 확인 중" : $" · Lv{min}");
             _mapButtons[i].interactable = online && min >= 0 && _pl.Level >= min && st?.zone != zone;
         }
-        _allocationInfo.text = $"남은 포인트 {st?.statPoints ?? 0} · 레벨당 5포인트\nSTR/INT 공격 +0.5% · DEX 방어 +1 · LUK 치명타 +0.1%";
+        _allocationInfo.text = $"남은 포인트 {st?.statPoints ?? 0} · 레벨당 5포인트\nSTR/INT 공격 +2% · DEX 방어 +1 · LUK 치명타 +0.1%";
         _allocationValues["str"].text = (st?.str ?? 0).ToString();
         _allocationValues["dex"].text = (st?.dex ?? 0).ToString();
         _allocationValues["int"].text = (st?.intelligence ?? 0).ToString();
@@ -422,6 +446,7 @@ public class GameUI : MonoBehaviour {
         for (int i = 0; i < _allocationButtons.Count; i++) _allocationButtons[i].interactable = online && (st?.statPoints ?? 0) >= (i % 2 == 0 ? 1 : 10);
         _growthDot.gameObject.SetActive((st?.statPoints ?? 0) > 0);
         _allocateAuto.interactable = online && (st?.statPoints ?? 0) > 0;
+        _resetStats.interactable = online && st != null && st.str + st.dex + st.intelligence + st.luk > 0 && _pl.Gold >= StatResetCost;
         RedrawSkills();
         _bEnh.interactable = s != null;
         _bEnhTry.interactable = online && s != null && s.enh < GameData.ENH_MAX;
@@ -499,6 +524,7 @@ public class GameUI : MonoBehaviour {
     void Update() => Tick(Time.deltaTime);
     // 캡처 툴이 고정 dt 로 호출
     public void Tick(float dt) {
+        if (_rowsChanged) { _rowsChanged = false; if (_mobile) ResponsiveLayout(); } // 모바일 가방 줄 수 바뀌면 다시 쌓기
         if (_screenWidth != (_cam != null ? _cam.pixelWidth : Screen.width) || _screenHeight != (_cam != null ? _cam.pixelHeight : Screen.height)) ResponsiveLayout();
         if (_wasOnline != Online) { _wasOnline = Online; if (!Online) { _pendingSummon = 0; _summonMonsterId = 0; _summonAck = false; _summonRetry = 0; } Redraw(); }
         if (_summonAck && _summonRetry > 0 && (_summonRetry -= dt) <= 0) {
@@ -544,19 +570,19 @@ public class GameUI : MonoBehaviour {
         for (int i = 0; i < skills.Length; i++) {
             var skill = skills[i];
             if (!_cooldownHud.TryGetValue(skill.key, out var text)) {
-                var card = Img(_skillHudRoot, _panel, Vector2.zero, new Vector2(width - 4, 54)); card.type = Image.Type.Sliced;
+                var card = Img(_skillHudRoot, _panel, Vector2.zero, new Vector2(width - 4, 30)); card.type = Image.Type.Sliced;
                 card.gameObject.name = "Cooldown_" + skill.key;
                 card.rectTransform.anchorMin = card.rectTransform.anchorMax = card.rectTransform.pivot = new Vector2(.5f, 0);
-                text = Label(card.transform, "", Vector2.zero, new Vector2(width - 8, 44), TextAnchor.MiddleCenter, new Vector2(.5f, .5f));
+                text = Label(card.transform, "", Vector2.zero, new Vector2(width - 8, 26), TextAnchor.MiddleCenter, new Vector2(.5f, .5f));
                 text.rectTransform.pivot = new Vector2(.5f, .5f); text.fontSize = 12;
                 _cooldownHud.Add(skill.key, text);
             }
             var rect = (RectTransform)text.transform.parent;
-            rect.gameObject.SetActive(true); rect.sizeDelta = new Vector2(width - 4, 54);
-            rect.anchoredPosition = new Vector2((i - (skills.Length - 1) * .5f) * width, 26);
-            text.rectTransform.sizeDelta = new Vector2(width - 8, 44); text.fontSize = 12;
+            rect.gameObject.SetActive(true); rect.sizeDelta = new Vector2(width - 4, 30);
+            rect.anchoredPosition = new Vector2((i - (skills.Length - 1) * .5f) * width, 2); // 한 줄·바닥 흙 띠: 발밑 드롭/피격 가리지 않게
+            text.rectTransform.sizeDelta = new Vector2(width - 8, 26); text.fontSize = 12;
             float remaining = _pl.SkillCooldown(skill.key);
-            text.text = skill.name + "\n" + (!_pl.CanCast(skill) ? "조건 미충족" : remaining > 0 ? $"{remaining:0.0}초" : "준비");
+            text.text = skill.name + " " + (!_pl.CanCast(skill) ? "불가" : remaining > 0 ? $"{Mathf.CeilToInt(remaining)}초" : "준비");
             text.color = remaining > 0 || !_pl.CanCast(skill) ? new Color(.45f, .35f, .22f) : new Color(.15f, .4f, .12f);
         }
     }
@@ -650,9 +676,10 @@ public class GameUI : MonoBehaviour {
                 if (!_statCards.Contains(child) && child.GetComponent<Image>() != null && child.GetComponent<Button>() == null && child.GetComponent<InputField>() == null) continue;
                 child.SetParent(contentRect, false); child.anchorMin = child.anchorMax = child.pivot = new Vector2(0, 1);
                 var button = child.GetComponent<Button>();
-                float h = button != null ? 48 : child == _allocationInfo.rectTransform ? 80 : Mathf.Max(28, _desktop[child].size.y);
+                float h = button != null ? 48 : child == _allocationInfo.rectTransform ? 80 : child.GetComponent<Text>() != null ? Mathf.Clamp(_desktop[child].size.y, 28, 96) : Mathf.Max(28, _desktop[child].size.y); // 긴 설명칸 여백 컷
                 int checkIndex = button != null ? _checks.IndexOf(button) : -1;
                 bool itemRow = button != null && _rows.Contains(button);
+                if ((itemRow || checkIndex >= 0) && !child.gameObject.activeSelf) continue; // 빈 아이템 줄은 자리 차지 안 함(빈 가방 큰 여백)
                 float childWidth = checkIndex >= 0 ? 44 : itemRow ? contentWidth - 50 : contentWidth;
                 bool allocationInfo = child == _allocationInfo.rectTransform;
                 child.anchoredPosition = new Vector2(itemRow ? 50 : allocationInfo ? 6 : 0, -y); child.sizeDelta = new Vector2(allocationInfo ? childWidth - 12 : childWidth, h);

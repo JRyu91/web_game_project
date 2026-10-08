@@ -82,7 +82,7 @@ public static class ProjectileRegression {
             var spawner = root.AddComponent<MonsterSpawner>();
             CheckVisualAnchors(root);
             CheckVisualAim(spawner);
-            var first = Spawn(spawner, 1.2f); var last = Spawn(spawner, 2.7f); var behind = Spawn(spawner, -1f); var outside = Spawn(spawner, 4f);
+            var first = Spawn(spawner, 1.2f); var last = Spawn(spawner, 2.7f); var behind = Spawn(spawner, -1f); var outside = Spawn(spawner, 1 + StaffProjectile.Range + 1.5f); // 사거리 ×3(219px) 밖
             var pool = new[] { first, last, behind, outside };
             int hp = first.Hp, damage = 100;
             // 스킬의 피격 CD가 남아 있어도 독립 투사체의 명중은 사라지지 않는다.
@@ -92,7 +92,7 @@ public static class ProjectileRegression {
             Check(last.Hp == hp, "damage before flight");
             bolt.Step(0.01f, pool);
             Check(first.Hp == hp - 2 * damage && last.Hp == hp, "projectile hit lost to skill cooldown / distant instant damage");
-            bolt.Step(0.5f, pool);
+            bolt.Step(1f, pool);
             Check(bolt.Finished && Math.Abs(bolt.Visual.transform.position.x - (1 + StaffProjectile.Range)) < 0.0001f, "range clamp / final sweep wrong");
             Check(first.Hp == hp - 2 * damage && last.Hp == hp - damage && behind.Hp == hp && outside.Hp == hp, "piercing once / behind / range violation");
             bolt.Dispose();
@@ -102,7 +102,7 @@ public static class ProjectileRegression {
             bolt.Step(1f, new[] { left }); Check(left.Hp == hp - damage, "left swept hit failed"); bolt.Dispose();
             var moving = Spawn(spawner, 2.7f);
             bolt = new StaffProjectile(new Vector3(1, 0, 0), 0, 1, 0, damage, 0.08f);
-            moving.transform.position = new Vector3(5, 0, 0); bolt.Step(1f, new[] { moving });
+            moving.transform.position = new Vector3(1 + StaffProjectile.Range + 1.5f, 0, 0); bolt.Step(1f, new[] { moving });
             Check(moving.Hp == hp, "hit used launch-time target position"); bolt.Dispose(); bolt = null;
             foreach (int direction in new[] { 1, -1 }) {
                 var giant = Spawn(spawner, direction * 3.6f, 12);

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -39,6 +40,15 @@ public class MonsterSpawner : MonoBehaviour {
     public static int Need(int tier) => Bosses.First(b => b.tier == tier).need;
     static Zone CurZone => ZoneController.Current != null ? ZoneController.Current.Zone : Zone.A;
     public bool SpawnSummoned(int tier) { if (!CanSummon(tier)) return false; SpawnBoss(tier); return true; } // 서버 summon ok 후에만 호출
+
+    // 관리자 소환: 서버 admin_spawn ok 후에만 호출. 등록(영수증)은 OnMonsterSpawned → 일반 spawn 경로가 한다
+    public bool SpawnTier(int tier, float x) {
+        int idx = Array.FindIndex(GameData.Monsters, m => m.tier == tier); // MonsterDef 는 struct
+        if (idx < 0 || _alive.Count >= MaxAlive || (tier >= 19 && Boss != null)) return false;
+        var mc = Spawn(GameData.Monsters[idx], Mathf.Clamp(x, WorldMinX, WorldMaxX));
+        if (tier >= 19) { Boss = mc; _bossAge = 0; }
+        return true;
+    }
 
     // 매초 1회 굴림(dt 누적). 반환: 이번 틱에 스폰한 보스 tier(없으면 0) — 검증 로그용
     public int TickBoss(float dt) {

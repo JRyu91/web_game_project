@@ -235,6 +235,7 @@ async function ensureAdmin() {
 }
 
 const localAccounts = new Map();
+if (process.env.ADMIN_PASSWORD && !DATABASE_URL) localAccounts.set('admin', { id: 'admin', name: '관리자', gender: 'male', role: 'admin', pw_hash: hashPw(process.env.ADMIN_PASSWORD) }); //DB 없는 로컬/테스트에서도 관리자 로그인
 const sessions = new Map();
 const SESSION_SEC = 86400;
 const AUTH_REQUIRED = !!DATABASE_URL;
@@ -571,7 +572,7 @@ const server = http.createServer(async (req, res) => {
 // Server-issued per-connection receipts prevent duplicate, unknown and tier-swapped rewards.
 // ponytail: the client still simulates damage/spawns; fully authoritative combat is needed to stop plausible fabricated encounters.
 const KILL_BURST = 14, KILL_PER_SEC = 3, BOSS_GAP_MS = 60000;
-const ITEM_REQ = new Set(['inv', 'kill', 'equip', 'enhance', 'buy', 'sell', 'potion', 'summon', 'learn', 'disassemble', 'expand', 'auto_sell', 'auto_disassemble', 'allocate_stat', 'allocate_auto', 'summon_ack', 'map']);
+const ITEM_REQ = new Set(['inv', 'kill', 'equip', 'enhance', 'buy', 'sell', 'potion', 'summon', 'learn', 'disassemble', 'expand', 'auto_sell', 'auto_disassemble', 'allocate_stat', 'allocate_auto', 'reset_stats', 'summon_ack', 'map', 'admin_gold', 'admin_exp', 'admin_level', 'admin_item', 'admin_spawn']);
 
 function itemRequest(me, msg) {
   const s = me.save;
@@ -580,6 +581,7 @@ function itemRequest(me, msg) {
     case 'inv': return { ok: true };
     case 'allocate_stat': return I.allocateStat(s, msg.item, msg.qty);
     case 'allocate_auto': return I.allocateAuto(s);
+    case 'reset_stats': return I.resetStats(s);
     case 'learn': return I.learn(s, msg.item);
     case 'disassemble': return I.disassemble(s, msg.uid, msg.uids, msg.level);
     case 'expand': return I.expand(s);
@@ -605,6 +607,7 @@ function itemRequest(me, msg) {
     case 'potion': return I.usePotion(s);
     case 'summon': return I.summon(s, msg.tier);
     case 'summon_ack': return I.summonAck(s, msg.tier, msg.spawned, msg.token);
+    default: return I.admin(s, msg); //admin_* — 호출 전에 관리자 세션 확인
   }
 }
 
@@ -752,7 +755,7 @@ wss.on('connection', (ws, req) => {
       if (!me.save) { send(ws, { type: 'inv', req: msg.type, seq: msg.seq, ok: false, code: 'not_joined' }); return; }
       const before = me.save, rateBefore = {tokens:me.tokens, tokenAt:me.tokenAt, bossAt:me.bossAt};
       me.save = JSON.parse(JSON.stringify(before));
-      let r = itemRequest(me, msg);
+      let r = msg.type.startsWith('admin_') && (await sessionFor(req))?.role !== 'admin' ? { ok: false, code: 'forbidden' } : itemRequest(me, msg); //관리자 도구는 매 요청마다 세션 역할을 다시 본다
       // 저장에 실패한 변경은 성공으로 알리지 않고 이전 자원·장비로 되돌린다.
       if (r.ok && msg.type !== 'inv' && me.account && !(await putSave(me.id, me.save))) {
         me.save = before; Object.assign(me,rateBefore);
@@ -773,14 +776,14 @@ wss.on('connection', (ws, req) => {
       if ((await sessionFor(req))?.role !== 'admin') return;
       const delta = msg.delta;
       if (delta !== 1 && delta !== -1) return;
-      if (delta === 1 && (!Number.isInteger(msg.level) || msg.level < 1 || msg.level > 100)) return;
-      if (delta > 0 && everyone().length < C.CHANNEL_CAP) {
-        const id = C.newId('bot');
-        bots.set(id, { id, name: `봇${bots.size + 1}`, level: msg.level });
-      } else if (delta < 0) {
-        const k = [...bots.keys()].pop();
-        if (k) bots.delete(k);
-      }
+      //봇은 명부 인원수에만 잡히고 클라가 고스트로 안 그리며 system 메시지는 화면에 안 나온다. 그래서 눌러도 반응이 없어 보였다 → inv 응답으로 결과를 돌려준다.
+      const lvl = Number.isInteger(msg.level) && msg.level >= 1 && msg.level <= 100 ? msg.level : 1;
+      let code = '';
+      if (delta > 0 && everyone().length >= C.CHANNEL_CAP) code = 'full';
+      else if (delta > 0) { const id = C.newId('bot'); bots.set(id, { id, name: `봇${bots.size + 1}`, level: lvl }); }
+      else if (bots.size) bots.delete([...bots.keys()].pop());
+      else code = 'no_bot';
+      send(ws, { type: 'inv', req: 'bot', ok: !code, code, bots: bots.size, pop: everyone().length, cap: C.CHANNEL_CAP, state: me.save ? I.view(me.save) : null }); // 입장 전 bot 요청이면 save 없음
       broadcast({ type: 'roster', roster: roster() });
       heartbeat(); //명부 인원수도 바로 갱신해야 KEDA 가 빨리 반응한다
       return;
