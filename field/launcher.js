@@ -68,9 +68,42 @@ $('play').onclick = async () => {
     const build = await api('/web/build.json');
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
-    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.6',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
+    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.7',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
     window.gameInstance = instance;
+    try { $('chat').hidden = localStorage.chatHidden === '1'; } catch { $('chat').hidden = false; }
     $('loading').textContent = ''; $('unity-canvas').focus();
   } catch (e) { document.body.classList.remove('playing');$('entry').hidden=false;$('game').hidden=true;$('status').textContent=e.message;$('play').disabled=false; }
 };
+// HTML 채팅 독(GameUI.cs HtmlChat). 키는 여기서 끊어 Unity 로 안 넘긴다
+window.gameChat = {
+  toggle() { $('chat').hidden = !$('chat').hidden; try { localStorage.chatHidden = $('chat').hidden ? '1' : ''; } catch {} },
+  line(text) {
+    const log = $('chat-log'), row = document.createElement('div'); row.textContent = text; log.append(row);
+    while (log.childElementCount > 30) log.firstChild.remove();
+    log.scrollTop = log.scrollHeight; showLog();
+  },
+};
+// 로그는 새 줄·입력 중에만 보이고 8초 뒤 흐려짐 → 스킬 HUD·전장 가림 최소화
+let logTimer;
+function showLog() {
+  $('chat-log').classList.remove('idle'); clearTimeout(logTimer);
+  logTimer = setTimeout(() => { if (document.activeElement !== $('chat-input')) $('chat-log').classList.add('idle'); }, 8000);
+}
+$('chat-input').addEventListener('focus', showLog);
+$('chat-input').addEventListener('blur', showLog);
+function sendChat() {
+  const text = $('chat-input').value.trim();
+  if (!text || !instance) return;
+  instance.SendMessage('GameUI', 'OnHtmlChat', text); $('chat-input').value = '';
+}
+for (const type of ['keydown', 'keyup', 'keypress']) $('chat-input').addEventListener(type, e => e.stopPropagation());
+let compositionEnd = -1e9;
+$('chat-input').addEventListener('compositionend', () => { compositionEnd = performance.now(); });
+$('chat-input').addEventListener('keydown', e => {
+  if (e.isComposing || e.keyCode === 229 || performance.now() - compositionEnd < 50) return; // 한글 조합 확정용 Enter(Safari 는 compositionend 직후에 옴)
+  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  else if (e.key === 'Escape') $('chat-input').blur();
+});
+$('chat-send').onclick = () => { sendChat(); $('chat-input').focus(); };
+$('chat-potion').onclick = () => instance?.SendMessage('GameUI', 'Toggle', 'chat');
 api('/account/me').then(data => showAccount(data.ok)).catch(() => {});

@@ -3,6 +3,7 @@ using UnityEngine;
 namespace Game.Rendering {
 public class ActorNameplate : MonoBehaviour {
     TextMesh _label;
+    TextMesh[] _outline;
     SpriteRenderer _body;
 
     public void Init(string text, Color color) {
@@ -14,10 +15,17 @@ public class ActorNameplate : MonoBehaviour {
         var font = Resources.Load<Font>("Fonts/Galmuri11");
         if (font != null) { _label.font = font; _label.GetComponent<MeshRenderer>().sharedMaterial = font.material; }
         _label.GetComponent<MeshRenderer>().sortingOrder = 10;
+        // 밝은 하늘 배경 대비: 1px(1/40u) 검은 외곽선 = 같은 글자 4장을 뒤에 깐다
+        _outline = new TextMesh[4];
+        for (int i = 0; i < 4; i++) {
+            var o = Instantiate(_label); o.transform.SetParent(_label.transform, false); o.name = "Outline"; // 부모 지정 복제는 앞 외곽선까지 같이 복제됨
+            o.color = Color.black; o.transform.localPosition = new Vector3(i < 2 ? (i == 0 ? -1 : 1) : 0, i < 2 ? 0 : (i == 2 ? -1 : 1), 0) * (1f / 40);
+            o.GetComponent<MeshRenderer>().sortingOrder = 9; _outline[i] = o;
+        }
         SetText(text); LateUpdate();
     }
 
-    public void SetText(string text) { if (_label != null) _label.text = text; }
+    public void SetText(string text) { if (_label == null) return; _label.text = text; foreach (var o in _outline) o.text = text; }
     void LateUpdate() {
         if (_label == null || _body == null || _body.sprite == null) return;
         var bounds = SpriteBBox.Get(_body.sprite);

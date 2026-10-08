@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -39,6 +40,16 @@ public class GameUI : MonoBehaviour {
     Button _bBreak, _bBreakMany, _bExpand, _bAuto, _bAutoBreak, _bBreakLevel;
     Action _savePreferences;
     InputField _chatInput;
+    // WebGL: uGUI InputField 는 브라우저 IME(한글 조합)를 못 받고, 모달 패널이라 다른 메뉴를 열면 닫힘 → 채팅은 HTML 독(field/launcher.js gameChat)이 맡는다
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")] static extern void WebChatToggle();
+    [DllImport("__Internal")] static extern void WebChatLine(string line);
+    const bool HtmlChat = true;
+#else
+    static void WebChatToggle() { }
+    static void WebChatLine(string line) { }
+    const bool HtmlChat = false;
+#endif
     Text _chatHistory;
     Button _bPotionThreshold;
     readonly List<string> _chatLines = new List<string>();
@@ -61,6 +72,9 @@ public class GameUI : MonoBehaviour {
 
     public void Init(Camera cam, PlayerController pl, MonsterSpawner sp, NetworkClient net, Action savePreferences = null, bool isAdmin = false) {
         _cam = cam; _pl = pl; _sp = sp; _net = net; _savePreferences = savePreferences;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        WebGLInput.captureAllKeyboardInput = false; // 게임은 키보드를 안 씀. 켜 두면 HTML 채팅 입력의 키를 Unity가 가로챔
+#endif
         if (net != null) { net.OnInv += OnInv; net.OnChat += AddChat; net.OnSpawn += OnSummonSpawn; }
         // 한글 픽셀 폰트 Galmuri11(OFL, Resources/Fonts/OFL.txt). 없으면 OS 폰트
         _font = Resources.Load<Font>(KeyFont) ?? Font.CreateDynamicFontFromOSFont(new[] { "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Arial" }, FontSize);
@@ -83,7 +97,7 @@ public class GameUI : MonoBehaviour {
         if (isAdmin) menu = menu.Concat(new[] { "admin:관리" }).ToArray();
         for (int i = 0; i < menu.Length; i++) {
             var kv = menu[i].Split(':'); string id = kv[0];
-            _menus.Add(Btn(_root, kv[1], new Vector2(-10 - (menu.Length - 1 - i) * 78, -10), new Vector2(74, BtnH), () => Toggle(id), new Vector2(1, 1)));
+            _menus.Add(Btn(_root, kv[1], new Vector2(-10 - (menu.Length - 1 - i) * 78, -10), new Vector2(74, BtnH), () => { if (id == "chat" && HtmlChat) WebChatToggle(); else Toggle(id); }, new Vector2(1, 1)));
         }
         _growthDot = Label(_menus[4].transform, "●", new Vector2(-6, -2), new Vector2(12, 16), TextAnchor.MiddleCenter, new Vector2(1, 1));
         _growthDot.color = Color.red; _growthDot.gameObject.SetActive(false);
@@ -197,19 +211,22 @@ public class GameUI : MonoBehaviour {
         }
         _allocateAuto = Btn(allocate, "직업에 맞춰 남은 포인트 전부 배분", new Vector2(20, -306), new Vector2(440, 44), () => Confirm("남은 포인트를 현재 무기의 주 능력치에 전부 배분해. 되돌릴 수 없어.", () => Send(new InvReq { type = "allocate_auto" })), new Vector2(0, 1));
 
-        var chat = Panel("chat", "채팅 / 포션 설정", new Vector2(480, 390));
-        _chatHistory = Label(chat, "", new Vector2(20, -50), new Vector2(440, 180), TextAnchor.UpperLeft, new Vector2(0, 1));
-        var input = new GameObject("ChatInput", typeof(RectTransform), typeof(Image), typeof(InputField));
-        input.transform.SetParent(chat, false);
-        var inputRect = (RectTransform)input.transform;
-        inputRect.anchorMin = inputRect.anchorMax = inputRect.pivot = new Vector2(0, 1);
-        inputRect.anchoredPosition = new Vector2(20, -240); inputRect.sizeDelta = new Vector2(320, 44);
-        input.GetComponent<Image>().color = new Color(1, 0.95f, 0.86f);
-        _chatInput = input.GetComponent<InputField>(); _chatInput.characterLimit = 200;
-        _chatInput.textComponent = Label(input.transform, "", Vector2.zero, new Vector2(300, 44), TextAnchor.MiddleLeft, new Vector2(0.5f, 0.5f));
-        _chatInput.placeholder = Label(input.transform, "메시지 입력", Vector2.zero, new Vector2(300, 44), TextAnchor.MiddleLeft, new Vector2(0.5f, 0.5f));
-        Btn(chat, "보내기", new Vector2(350, -240), new Vector2(110, 44), SendChat, new Vector2(0, 1));
-        _bPotionThreshold = Btn(chat, "", new Vector2(20, -302), new Vector2(440, 44), () => { _pl.PotionHpThresholdPercent = _pl.PotionHpThresholdPercent >= 60 ? 20 : _pl.PotionHpThresholdPercent + 10; _savePreferences?.Invoke(); Redraw(); }, new Vector2(0, 1));
+        var chat = Panel("chat", HtmlChat ? "포션 설정" : "채팅 / 포션 설정", new Vector2(480, HtmlChat ? 120 : 390));
+        if (!HtmlChat) {
+            _chatHistory = Label(chat, "", new Vector2(20, -50), new Vector2(440, 180), TextAnchor.UpperLeft, new Vector2(0, 1));
+            var input = new GameObject("ChatInput", typeof(RectTransform), typeof(Image), typeof(InputField));
+            input.transform.SetParent(chat, false);
+            var inputRect = (RectTransform)input.transform;
+            inputRect.anchorMin = inputRect.anchorMax = inputRect.pivot = new Vector2(0, 1);
+            inputRect.anchoredPosition = new Vector2(20, -240); inputRect.sizeDelta = new Vector2(320, 44);
+            input.GetComponent<Image>().color = new Color(1, 0.95f, 0.86f);
+            _chatInput = input.GetComponent<InputField>(); _chatInput.characterLimit = 120; // 서버 상한(server.js chat)
+            _chatInput.textComponent = Label(input.transform, "", Vector2.zero, new Vector2(300, 44), TextAnchor.MiddleLeft, new Vector2(0.5f, 0.5f));
+            _chatInput.placeholder = Label(input.transform, "메시지 입력", Vector2.zero, new Vector2(300, 44), TextAnchor.MiddleLeft, new Vector2(0.5f, 0.5f));
+            _chatInput.onSubmit.AddListener(_ => { SendChat(); _chatInput.ActivateInputField(); });
+            Btn(chat, "보내기", new Vector2(350, -240), new Vector2(110, 44), SendChat, new Vector2(0, 1));
+        }
+        _bPotionThreshold = Btn(chat, "", new Vector2(20, HtmlChat ? -56 : -302), new Vector2(440, 44), () => { _pl.PotionHpThresholdPercent = _pl.PotionHpThresholdPercent >= 60 ? 20 : _pl.PotionHpThresholdPercent + 10; _savePreferences?.Invoke(); Redraw(); }, new Vector2(0, 1));
 
         // 보스 소환
         var sum = Panel("sum", "보스 소환", new Vector2(320, 200), KeySummonFrame);
@@ -326,8 +343,14 @@ public class GameUI : MonoBehaviour {
         if (skill.weapon != _pl.WeaponKind) Confirm("현재 무기와 다른 스킬이야. 해당 무기를 장착해야 발동해. 구매할까?", learn);
         else learn();
     }
-    void AddChat(string name, string text) { _chatLines.Add($"{name}: {text}"); if (_chatLines.Count > 8) _chatLines.RemoveAt(0); _chatHistory.text = string.Join("\n", _chatLines); }
-    void SendChat() { if (!Online || string.IsNullOrWhiteSpace(_chatInput.text)) return; _net.SendChat(_chatInput.text); _chatInput.text = ""; }
+    void AddChat(string name, string text) {
+        if (HtmlChat) { WebChatLine($"{name}: {text}"); return; }
+        _chatLines.Add($"{name}: {text}"); if (_chatLines.Count > 8) _chatLines.RemoveAt(0); _chatHistory.text = string.Join("\n", _chatLines);
+    }
+    void SendChat() { if (SendChatText(_chatInput.text)) _chatInput.text = ""; }
+    bool SendChatText(string text) { if (!Online || string.IsNullOrWhiteSpace(text)) return false; _net.SendChat(text); return true; }
+    // HTML 채팅 독 → SendMessage('GameUI','OnHtmlChat',text)
+    public void OnHtmlChat(string text) { if (!SendChatText(text)) Toast("오프라인이라 보낼 수 없습니다", new Color(1f, 0.5f, 0.4f)); }
     void Confirm(string text, Action action) { _confirmText.text = text; _confirmAction = action; Show("confirm"); }
     void SetAutoLevel(int delta) { _autoLevel = Mathf.Clamp(_autoLevel + delta, 0, 100); Send(new InvReq { type = "auto_sell", enabled = _pl.Inv?.autoSell ?? false, level = _autoLevel }); }
     void SetAutoBreakLevel(int delta) {

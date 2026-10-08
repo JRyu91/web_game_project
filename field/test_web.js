@@ -8,6 +8,7 @@ const base = process.argv.slice(2).find(x=>!x.startsWith('--')) || 'http://local
 const mobile=process.argv.includes('--mobile');
 const checkPeer=process.argv.includes('--peer');
 const checkSystems=process.argv.includes('--systems'),systemResponses=new Map();
+const checkChat=process.argv.includes('--chat'),chats=[];
 assert(!checkSystems || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'systems fixture is local-only');
 assert(!checkPeer || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'peer fixture is local-only');
 const stage=new URL(base).host.replace(/[^a-zA-Z0-9_-]/g,'_');
@@ -46,7 +47,7 @@ async function evaluate(expression) {
       if(/Exception|\[net\]|\[save\]|\[fps\]/.test(text)) notes.push(text);
     }
     if(e.method==='Network.webSocketFrameReceived') {
-      try {const m=JSON.parse(e.params.response.payloadData);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
+      try {const m=JSON.parse(e.params.response.payloadData);if(m.type==='chat')chats.push(m.text);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
     }
   });
   await new Promise(resolve=>ws.once('open',resolve));
@@ -56,7 +57,7 @@ async function evaluate(expression) {
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.6');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.7');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);
@@ -68,6 +69,32 @@ async function evaluate(expression) {
   await until(()=>kills>=2,'automatic combat rewards',90000);
   assert(latest.gold>0&&latest.exp>=0&&latest.inv.length>=1);
   await rewardCapture;
+  if(checkChat) {
+    // HTML 채팅 독: Unity 패널을 열어도 유지, 실제 IME 조합(ㅎ→하→한, 글) + 백스페이스 + 조합 중 Enter 무시 + Enter 전송 → 서버 왕복 → 독에 표시
+    const visible="(()=>{const c=document.getElementById('chat');return !c.hidden&&c.getBoundingClientRect().height>0;})()";
+    assert(await evaluate(visible),'chat dock visible after boot');
+    await evaluate("gameInstance.SendMessage('GameUI','Toggle','inv')");await pause(500);
+    assert(await evaluate(visible),'chat dock survives Unity panel');
+    await evaluate("document.getElementById('chat-input').focus()");
+    const key=(type,k,code,extra={})=>call('Input.dispatchKeyEvent',{type,key:k,code,windowsVirtualKeyCode:{Enter:13,Backspace:8}[k]||0,...extra});
+    for(const t of ['ㅎ','하','한']) await call('Input.imeSetComposition',{text:t,selectionStart:t.length,selectionEnd:t.length});
+    await key('rawKeyDown','Enter','Enter',{windowsVirtualKeyCode:229}); // 조합 중 Enter: 전송 금지
+    await call('Input.insertText',{text:'한'});
+    for(const t of ['ㄱ','그','글']) await call('Input.imeSetComposition',{text:t,selectionStart:t.length,selectionEnd:t.length});
+    await call('Input.insertText',{text:'글'});
+    await call('Input.insertText',{text:'x'});await key('rawKeyDown','Backspace','Backspace');await key('keyUp','Backspace','Backspace');
+    assert.equal(await evaluate("document.getElementById('chat-input').value"),'한글','IME composition and backspace in input');
+    assert.equal(chats.length,0,'Enter during composition must not send');
+    await pause(120); // 조합 확정 직후 50ms 가드(Safari) 밖
+    await key('rawKeyDown','Enter','Enter');await key('keyUp','Enter','Enter');
+    await until(()=>chats.includes('한글'),'chat round trip via server');
+    await until(()=>evaluate("[...document.querySelectorAll('#chat-log div')].some(d=>d.textContent.endsWith(': 한글'))"),'chat line in dock');
+    assert.equal(await evaluate("document.getElementById('chat-input').value"),'','input cleared after send');
+    assert.equal(await evaluate("document.activeElement.id"),'chat-input','focus kept after send');
+    await evaluate("gameInstance.SendMessage('GameUI','Toggle','inv')");await pause(600); // 패널 닫힘 → 스킬 HUD 0.2s 틱 반영
+    const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-chat.png'),Buffer.from(shot.data,'base64'));
+    console.log('chat PASS');
+  }
   if(checkSystems) {
     await until(()=>latest.statPoints>0,'natural level-up points',120000);
     async function request(seq,fields){await evaluate(`window.gameSocket.send(${JSON.stringify(JSON.stringify({...fields,seq}))})`);await until(()=>systemResponses.has(seq),'systems ACK');return systemResponses.get(seq);}

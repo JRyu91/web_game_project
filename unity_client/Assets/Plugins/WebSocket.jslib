@@ -23,6 +23,8 @@ mergeInto(LibraryManager.library, {
     var socket = window.gameSocket;
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(UTF8ToString(text));
   },
+  WebChatToggle: function() { if (window.gameChat) window.gameChat.toggle(); },
+  WebChatLine: function(line) { if (window.gameChat) window.gameChat.line(UTF8ToString(line)); },
   WebClose: function() {
     if (window.gameSocket) { window.gameSocket.close(); window.gameSocket = null; }
   }
