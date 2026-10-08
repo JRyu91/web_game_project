@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "6341e41c-0cbd-42b9-b01a-d294563bee3b",
+  "name": "base",
+  "prompt": "a leaning traffic light pole with three round signal lights, rusted and tilted, cracked housing, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propB_light.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "idle",
+    "animation_group_id": "2d5e6991-e03b-40c2-9c82-eb54f78155fd",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:22:28.946862+00:00"
+}

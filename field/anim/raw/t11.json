@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "66c2752d-ac8a-4b58-ad95-2aaf53b1aa31",
+  "name": "Idle",
+  "prompt": "A colossal mob boss with an enormous Kingpin-like physique, side view. Shaved bald head, heavy square jaw, dark black rectangular sunglasses, stern tight-lipped expression. Imposing broad-shouldered frame, tailored white three-piece suit, dark-purple collared shirt, polished black dress shoes. Both hands casually shoved into suit trouser pockets, immovable towering stance, no weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t11.png",
+  "cell_size": {
+   "width": 168,
+   "height": 168
+  },
+  "sheet_size": {
+   "width": 1848,
+   "height": 840
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - boxing combo",
+    "animation_group_id": "3747b942-9ba3-4445-b36b-92b49d08a00f",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "3d68c67a-d815-45ad-bdbb-a19cafa463dd",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "42b21db9-f0f6-496d-ba6f-44b7c5d914bc",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "db202baf-e4ce-430f-8085-33e71590bff0",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:41.360138+00:00"
+}

@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "f4eb12f1-d058-4469-8f3d-9cf5dad0463b",
+  "name": "base",
+  "prompt": "a falling aerial nuclear bomb, fat dark-green metal casing with tail fins, a large yellow-and-black radiation trefoil symbol and hazard warning stripes painted on the side, nose pointed down, motion streaks",
+  "size": {
+   "width": 64,
+   "height": 64
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_bomb.png",
+  "cell_size": {
+   "width": 64,
+   "height": 64
+  },
+  "sheet_size": {
+   "width": 576,
+   "height": 128
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "fall-tumble",
+    "animation_group_id": "8c035921-3c4b-423a-a188-198e2a602248",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:50.001836+00:00"
+}

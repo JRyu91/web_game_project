@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "4bc4fe13-a07e-4fb3-a200-08d54ca51998",
+  "name": "Idle",
+  "prompt": "Grossly obese neckless authoritarian commander, enormous round belly, black high-collar Mao tunic with a small red rectangular badge on the left chest, black flat-top undercut haircut, round jowly face with double chin, tiny slit eyes, small scowling mouth, short stubby limbs, baggy black trousers and black shoes. Detailed painterly pixel art with rich shading and rim lighting.",
+  "size": {
+   "width": 112,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t21.png",
+  "cell_size": {
+   "width": 180,
+   "height": 180
+  },
+  "sheet_size": {
+   "width": 1980,
+   "height": 900
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "0f2091d1-119a-41c1-a108-f0f4dc6759c6",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "move-heavy-pant-walk",
+    "animation_group_id": "15f857a1-f25b-48cd-b554-c387aaead6b5",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "death-explode-blood-burst",
+    "animation_group_id": "27f20dbc-d4e2-4bd5-9154-8307fe867a64",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "attack-nuke-switch",
+    "animation_group_id": "7cc90f33-798d-497f-a6b8-2f648fccbe2b",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:39.474258+00:00"
+}

@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "e029d830-be76-450c-8190-bc1fda9d01d4",
+  "name": "Idle",
+  "prompt": "A colossal Western dragon mid-boss with craggy dark-metallic scales, side view combat idle animation. Menacing horned draconic head, glowing fierce eyes, bared razor-sharp fangs. Massive weathered dragon wings arched high, heavy muscular quadrupedal frame, long spiked tail swaying slightly near the ground. A continuous swirling wind aura with visible slicing gale currents actively spiraling and buffeting around its entire body. With each heavy rhythmic breathing loop, faint pale-red embers and soft wisps of red flame gently leak and seep out from between the parted jaws. Heavy grounded stance on sharp talons, radiating an overwhelming boss presence, no weapons. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t19.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1936,
+   "height": 880
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "0d6f2838-c7c1-4530-971e-9b2e951a1657",
+    "direction": "east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "Walking",
+    "animation_group_id": "aaf47b4e-da32-4d7d-b3e0-f24a4301e4e5",
+    "direction": "east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - fire breath (gesture only)",
+    "animation_group_id": "c615476d-20d7-4984-b0c4-fe78011a3266",
+    "direction": "east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - dramatic blood burst",
+    "animation_group_id": "d39ca438-5f3c-45b4-80e7-f239cd328466",
+    "direction": "east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:23.442952+00:00"
+}

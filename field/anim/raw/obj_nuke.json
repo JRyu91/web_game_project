@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "5243156a-11be-486b-ad9b-944c97ee5dbd",
+  "name": "base",
+  "prompt": "a huge nuclear explosion mushroom cloud, blinding white core and billowing orange fireball rising into a towering grey mushroom-shaped cloud with a wide dust skirt at the base",
+  "size": {
+   "width": 200,
+   "height": 200
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_nuke.png",
+  "cell_size": {
+   "width": 200,
+   "height": 200
+  },
+  "sheet_size": {
+   "width": 2200,
+   "height": 400
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "detonate",
+    "animation_group_id": "314c1569-1730-48e4-99ce-22926dc25972",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:51.452302+00:00"
+}

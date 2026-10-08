@@ -1,0 +1,222 @@
+{
+  "zone": "A_forest",
+  "map_width": 3200,
+  "height": 720,
+  "ground_line_y": 618,
+  "ppu_hint": 40,
+  "loop": "all 3200-wide layers tile seamlessly on x",
+  "tint_presets": {
+    "day": {
+      "bg": null,
+      "obj": null,
+      "char": null,
+      "ground": null
+    },
+    "dawn": {
+      "bg": {
+        "tint": [
+          255,
+          152,
+          92
+        ],
+        "a": 0.3,
+        "sat": 0.92,
+        "br": 0.97
+      },
+      "obj": {
+        "tint": [
+          248,
+          152,
+          104
+        ],
+        "a": 0.24,
+        "sat": 0.88,
+        "br": 0.84
+      },
+      "char": {
+        "tint": [
+          255,
+          178,
+          138
+        ],
+        "a": 0.14,
+        "sat": 0.96,
+        "br": 0.92
+      },
+      "ground": {
+        "tint": [
+          250,
+          168,
+          120
+        ],
+        "a": 0.22,
+        "sat": 0.9,
+        "br": 0.86
+      }
+    },
+    "night": {
+      "bg": {
+        "tint": [
+          26,
+          40,
+          100
+        ],
+        "a": 0.5,
+        "sat": 0.48,
+        "br": 0.46
+      },
+      "obj": {
+        "tint": [
+          34,
+          54,
+          116
+        ],
+        "a": 0.4,
+        "sat": 0.56,
+        "br": 0.56
+      },
+      "char": {
+        "tint": [
+          58,
+          82,
+          148
+        ],
+        "a": 0.16,
+        "sat": 0.86,
+        "br": 0.8
+      },
+      "ground": {
+        "tint": [
+          38,
+          58,
+          120
+        ],
+        "a": 0.34,
+        "sat": 0.62,
+        "br": 0.66
+      }
+    }
+  },
+  "layers": [
+    {
+      "name": "characters",
+      "sortingOrder": 0,
+      "tod_tint": true,
+      "tint_group": "char",
+      "note": "runtime sprites"
+    },
+    {
+      "name": "sky",
+      "file": "sky_day.png",
+      "parallax": 0.0,
+      "z": 0,
+      "sortingOrder": -100,
+      "tod_tint": false,
+      "tint_group": null,
+      "note": "per-TOD file: sky_{day,dawn,night}.png; stretch to view"
+    },
+    {
+      "name": "clouds",
+      "file": "clouds.png",
+      "parallax": 0.05,
+      "z": 1,
+      "sortingOrder": -90,
+      "tod_tint": true,
+      "tint_group": "bg"
+    },
+    {
+      "name": "far",
+      "file": "far.png",
+      "parallax": 0.15,
+      "z": 2,
+      "sortingOrder": -80,
+      "tod_tint": true,
+      "tint_group": "bg"
+    },
+    {
+      "name": "mid",
+      "file": "mid.png",
+      "parallax": 0.35,
+      "z": 3,
+      "sortingOrder": -70,
+      "tod_tint": true,
+      "tint_group": "bg"
+    },
+    {
+      "name": "near",
+      "file": "near.png",
+      "parallax": 0.6,
+      "z": 4,
+      "sortingOrder": -60,
+      "tod_tint": true,
+      "tint_group": "bg"
+    },
+    {
+      "name": "sun",
+      "file": "sun.png",
+      "parallax": 0.02,
+      "z": 5,
+      "sortingOrder": -50,
+      "tod_tint": false,
+      "tint_group": null,
+      "note": "dawn only, pos (1330, 330), emissive"
+    },
+    {
+      "name": "moon",
+      "file": "moon.png",
+      "parallax": 0.02,
+      "z": 6,
+      "sortingOrder": -40,
+      "tod_tint": false,
+      "tint_group": null,
+      "note": "night only, pos (1340, 150), emissive; stars procedural"
+    },
+    {
+      "name": "ground",
+      "file": "ground.png",
+      "parallax": 1.0,
+      "z": 7,
+      "sortingOrder": -30,
+      "tod_tint": true,
+      "tint_group": "ground"
+    },
+    {
+      "name": "shadows",
+      "file": "shadows.png",
+      "parallax": 1.0,
+      "z": 8,
+      "sortingOrder": -20,
+      "tod_tint": false,
+      "tint_group": null,
+      "note": "contact shadows (day). dawn: alpha x.85, width x1.35, shifted away from sun; night: alpha x.5. actors: runtime blob shadow same style"
+    },
+    {
+      "name": "props_back",
+      "file": "props_back.png",
+      "parallax": 1.0,
+      "z": 9,
+      "sortingOrder": -10,
+      "tod_tint": true,
+      "tint_group": "obj"
+    },
+    {
+      "name": "props_front",
+      "file": "props_front.png",
+      "parallax": 1.0,
+      "z": 10,
+      "sortingOrder": 50,
+      "tod_tint": true,
+      "tint_group": "obj"
+    },
+    {
+      "name": "ground_front",
+      "file": "ground_front.png",
+      "parallax": 1.0,
+      "z": 11,
+      "sortingOrder": 60,
+      "tod_tint": true,
+      "tint_group": "ground",
+      "note": "grass blades/pebbles over object & actor bases"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "86e05580-4327-4d01-a409-0b94b2d34df7",
+  "name": "base",
+  "prompt": "a fallen mossy log lying on the ground with peeling bark and small ferns growing around it, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propA_log.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "idle",
+    "animation_group_id": "859916b7-c797-4452-a20b-422537a7ee43",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:16:15.809756+00:00"
+}

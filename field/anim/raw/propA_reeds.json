@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "b812c0ac-adcf-4b70-9604-4a6f7c227b33",
+  "name": "base",
+  "prompt": "a dense clump of tall reeds and cattails with slender green stalks, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propA_reeds.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "sway",
+    "animation_group_id": "7287ba72-1581-486b-920b-59c0d1942ab4",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:16:20.097938+00:00"
+}

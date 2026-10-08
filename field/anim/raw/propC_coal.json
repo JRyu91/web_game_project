@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "5353e6be-8a22-4252-93e6-68d602769d47",
+  "name": "base",
+  "prompt": "a heap of black coal chunks with a broken pickaxe stuck in it, faint ember glow between the lumps, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propC_coal.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "glow",
+    "animation_group_id": "45c14247-d099-4bf2-9dc3-dc3a3efd0fb7",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:23:14.182722+00:00"
+}

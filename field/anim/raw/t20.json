@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "5f77b1b0-dd75-48ce-9950-cbd1134091f6",
+  "name": "Idle",
+  "prompt": "\ud654\uc5fc \uc624\ub77c\uc640 \ub9c8\uadf8\ub9c8 \uac11\uac01\uc744 \ub450\ub978 \ucd5c\uc885\ubcf4\uc2a4 \ub370\ubaac\n> A towering, invincible demonic magma final boss with a moderately muscular build, side view combat idle animation. Crown of massive sweeping curved obsidian horns, with a magnificent, radiant pillar of intense golden-orange and crimson fire billowing and undulating dynamically from the head in a fluid loop. Reinforced demonic physique featuring jagged obsidian carapace plates, layered spiked shoulder ridges, and thick hardened sinew with heavy armor-like fleshy protrusions; deep crimson lava veins pulse through cracked basalt skin down to a flowing, molten-magma robe pooling at the floor. Periodic bursts of intense hellfire actively flare and spiral around the body in a rhythmic cycle with floating embers, radiating an untouchable, god-like boss aura. Heavy breathing idle stance, sharp clawed gauntlets idling at sides, no held weapon. Clean bold outline, limited palette, chibi 3-head proportions.\n> \n",
+  "size": {
+   "width": 196,
+   "height": 196
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t20.png",
+  "cell_size": {
+   "width": 256,
+   "height": 256
+  },
+  "sheet_size": {
+   "width": 2304,
+   "height": 1280
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "058f6151-c12d-40bf-9831-cb0587a5bbe5",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "death - blood burst",
+    "animation_group_id": "36e756e3-e32f-497e-8e2b-fba45c2f9314",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "Walking",
+    "animation_group_id": "5c78eb45-680e-431e-b2e8-0f335e905bdf",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - raise hand open palm (gesture only)",
+    "animation_group_id": "e087927a-778d-489e-820e-6fb509437b14",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:31.426720+00:00"
+}

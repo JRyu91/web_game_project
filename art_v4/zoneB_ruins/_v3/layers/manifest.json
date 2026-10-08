@@ -1,0 +1,120 @@
+{
+ "zone": "B_ruins",
+ "width": 3200,
+ "height": 720,
+ "ground_y_from_top": 596,
+ "pixels_per_unit": 40,
+ "note": "Untinted day layers. Apply time-of-day via SpriteRenderer.color on tint:true layers only. sky.png is a 16px-wide gradient; stretch to view width. Loop: all 3200px layers tile seamlessly. stars/moon: night only; sun: dawn only; lamp_glow: enable at night (emissive).",
+ "layers": [
+  {
+   "name": "sky",
+   "file": "sky.png",
+   "parallax": 0.0,
+   "z": 100,
+   "sortingOrder": -100,
+   "tint": true,
+   "stretch": true
+  },
+  {
+   "name": "stars",
+   "file": "stars.png",
+   "parallax": 0.0,
+   "z": 95,
+   "sortingOrder": -95,
+   "tint": false,
+   "tod": [
+    "night"
+   ]
+  },
+  {
+   "name": "moon",
+   "file": "moon.png",
+   "parallax": 0.0,
+   "z": 94,
+   "sortingOrder": -94,
+   "tint": false,
+   "tod": [
+    "night"
+   ],
+   "pos": [
+    0.3,
+    78
+   ]
+  },
+  {
+   "name": "sun",
+   "file": "sun.png",
+   "parallax": 0.0,
+   "z": 94,
+   "sortingOrder": -94,
+   "tint": false,
+   "tod": [
+    "dawn"
+   ],
+   "pos": [
+    0.47,
+    300
+   ]
+  },
+  {
+   "name": "clouds",
+   "file": "clouds.png",
+   "parallax": 0.05,
+   "z": 90,
+   "sortingOrder": -90,
+   "tint": true
+  },
+  {
+   "name": "far",
+   "file": "far.png",
+   "parallax": 0.15,
+   "z": 80,
+   "sortingOrder": -80,
+   "tint": true
+  },
+  {
+   "name": "mid",
+   "file": "mid.png",
+   "parallax": 0.35,
+   "z": 60,
+   "sortingOrder": -60,
+   "tint": true
+  },
+  {
+   "name": "ground",
+   "file": "ground.png",
+   "parallax": 1.0,
+   "z": 20,
+   "sortingOrder": -20,
+   "tint": true
+  },
+  {
+   "name": "props_back",
+   "file": "props_back.png",
+   "parallax": 1.0,
+   "z": 10,
+   "sortingOrder": -10,
+   "tint": true
+  },
+  {
+   "name": "lamp_glow",
+   "file": "lamp_glow.png",
+   "parallax": 1.0,
+   "z": 9,
+   "sortingOrder": -9,
+   "tint": false,
+   "tod": [
+    "night"
+   ]
+  },
+  {
+   "name": "props_front",
+   "file": "props_front.png",
+   "parallax": 1.0,
+   "z": -10,
+   "sortingOrder": 10,
+   "tint": true,
+   "note": "in front of player"
+  }
+ ]
+}

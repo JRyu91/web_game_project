@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "663e9a21-1616-4965-a81d-75bc3f502bde",
+  "name": "Idle",
+  "prompt": "An eerie wooden slit-drum creature (Tung Tung Tung Sahur), side view idle animation. Tall cylindrical smooth light-brown wooden log body, carved human-like facial features with unnervingly large bulging round eyes, straight nose, and a wide unsettling carved smile. Extremely thin stick-like spindly arms and legs, disproportionately massive elongated bare human feet planted flat on the floor. Right hand loosely holding a smooth wooden club bat pointed downward. Subtle creepy swaying idle motion, log torso slightly rocking side to side while maintaining the unblinking wide-eyed stare. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t16.png",
+  "cell_size": {
+   "width": 132,
+   "height": 132
+  },
+  "sheet_size": {
+   "width": 1452,
+   "height": 660
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "3df79401-14e4-43bd-a5aa-efe388fb091f",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "9e06d592-a203-421e-9cd6-552e79eb12d5",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "a2a07f95-5a39-43b8-8acb-1d4c0cc54397",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - bat swing",
+    "animation_group_id": "a8cfb9d8-bfac-4eba-ab7f-79c8a991ec40",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:07.722087+00:00"
+}

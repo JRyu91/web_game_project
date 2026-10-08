@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "f11b58c8-848f-4f5e-a118-ceac2a431e1a",
+  "name": "base",
+  "prompt": "a round wild shrub bush with dense green foliage and a few small berries, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propA_bush.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "sway",
+    "animation_group_id": "c9d3ad71-e411-4233-961e-3ce9b2f0ba9b",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:16:11.337321+00:00"
+}

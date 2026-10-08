@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "0a122bc6-9329-4fb6-8d4e-01753becafbb",
+  "name": "base",
+  "prompt": "a small horizontal magic energy bolt projectile flying rightward, glowing cyan-blue crackling plasma core, pointed leading tip on the right, short tapering motion trail streaking behind on the left, side view, painterly pixel art, bold outline, transparent background",
+  "size": {
+   "width": 48,
+   "height": 48
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_energybolt.png",
+  "cell_size": {
+   "width": 48,
+   "height": 48
+  },
+  "sheet_size": {
+   "width": 336,
+   "height": 96
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "fly",
+    "animation_group_id": "da5a0276-2749-4a20-b26a-da44bd995bb2",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:41:27.459459+00:00"
+}

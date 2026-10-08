@@ -1,0 +1,126 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>anim preview</title>
+<style>
+  body{margin:0;background:#1b1f24;color:#dce3ea;font:13px system-ui;padding:12px}
+  h1{font-size:15px;margin:0 0 10px}
+  .grid{display:flex;flex-wrap:wrap;gap:10px}
+  .card{background:#242a31;border:1px solid #333c45;border-radius:8px;padding:8px;width:190px}
+  .card canvas{background:#12151a;border-radius:4px;image-rendering:pixelated;width:100%;height:190px}
+  .card .k{font-weight:700;margin:4px 0 2px}
+  .card .s{color:#8fa;min-height:15px}
+  .card .s.err{color:#f88}
+  button{background:#333c45;color:#dce3ea;border:0;border-radius:4px;padding:2px 6px;margin:2px 2px 0 0;cursor:pointer;font-size:11px}
+  button.on{background:#4da3ff;color:#08131f}
+</style>
+<h1>스프라이트시트 애니 프리뷰 — <span id="n"></span>개 · <code>node field/server.js</code> 로 서빙</h1>
+<div class="grid" id="grid"></div>
+
+<script src="sprsheet.js"></script>
+<script src="animfsm.js"></script>
+<script src="anim/manifest.js"></script>
+<script>
+const STATES = ['idle', 'walk', 'attack', 'hurt', 'dead'];
+const cards = [];
+
+for (const [key, e] of Object.entries(window.ANIM)) {
+  if (!e.clips) continue;   // 캐릭터/몬스터만 (obj_·prop·tiles_ 는 스킵)
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `<canvas width="180" height="180"></canvas><div class="k">${key}</div>
+    <div class="s"></div><div class="btns"></div>`;
+  document.getElementById('grid').appendChild(el);
+
+  const cv = el.querySelector('canvas'), ctx = cv.getContext('2d');
+  const status = el.querySelector('.s'), btns = el.querySelector('.btns');
+  const handle = SprSheet.load(key, e.png, e.json);
+  const card = { key, e, cv, ctx, status, handle, fsm: null, state: 'walk', auto: true, born: performance.now() };
+
+  STATES.forEach(s => {
+    const b = document.createElement('button');
+    b.textContent = s;
+    b.onclick = () => { card.auto = false; setState(card, s); };
+    btns.appendChild(b);
+  });
+  card._btns = [...btns.children];
+  const ab = document.createElement('button');
+  ab.textContent = 'auto';
+  ab.classList.add('on');
+  ab.onclick = () => { card.auto = !card.auto; ab.classList.toggle('on', card.auto); };
+  btns.appendChild(ab);
+
+  cards.push(card);
+}
+document.getElementById('n').textContent = cards.length;
+
+function paintBtns(c) {
+  c._btns.forEach(b => b.classList.toggle('on', b.textContent === c.state));
+}
+function setState(c, s) {
+  if (!c.fsm) return;
+  c.state = s;
+  if (s === 'idle') c.fsm.setMoving(false);
+  else if (s === 'walk') c.fsm.setMoving(true);
+  else if (s === 'attack') c.fsm.attack();
+  else if (s === 'hurt') c.fsm.hurt();
+  else if (s === 'dead') c.fsm.die();
+  paintBtns(c);
+}
+function build(c) {
+  const cl = c.e.clips, names = c.handle.sheet.animNames;
+  const has = n => n && names.includes(n);
+  const resolved = {
+    idle: has(cl.idle) ? cl.idle : cl.walk,
+    walk: cl.walk,
+    attack: (Array.isArray(cl.attack) ? cl.attack : [cl.attack]).filter(has),
+    hurt: has(cl.hurt) ? cl.hurt : null,
+    dead: has(cl.dead) ? cl.dead : null,
+  };
+  const missing = STATES.filter(s => s === 'attack' ? !resolved.attack.length : !resolved[s]);
+  if (missing.length) {
+    c.status.textContent = '없는 클립: ' + missing.join(',');
+    c.status.classList.add('err');
+  }
+  c.fsm = new AnimFSM(c.handle.sheet, resolved, { attackPick: 'cycle' });
+  c.fsm.setMoving(true);
+  c.state = 'walk';
+  paintBtns(c);
+}
+
+let last = performance.now(), cyc = 0;
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  cyc += dt;
+  const advance = cyc >= 2.4;
+  if (advance) cyc = 0;
+
+  for (const c of cards) {
+    if (!c.fsm) {
+      if (c.handle.ready) build(c);
+      else {
+        if (now - c.born > 5000 && !c.status.textContent) {
+          c.status.textContent = 'load 실패 (경로/서버 확인)';
+          c.status.classList.add('err');
+        }
+        continue;
+      }
+    }
+    if (c.auto && advance) {
+      const i = (STATES.indexOf(c.state) + 1) % STATES.length;
+      if (i === 0) build(c);                 // dead 다음 → FSM 재생성 (dead 래치 해제)
+      else setState(c, STATES[i]);
+    }
+    c.fsm.update(dt);
+    const { ctx, cv } = c;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = '#8fa'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+    ctx.fillText(c.state + '  ' + (c.fsm.clip().name || '?'), 4, 12);
+    // 작은 스프라이트가 캔버스를 넘지 않게 원본 박스 비례로 상한
+    const bh = c.handle.sheet.box.height;
+    const drawH = Math.min(150, bh * 2.4);
+    SprSheet.drawClip(ctx, c.handle, c.fsm.clip(), cv.width / 2, cv.height - 8, drawH, {});
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

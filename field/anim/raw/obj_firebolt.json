@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "98a24f49-eb7e-4dd3-b85c-801dc9cd7093",
+  "name": "base",
+  "prompt": "a horizontal flaming fire bolt projectile flying rightward, blazing orange-red fireball core with a sharp flame tip on the right, long fiery flickering trail streaking behind on the left, side view, painterly pixel art, bold outline, transparent background",
+  "size": {
+   "width": 72,
+   "height": 72
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_firebolt.png",
+  "cell_size": {
+   "width": 72,
+   "height": 72
+  },
+  "sheet_size": {
+   "width": 504,
+   "height": 144
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "fly",
+    "animation_group_id": "fd191853-e9a4-42e9-9275-4f991f989ae3",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:41:28.766762+00:00"
+}

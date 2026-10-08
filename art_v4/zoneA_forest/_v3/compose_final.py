@@ -1,0 +1,312 @@
+"""Zone A '시작의 숲' composer (v3).
+
+PIXEL-SCALE RULE (mixel 방지, 3개 존 공통):
+  - 플레이 평면(지면·나무·프롭·캐릭터·몬스터·구름·해/달)은 전부 1x 네이티브 픽셀.
+  - 원경(산/언덕)만 x2 NEAREST 허용 — 단, 하늘색으로 헤이즈(35~45%) + 약한 블러를 걸어
+    픽셀 경계가 읽히지 않게 한다. 하늘은 그라디언트(픽셀 없음).
+  - 구름은 1x 전용 에셋(clouds_v3.png). 절대 확대하지 않는다.
+
+LOOP RULE: 모든 레이어는 가로 3200px 주기로 끊김 없이 이어진다(x=0 과 x=3200 이 맞닿음).
+  랜덤 배치는 wrap 합성, 지면 흙은 주기적 노이즈, 산/언덕 타일은 3200의 약수 폭.
+
+출력: zoneA_{tod}_FULL.png / view_{tod}.png / view_{tod}_1x(_clean).png / layers/*.png + manifest.json
+"""
+from PIL import Image, ImageEnhance, ImageFilter
+import random, math, json, os
+
+HERE = os.path.dirname(os.path.abspath(__file__)); os.chdir(HERE)
+W, H, VIEW_X, VIEW_W = 3200, 720, 800, 1280
+SEED = 88
+TILE = 32
+GROUND_TOP = H - 3*TILE - 24          # 600
+GRASS = GROUND_TOP + 18               # 618 = 발 딛는 선 (하단 HUD 110px → 610 이하가 HUD, 지면선은 그 위)
+MONS = '../../unity_client/Assets/Resources/Sprites/Monsters'
+
+TOD = {
+ 'day':   dict(bg=None, obj=None, char=None, ground=None,
+               sky=((104,160,226),(206,230,242))),
+ 'dawn':  dict(bg =dict(tint=(255,152,92),  a=.30, sat=.92, br=.97),
+               obj=dict(tint=(248,152,104), a=.24, sat=.88, br=.84),
+               char=dict(tint=(255,178,138),a=.14, sat=.96, br=.92),
+               ground=dict(tint=(250,168,120), a=.22, sat=.90, br=.86),
+               sky=((74,104,178),(255,180,116))),
+ 'night': dict(bg =dict(tint=(26,40,100),   a=.50, sat=.48, br=.46),
+               obj=dict(tint=(34,54,116),   a=.40, sat=.56, br=.56),
+               char=dict(tint=(58,82,148),  a=.16, sat=.86, br=.80),
+               ground=dict(tint=(38,58,120), a=.34, sat=.62, br=.66),
+               sky=((7,10,34),(30,40,86))),
+}
+
+def grade(img, p):
+    if p is None: return img
+    out = ImageEnhance.Color(img.convert('RGB')).enhance(p['sat'])
+    out = ImageEnhance.Brightness(out).enhance(p['br'])
+    out = Image.blend(out, Image.new('RGB', out.size, p['tint']), p['a'])
+    r = out.convert('RGBA'); r.putalpha(img.split()[3]); return r
+
+def load(n):
+    im = Image.open(n).convert('RGBA')
+    im.putalpha(im.getchannel('A').point(lambda a: 255 if a >= 128 else 0))  # 반투명 프린지 제거
+    return im.crop(im.getbbox())
+
+def wpaste(layer, im, x, y):
+    """가로 wrap 합성 — 3200 경계를 넘는 스프라이트는 반대편에도 찍는다."""
+    x %= W
+    for ox in (x - W, x, x + W):
+        if ox < W and ox + im.width > 0: _neg(layer, im, ox, y)
+
+def _neg(layer, im, ox, y):
+    # alpha_composite 는 음수 좌표를 못 받으므로 잘라서 합성
+    c = im.crop((max(0, -ox), 0, min(im.width, layer.width - ox), im.height))
+    if c.width > 0: layer.alpha_composite(c, (max(0, ox), y))
+
+def gradient(top, bot, h):
+    g = Image.new('RGB', (1, h))
+    for y in range(h):
+        t = y / (h - 1); g.putpixel((0, y), tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
+    return g
+
+def periodic_noise(w, h, cells, rnd):
+    """x 방향 주기 w 인 value noise (0..1)."""
+    cx, cy = cells, max(2, int(cells * h / w))
+    grid = [[rnd.random() for _ in range(cx)] for _ in range(cy + 1)]
+    out = [[0.0] * w for _ in range(h)]
+    for y in range(h):
+        fy = y / h * cy; y0 = int(fy); ty = fy - y0; ty = ty * ty * (3 - 2 * ty)
+        for x in range(w):
+            fx = x / w * cx; x0 = int(fx); tx = fx - x0; tx = tx * tx * (3 - 2 * tx)
+            a, b = grid[y0][x0 % cx], grid[y0][(x0 + 1) % cx]
+            c, d = grid[y0 + 1][x0 % cx], grid[y0 + 1][(x0 + 1) % cx]
+            out[y][x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty
+    return out
+
+# ───────────────────────── layer builders (untinted = day) ─────────────────────────
+def build_layers():
+    R = random.Random(SEED)
+    L = {}
+    gset = Image.open('ground_set.png').convert('RGBA')
+    cell = lambda r, c: gset.crop((c*TILE, r*TILE, (c+1)*TILE, (r+1)*TILE))
+    g_top, g_dirt = cell(0, 3), cell(1, 2)
+    sky_bot = TOD['day']['sky'][1]
+    # 원경 타일은 폭 800(=3200/4, 짝수 개) 으로 늘려 정/반전 교대 → 루프 이음새까지 거울 대칭으로 매끈
+    x2 = lambda im: im.resize((800, im.height*2), Image.NEAREST)
+    mir = lambda im, i: im.transpose(Image.FLIP_LEFT_RIGHT) if i % 2 else im
+
+    def haze(im, col, a, blur):
+        rgb = Image.blend(im.convert('RGB'), Image.new('RGB', im.size, col), a)
+        r = rgb.convert('RGBA'); r.putalpha(im.getchannel('A'))
+        return r.filter(ImageFilter.GaussianBlur(blur)) if blur else r
+
+    # 해/달 위치 (1x 뷰포트 안, 나무와 겹치지 않는 자리 → 나무 배치 전에 예약)
+    SUN_X = 1330                                   # 뷰포트 x=530, 참나무(~1088)와 소나무/단풍(~1856) 사이
+    SUN_Y = 330                                    # HUD 상단 80px 과 멀리
+    sun = load('sun.png'); moon = load('moon.png')
+    MOON = (SUN_X + 10, 150)
+    boxes = [(SUN_X - 40, SUN_Y - 40, SUN_X + sun.width + 40, SUN_Y + sun.height + 40),
+             (MOON[0] - 40, MOON[1] - 40, MOON[0] + moon.width + 40, MOON[1] + moon.height + 40)]
+
+    # clouds (1x) — 해 주변은 비운다
+    cl = load('clouds_v3.png'); A = cl.getchannel('A')
+    cols = [A.crop((x, 0, x+1, cl.height)).getbbox() is not None for x in range(cl.width)]
+    bits, x = [], 0
+    while x < cl.width:
+        if cols[x]:
+            e = x
+            while e < cl.width and cols[e]: e += 1
+            if e - x > 24: p = cl.crop((x, 0, e, cl.height)); bits.append(p.crop(p.getbbox()))
+            x = e
+        else: x += 1
+    clouds = Image.new('RGBA', (W, H)); x = R.randint(0, 80)
+    while x < W - 60:
+        c = R.choice(bits); c = c.transpose(Image.FLIP_LEFT_RIGHT) if R.random() < .5 else c
+        y = R.randint(100, 250)
+        if not any(x < b[2] and x + c.width > b[0] and y < b[3] and y + c.height > b[1] for b in boxes):
+            wpaste(clouds, c, x, y)
+        x += c.width + R.randint(90, 360)
+    L['clouds'] = clouds
+
+    # far: 산 (헤이즈+블러)
+    mtn = haze(x2(Image.open('mountains.png').convert('RGBA')), sky_bot, .38, .6)
+    MTN_Y = GRASS - mtn.height - 24
+    far = Image.new('RGBA', (W, H))
+    for i in range(W // mtn.width + 1): wpaste(far, mir(mtn, i), i*mtn.width, MTN_Y)
+    L['far'] = far
+
+    # mid: 언덕 두 줄 + 채움 띠
+    gp = [p for p in (g_top.getpixel((x, y)) for x in range(32) for y in range(16, 32)) if p[3] > 200]
+    avg = [sum(p[i] for p in gp)//len(gp) for i in range(3)]
+    farc = tuple(min(255, int(avg[i]*.75 + (78, 62, 66)[i])) for i in range(3))
+    nearc = tuple(min(255, int(avg[i]*.88 + (34, 26, 28)[i])) for i in range(3))
+    mid = Image.new('RGBA', (W, H))
+    mid.paste(farc + (255,), (0, MTN_Y + mtn.height - 12, W, GRASS + 2))
+    hill = haze(x2(Image.open('hills.png').convert('RGBA')), sky_bot, .22, .5)
+    for row, (off, dy) in enumerate(((0, -34), (90, 4))):
+        for i in range(W // hill.width):
+            wpaste(mid, mir(hill, i + row), i*hill.width + off, GRASS - hill.height + dy)
+    mid.paste(nearc + (255,), (0, GRASS - 18, W, GRASS + 2))
+    L['mid'] = mid
+
+    # near: 중경 숲 띠 (축소 나무 = 원경 취급, 헤이즈로 픽셀 대비를 죽인다)
+    def midify(im, s, hz):
+        im = im.resize((max(1, int(im.width*s)), max(1, int(im.height*s))), Image.NEAREST)
+        return haze(ImageEnhance.Color(im).enhance(.55), nearc, hz, 0)
+    mids = [load(n + '.png') for n in ('tree_big_v2c', 'tree_pine2_c', 'tree_maple_c', 'bush')]
+    near = Image.new('RGBA', (W, H)); x = 0
+    while x < W:
+        k = R.randrange(4); s = R.uniform(.22, .32) if k < 3 else R.uniform(.8, 1.0)
+        m = midify(mids[k], s, R.uniform(.50, .60))
+        if R.random() < .5: m = m.transpose(Image.FLIP_LEFT_RIGHT)
+        wpaste(near, m, x, GRASS - m.height + R.randint(4, 10))
+        x += R.randint(28, int(m.width*.9) + 30)
+    L['near'] = near
+
+    # ground: 잔디 윗줄 타일(32 주기) + 흙은 타일이 아니라 주기 노이즈를 원래 흙 팔레트로 양자화
+    gnd = Image.new('RGBA', (W, H))
+    pal = sorted({p[:3] for p in g_dirt.getdata()}, key=lambda c: sum(c))
+    pal = [pal[int(i*(len(pal)-1)/5)] for i in range(6)]          # 어두움→밝음 6단
+    nh = H - (GROUND_TOP + TILE)
+    n1 = periodic_noise(W, nh, 64, R); n2 = periodic_noise(W, nh, 220, R)
+    gp_ = gnd.load(); y0 = GROUND_TOP + TILE
+    for y in range(nh):
+        for x in range(W):
+            v = n1[y][x]*.6 + n2[y][x]*.4 + (R.random() - .5)*.10
+            gp_[x, y0 + y] = pal[1 + max(0, min(3, int((v - .25) / .5 * 4)))] + (255,)
+    for i in range(W // TILE):
+        gnd.alpha_composite(g_top, (i*TILE, GROUND_TOP))
+    for _ in range(W // 12):                                       # 돌·뿌리
+        sx = R.randrange(W); sy = R.randrange(y0 + 4, H - 4)
+        if R.random() < .6:
+            c = R.choice([(118,112,104,255), (96,90,86,255), (140,134,124,255)]); w_ = R.randint(2, 5)
+            for dx in range(w_):
+                for dy in range(2 if w_ < 4 else 3): gp_[(sx+dx) % W, sy+dy] = c
+            gp_[(sx) % W, sy-1] = (160,154,142,255) if w_ > 2 else c
+        else:
+            yy = sy
+            for dx in range(R.randint(5, 14)):
+                gp_[(sx+dx) % W, yy] = (74,50,34,255); yy = min(max(yy + R.choice((0,0,1,-1)), y0), H-1)
+    top_y = next(y for y in range(TILE) if any(g_top.getpixel((x, y))[3] > 200 for x in range(TILE)))
+    ref = [g_top.getpixel((x, y)) for x in range(TILE) for y in range(top_y, top_y + 4) if g_top.getpixel((x, y))[3] > 200]
+    for x in range(W):
+        if R.random() < .35:
+            c = R.choice(ref)
+            for dy in range(1, R.randint(2, 6)): gp_[x, GROUND_TOP + top_y - dy] = c
+    for y in range(y0, H):                                         # 아래로 어둡게
+        a = ((y - y0) / (H - y0))**1.3 * .55
+        for x in range(W):
+            r, g, b, al = gp_[x, y]
+            gp_[x, y] = (int(r*(1-a)+20*a), int(g*(1-a)+12*a), int(b*(1-a)+10*a), al)
+    L['ground'] = gnd
+
+    # props
+    back = Image.new('RGBA', (W, H)); front = Image.new('RGBA', (W, H))
+    oak, pine, maple = load('tree_big_v2c.png'), load('tree_pine2_c.png'), load('tree_maple_c.png')
+    bush, rock, stump, grass = load('bush.png'), load('rock.png'), load('stump.png'), load('grass.png')
+    flowers, mush, fence, log, sign = (load(n + '.png') for n in ('flowers_v3', 'mushrooms_v3', 'fence_v3', 'log_v3', 'signpost'))
+    ch = load('char_idle.png')
+    char_xs = [int(W*.30), int(W*.72)]
+    occ = [(cx - 6, cx + ch.width + 6) for cx in char_xs]
+    occ.append((SUN_X - 10, SUN_X + sun.width + 10))               # 해 앞을 가리는 큰 나무 금지
+    def free(a, b, pad): return all(b + pad <= p or a - pad >= q for p, q in occ)
+    def place(layer, im, x, sink, flip=False, span=None, pad=10, tall=False):
+        s = im.transpose(Image.FLIP_LEFT_RIGHT) if flip else im; x = int(x)
+        a, b = (x, x + s.width) if span is None else (x + span[0], x + span[1])
+        if not free(a, b, pad) or x < 8 or x + s.width > W - 8: return False
+        if tall and not free(x, x + s.width, 0): return False
+        layer.alpha_composite(s, (x, GRASS - s.height + sink)); occ.append((a, b)); return True
+    def trunk(im):
+        b = im.crop((0, int(im.height*.78), im.width, im.height)).getbbox(); return (b[0], b[2])
+    last = None
+    for anc in (0.07, 0.34, 0.58, 0.86):
+        t = R.choice([t for t in (oak, pine, maple) if t is not last]); last = t
+        fl = R.random() < .5; sp = trunk(t.transpose(Image.FLIP_LEFT_RIGHT) if fl else t)
+        for off in (0, 40, -40, 90, -90, 150, -150, 220, -220):
+            if place(back, t, anc*W - t.width/2 + off, 6, fl, sp, 6, tall=anc in (0.34, 0.58)): last = t; break
+    place(back, sign, char_xs[0] - sign.width - 40, 6, True, pad=4)
+    x, prev = R.randint(60, 200), None                              # 같은 프롭 연속 금지
+    while x < W - 140:
+        p = R.choice([q for q in (rock, stump, bush, fence, log) if q is not prev])
+        if place(back, p, x, 5 if p in (fence, log) else 4, R.random() < .5, pad=16): prev = p
+        x += R.randint(260, 520)
+    x, prev = R.randint(20, 100), None
+    while x < W - 70:
+        p = R.choice([q for q in (grass, grass, flowers, flowers, mush) if q is not prev])
+        if place(front, p, x, 4, R.random() < .5, pad=4): prev = p
+        x += R.randint(80, 200)
+    L['props_back'], L['props_front'] = back, front
+
+    # emissive / celestial (별은 밤 전용)
+    L['_sun'] = (sun, (SUN_X, SUN_Y)); L['_moon'] = (moon, MOON)
+    L['_char'] = (ch, char_xs)
+    return L
+
+# ───────────────────────── compose per TOD ─────────────────────────
+def compose(L, tod, monsters=None):
+    P = TOD[tod]
+    cv = gradient(*P['sky'], GRASS + 8).resize((W, GRASS + 8)).convert('RGBA')
+    cv = cv.crop((0, 0, W, H)); base = Image.new('RGBA', (W, H), (0, 0, 0, 255)); base.alpha_composite(cv); cv = base
+    for k in ('far', 'mid', 'near', 'clouds'):                     # 그레이딩 먼저
+        cv.alpha_composite(grade(L[k], P['bg']))
+    if tod == 'night':                                             # 발광체는 그레이딩 후
+        rnd = random.Random(SEED + 1); px = cv.load()
+        for _ in range(W // 7):
+            sx, sy = rnd.randrange(W), rnd.randrange(84, GRASS - 170)
+            if L['clouds'].getpixel((sx, sy))[3]: continue          # 구름 위엔 안 찍음
+            b = rnd.choice([190, 220, 255])
+            for dx, dy in ((0, 0), (1, 0), (0, 1)): px[(sx+dx) % W, sy+dy] = (b, b, min(255, b+18), 255)
+        m, pos = L['_moon']; cv.alpha_composite(m, pos)
+    if tod == 'dawn':
+        s, pos = L['_sun']; cv.alpha_composite(s, pos)
+    cv.alpha_composite(grade(L['ground'], P['ground']))
+    cv.alpha_composite(grade(L['props_back'], P['obj']))
+    ch, xs = L['_char']; gch = grade(ch, P['char'])
+    for cx in xs: cv.alpha_composite(gch, (cx, GRASS - ch.height + 2))
+    for im, x in (monsters or []):
+        cv.alpha_composite(grade(im, P['char']), (x, GRASS - im.height + 2))
+    cv.alpha_composite(grade(L['props_front'], P['obj']))
+    return cv.convert('RGB')
+
+def export_layers(L):
+    os.makedirs('layers', exist_ok=True)
+    for tod in TOD:                                                # 하늘은 늘릴 수 있는 1px 폭 스트립 (TOD별)
+        gradient(*TOD[tod]['sky'], GRASS + 8).resize((4, GRASS + 8)).save(f'layers/sky_{tod}.png')
+    meta = [('sky', 'sky_day.png', 0.0, 'sky_{tod}.png 교체(틴트 아님)', False)]
+    spec = [('clouds', .05, True), ('far', .15, True), ('mid', .35, True), ('near', .6, True),
+            ('ground', 1.0, True), ('props_back', 1.0, True), ('props_front', 1.0, True)]
+    for k, f, _ in spec: L[k].save(f'layers/{k}.png')
+    s, pos = L['_sun']; s.save('layers/sun.png'); m, mpos = L['_moon']; m.save('layers/moon.png')
+    man = {'zone': 'A_forest', 'map_width': W, 'height': H, 'ground_line_y': GRASS, 'ppu_hint': 40,
+           'loop': 'all 3200-wide layers tile seamlessly on x',
+           'tint_presets': {t: {k: v for k, v in TOD[t].items() if k != 'sky'} for t in TOD},
+           'layers': []}
+    order = [('sky', 'sky_day.png', 0.0, False, 'per-TOD file: sky_{day,dawn,night}.png; stretch to view')] + \
+            [(k, f'{k}.png', f, t, None) for k, f, t in spec[:4]] + \
+            [('sun', 'sun.png', 0.02, False, f'dawn only, pos {pos}, emissive'),
+             ('moon', 'moon.png', 0.02, False, f'night only, pos {mpos}, emissive; stars procedural')] + \
+            [(k, f'{k}.png', f, t, None) for k, f, t in spec[4:]]
+    z_after_char = {'props_front'}
+    for i, (k, f, par, tint, note) in enumerate(order):
+        so = -100 + i*10 if k not in z_after_char else 50         # 캐릭터/몬스터 = 0
+        e = {'name': k, 'file': f, 'parallax': par, 'z': i, 'sortingOrder': so,
+             'tod_tint': tint, 'tint_group': {'ground': 'ground', 'props_back': 'obj', 'props_front': 'obj'}.get(k, 'bg') if tint else None}
+        if note: e['note'] = note
+        man['layers'].append(e)
+    man['layers'].insert(0, {'name': 'characters', 'sortingOrder': 0, 'tod_tint': True, 'tint_group': 'char', 'note': 'runtime sprites'})
+    json.dump(man, open('layers/manifest.json', 'w'), ensure_ascii=False, indent=2)
+
+if __name__ == '__main__':
+    L = build_layers()
+    export_layers(L)
+    ch = L['_char'][0]; cx = L['_char'][1][0]
+    mons = []
+    for i, t in enumerate(('t1', 't3', 't5')):                     # 캐릭터와 같은 PPU → 1x 그대로
+        m = load(f'{MONS}/{t}/walk/frame_00.png')
+        mons.append((m, cx + ch.width + 250 + i*140))
+    for tod in TOD:
+        clean = compose(L, tod); clean.save(f'zoneA_{tod}_FULL.png')
+        clean.resize((1920, 432), Image.LANCZOS).save(f'view_{tod}.png')
+        clean.crop((VIEW_X, 0, VIEW_X + VIEW_W, H)).save(f'view_{tod}_1x_clean.png')
+        compose(L, tod, mons).crop((VIEW_X, 0, VIEW_X + VIEW_W, H)).save(f'view_{tod}_1x.png')
+        print('built', tod)
+    # loop check: FULL 두 장 이어붙이기
+    d = Image.open('zoneA_day_FULL.png'); t = Image.new('RGB', (1280, H))
+    t.paste(d.crop((W - 640, 0, W, H)), (0, 0)); t.paste(d.crop((0, 0, 640, H)), (640, 0)); t.save('loop_seam_check.png')

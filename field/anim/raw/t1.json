@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "9ccb0f98-604f-4e6b-92d4-9c47e1371817",
+  "name": "Idle",
+  "prompt": "A small grey rat monster, side view. Twitching pink snout, beady black eyes, rounded ears. Scruffy dull-grey fur, arched hunched back, long hairless pink tail curling backward. Crouched on all fours, sharp claws gripping the ground, no weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 48,
+   "height": 48
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t1.png",
+  "cell_size": {
+   "width": 68,
+   "height": 68
+  },
+  "sheet_size": {
+   "width": 748,
+   "height": 340
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - body slam",
+    "animation_group_id": "49bed465-9624-48a3-aad2-6dfc60987484",
+    "direction": "east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "bb729570-174a-4140-ac10-6adee6fdfeb5",
+    "direction": "east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "c84568a5-ee23-4140-a5a6-bb820a28a181",
+    "direction": "east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death v3 - collapse bleed",
+    "animation_group_id": "f1bc5dd7-74b4-4afc-9d46-5e18fe36c815",
+    "direction": "east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:02.574043+00:00"
+}

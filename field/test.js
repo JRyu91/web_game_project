@@ -121,7 +121,7 @@ t('드롭은 등급 범위를 벗어나지 않는다', () => {
   }
 });
 
-t('채널 정원은 5명이다', () => assert.strictEqual(C.CHANNEL_CAP, 5));
+t('채널 정원은 10명이다', () => assert.strictEqual(C.CHANNEL_CAP, 10));
 
 t('스킬은 20 레벨마다 하나씩, 쿨타임이 스펙과 맞는다', () => {
   assert.deepStrictEqual(C.SKILLS.map(s => s.lv), [20, 40, 60, 80, 100]);

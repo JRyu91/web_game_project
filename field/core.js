@@ -2,7 +2,7 @@
 //그래서 브라우저랑 채널 서버(node)가 이 파일 하나를 그대로 같이 쓴다.
 
 const LEVEL_MAX = 100;
-const CHANNEL_CAP = 5;               //채널 하나 = 파드 하나 정원
+const CHANNEL_CAP = 10;              //채널 하나 = 파드 하나 정원
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 

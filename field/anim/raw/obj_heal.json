@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "9df9af0a-c8d5-4aad-80a0-01c716e5c069",
+  "name": "base",
+  "prompt": "green healing sparkles, soft rising motes of green light and small plus-cross symbols, restoration effect",
+  "size": {
+   "width": 64,
+   "height": 64
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_heal.png",
+  "cell_size": {
+   "width": 64,
+   "height": 64
+  },
+  "sheet_size": {
+   "width": 448,
+   "height": 128
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "heal",
+    "animation_group_id": "d94814a0-e6df-4aaa-9219-1918d8d104d8",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:58.108245+00:00"
+}

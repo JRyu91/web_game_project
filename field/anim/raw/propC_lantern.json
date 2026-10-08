@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "1d2baa59-1421-488a-bd58-82018a3ebcd2",
+  "name": "base",
+  "prompt": "a rusty mining lantern hanging from a bent metal hook, glowing warm yellow, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propC_lantern.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "swing",
+    "animation_group_id": "a98ae22f-ff03-4eb1-bd16-67a371a487cd",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:22:37.411053+00:00"
+}

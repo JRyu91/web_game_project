@@ -29,7 +29,14 @@ jobs:
 
       - name: Smoke test
         working-directory: field
-        run: npm ci --omit=dev && npm test
+        run: |
+          npm ci --omit=dev
+          npm test
+          node test_night.js
+          node test_qa_night.js
+          node --check server.js
+          node --check launcher.js
+          test -f web/build.json
 
       # WIF: 키 파일 없이 OIDC 토큰으로 wif.tf에 등록된 서비스 계정을 임퍼서네이션한다.
       - id: auth
@@ -41,14 +48,12 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build & push (amd64, package.json 버전 태그)
+      - name: Build & push (amd64, version and commit tag)
         working-directory: field
         run: |
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-          # 버전 올릴 땐 field/package.json 의 version 을 커밋에 같이 올려야 한다.
-          # 안 올리면 이전 배포와 같은 태그로 덮어쓴다(레지스트리 태그는 안 늘어남).
           VERSION="$(node -p "require('./package.json').version")"
-          IMAGE="${IMAGE_BASE}:v${VERSION}"
+          IMAGE="${IMAGE_BASE}:v${VERSION}-${GITHUB_SHA:0:12}"
           docker build --platform linux/amd64 -t "$IMAGE" .
           docker push "$IMAGE"
           # $GITHUB_ENV 에 append하면 이후 스텝에서 $IMAGE로 그대로 쓸 수 있다.

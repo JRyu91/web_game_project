@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "2b3f1524-d91d-415b-afa2-d4cc454f4491",
+  "name": "Idle",
+  "prompt": "An undead Catholic priest zombie, side view. Pale ashen skin, dark hollow eye sockets, white clerical collar around a withered neck. Long black cassock robe with tattered lower hem, frayed fabric belt, scuffed black dress shoes. Left hand holding a worn leather-bound Holy Bible with a dangling crimson ribbon, right arm hanging limp, no weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 80,
+   "height": 80
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t9.png",
+  "cell_size": {
+   "width": 112,
+   "height": 112
+  },
+  "sheet_size": {
+   "width": 1232,
+   "height": 560
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - free hand forward",
+    "animation_group_id": "54b6b9ed-3b55-4cff-a08f-29bf6ab058f9",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "8b754459-5893-41c1-9927-880d6c2f7d09",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "a94cbc18-cfac-474a-b096-4c2cf40b5a0c",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "f9ccf616-2150-4991-aa67-d49be2350f5a",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:32.387537+00:00"
+}

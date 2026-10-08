@@ -1,0 +1,85 @@
+{
+ "character": {
+  "id": "73bf4b5f-f5fc-4cc6-9b35-665be763d7df",
+  "name": "Idle",
+  "prompt": "A colossal, invincible dark-crimson berserker orc with an immense hyper-muscular build, side view combat idle animation. Wild, messy, disheveled long white hair swaying slightly, chipped protruding lower tusks, and jagged facial scars. Left eye rhythmically blinking and pulsing with a menacing, flickering bright red light. A massive, prominent deep scar vividly carved dead center into the muscular chest, with heavy battle scars covering the entire dark-red physique. A powerful ethereal combat aura continuously billowing from behind the back, fluidly rippling and undulating like rolling waves in an active loop. A heavy rusted iron shackle locked strictly around the right ankle only, leaving the left leg completely bare; a short snapped iron chain trails from the right shackle, dragging slack along the ground. Massive scarred bare fists clenched and trembling with raw lethal power in a deep rhythmic breathing stance, projecting an overwhelming, undefeated presence, no held weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t18.png",
+  "cell_size": {
+   "width": 172,
+   "height": 172
+  },
+  "sheet_size": {
+   "width": 1892,
+   "height": 1032
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "3365d7d6-cdf2-4a3e-87ea-4d4b55410870",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack 2 - fighting stance right straight",
+    "animation_group_id": "34fe6bcf-1503-4831-9801-7adc966f9cba",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack 1 - front kick (300 style)",
+    "animation_group_id": "691ad4f1-240e-4d9c-ba1f-51209284f6fa",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "7c3f63d9-d777-426d-b2b9-be6aaa7cda1d",
+    "direction": "south-east"
+   },
+   {
+    "row": 5,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "fa5a25f4-5dd6-4ffa-89fe-5280824cdd70",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:16.347173+00:00"
+}

@@ -5,3 +5,20 @@ _trash/
 *.tfstate.*
 crash.log
 node_modules/
+
+# Unity (unity_client/)
+unity_client/Library/
+unity_client/Temp/
+unity_client/Logs/
+unity_client/obj/
+unity_client/Build/
+unity_client/Builds/
+unity_client/UserSettings/
+unity_client/MemoryCaptures/
+unity_client/*.csproj
+unity_client/*.sln
+unity_client/*.slnx
+unity_client/.vs/
+unity_client/.idea/
+
+# ponytail: WebGL compressed build ships with field/ for the current Docker CI; use artifact storage when build history gets large.

@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "ce2e6a41-05bc-4f86-831d-3ee015a8037a",
+  "name": "Idle",
+  "prompt": "A small green slime monster, side view. Two glossy black oval eyes, slight mischievous smile. Translucent bright-green gelatinous body, rounded droplet dome shape, subtle light reflections on smooth surface. Squished slightly against the ground in a bouncing pose, no weapon, bare surface. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 64,
+   "height": 64
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t2.png",
+  "cell_size": {
+   "width": 80,
+   "height": 80
+  },
+  "sheet_size": {
+   "width": 880,
+   "height": 400
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack v2 - right punch",
+    "animation_group_id": "10566d58-0396-4465-b510-50331434f8bc",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - burst",
+    "animation_group_id": "4220a246-0c91-4ce4-b4eb-a68768c2636b",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "75a441cb-bfb8-41e9-80ad-387d7ee4a0b1",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "f79c6522-1ecb-41f9-8a5f-67dee9b215b4",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:05.031682+00:00"
+}

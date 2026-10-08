@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "aacd9dba-6a76-463f-808b-9e46b7c43953",
+  "name": "Idle",
+  "prompt": "A Korean female ghost (Cheonyeo Gwishin), side view. Long disheveled jet-black hair covering most of the face, pale sunken face, dark shadows around eyes, faint red lips. Flowing white traditional mourning hanbok robe, oversized drape sleeves, feet concealed beneath the hem. Floating slightly above ground, limp hands hidden inside sleeves, no weapon, bare head. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 80,
+   "height": 80
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t8.png",
+  "cell_size": {
+   "width": 96,
+   "height": 96
+  },
+  "sheet_size": {
+   "width": 1056,
+   "height": 480
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "1fdbed19-3168-49c2-ba5d-d9df972335a1",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "68b3145b-517a-4b6b-8dcc-d18f32535ca6",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - both arms forward",
+    "animation_group_id": "74d03727-32e3-4160-aca2-741d55ee9417",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "b9de92b2-9cf9-476f-af04-ceeb16fa6a66",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:27.858431+00:00"
+}

@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "bf8f9563-78f2-425f-ab71-83b92325a369",
+  "name": "Idle",
+  "prompt": "A ferocious brown werewolf, side view combat idle animation. Elongated lupine snout, bared sharp fangs, glowing amber eyes, pointed alert wolf ears. Dense shaggy brown fur across broad shoulders and a muscular torso, tattered dark-grey shorts around waist, tufted bushy tail swaying gently behind. Hunched digitigrade predatory stance, powerful arms flexed with razor-sharp claws slightly twitching in a rhythmic breathing loop, bare clawed hind feet gripping the ground, no weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t13.png",
+  "cell_size": {
+   "width": 120,
+   "height": 120
+  },
+  "sheet_size": {
+   "width": 1320,
+   "height": 600
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "155e9c4e-90ce-472d-b1a4-3caee7b84d10",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "4b803ecb-c877-4d40-a1e8-ae0c66f64e74",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "5f54952b-a6b6-4f92-9264-0910fef410e1",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - lunging bite",
+    "animation_group_id": "d5adacea-07d1-491f-a935-b8f365199e77",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:55.067386+00:00"
+}

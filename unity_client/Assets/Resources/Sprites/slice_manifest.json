@@ -1,0 +1,1375 @@
+{
+ "main_m": {
+  "key": "main_m",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "sword swing 1 - overhand chop"
+   },
+   "hurt": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "hurt v2 - taking punch (template)"
+   },
+   "walk": {
+    "count": 8,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "anim4": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "Two-Footed Jump"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall backward"
+   },
+   "attack1": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "sword swing 2 - rotary slash"
+   },
+   "attack2": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "sword thrust - lunge stab"
+   },
+   "idle": {
+    "count": 4,
+    "direction": "south-east",
+    "label": "Breathing Idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "main_f": {
+  "key": "main_f",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "walk": {
+    "count": 8,
+    "direction": "east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "sword swing 2 - rotary slash"
+   },
+   "hurt": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "hurt v3 - taking punch (template)"
+   },
+   "anim4": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "Two-Footed Jump"
+   },
+   "attack1": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "sword thrust v4 - lunge stab"
+   },
+   "idle": {
+    "count": 4,
+    "direction": "south-east",
+    "label": "Breathing Idle"
+   },
+   "attack2": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "sword swing 1 - overhand chop"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall backward"
+   }
+  },
+  "size": {
+   "width": 172,
+   "height": 172
+  }
+ },
+ "t1": {
+  "key": "t1",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "east",
+    "label": "attack - body slam"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 8,
+    "direction": "east",
+    "label": "Walking"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "east",
+    "label": "death v3 - collapse bleed"
+   }
+  },
+  "size": {
+   "width": 68,
+   "height": 68
+  }
+ },
+ "t2": {
+  "key": "t2",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack v2 - right punch"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - burst"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 8,
+    "direction": "south-east",
+    "label": "Walking"
+   }
+  },
+  "size": {
+   "width": 80,
+   "height": 80
+  }
+ },
+ "t3": {
+  "key": "t3",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "walk": {
+    "count": 8,
+    "direction": "east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "east",
+    "label": "attack - antler headbutt"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "east",
+    "label": "death v2 - collapse bleed"
+   }
+  },
+  "size": {
+   "width": 72,
+   "height": 72
+  }
+ },
+ "t4": {
+  "key": "t4",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "walk": {
+    "count": 8,
+    "direction": "east",
+    "label": "Walking"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "east",
+    "label": "death - collapse bleed"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "east",
+    "label": "attack - tusk ram"
+   }
+  },
+  "size": {
+   "width": 76,
+   "height": 76
+  }
+ },
+ "t5": {
+  "key": "t5",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "dead": {
+    "count": 11,
+    "direction": "east",
+    "label": "death v2 - collapse bleed"
+   },
+   "walk": {
+    "count": 8,
+    "direction": "east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "east",
+    "label": "attack v2 - full rear up"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "east",
+    "label": "hurt"
+   }
+  },
+  "size": {
+   "width": 88,
+   "height": 88
+  }
+ },
+ "t6": {
+  "key": "t6",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south",
+    "label": "attack - rear up paw swipe"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south",
+    "label": "death v3 - collapse bleed"
+   },
+   "walk": {
+    "count": 8,
+    "direction": "south",
+    "label": "Walking"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south",
+    "label": "hurt"
+   }
+  },
+  "size": {
+   "width": 120,
+   "height": 120
+  }
+ },
+ "t7": {
+  "key": "t7",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack v2 - both hands thrust forward"
+   }
+  },
+  "size": {
+   "width": 124,
+   "height": 124
+  }
+ },
+ "t8": {
+  "key": "t8",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - both arms forward"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   }
+  },
+  "size": {
+   "width": 96,
+   "height": 96
+  }
+ },
+ "t9": {
+  "key": "t9",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - free hand forward"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   }
+  },
+  "size": {
+   "width": 112,
+   "height": 112
+  }
+ },
+ "t10": {
+  "key": "t10",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - knife swing"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   }
+  },
+  "size": {
+   "width": 132,
+   "height": 132
+  }
+ },
+ "t11": {
+  "key": "t11",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - boxing combo"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   }
+  },
+  "size": {
+   "width": 168,
+   "height": 168
+  }
+ },
+ "t12": {
+  "key": "t12",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - both arms forward"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "t13": {
+  "key": "t13",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - lunging bite"
+   }
+  },
+  "size": {
+   "width": 120,
+   "height": 120
+  }
+ },
+ "t14": {
+  "key": "t14",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - fighting stance right straight"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   }
+  },
+  "size": {
+   "width": 128,
+   "height": 128
+  }
+ },
+ "t15": {
+  "key": "t15",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - charge bite"
+   },
+   "walk": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   }
+  },
+  "size": {
+   "width": 128,
+   "height": 128
+  }
+ },
+ "t16": {
+  "key": "t16",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - bat swing"
+   }
+  },
+  "size": {
+   "width": 132,
+   "height": 132
+  }
+ },
+ "t17": {
+  "key": "t17",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack v2 - alternating claw slashes"
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   }
+  },
+  "size": {
+   "width": 132,
+   "height": 132
+  }
+ },
+ "t18": {
+  "key": "t18",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "walk": {
+    "count": 6,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack 2 - fighting stance right straight"
+   },
+   "attack1": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack 1 - front kick (300 style)"
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "death - fall bleed"
+   }
+  },
+  "size": {
+   "width": 172,
+   "height": 172
+  }
+ },
+ "t19": {
+  "key": "t19",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 9,
+    "direction": "east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "east",
+    "label": "attack - fire breath (gesture only)"
+   },
+   "dead": {
+    "count": 11,
+    "direction": "east",
+    "label": "death - dramatic blood burst"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "t20": {
+  "key": "t20",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "dead": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "death - blood burst"
+   },
+   "walk": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "Walking"
+   },
+   "attack": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "attack - raise hand open palm (gesture only)"
+   }
+  },
+  "size": {
+   "width": 256,
+   "height": 256
+  }
+ },
+ "t21": {
+  "key": "t21",
+  "clips": {
+   "rotations": {
+    "count": 8,
+    "direction": "south",
+    "label": ""
+   },
+   "hurt": {
+    "count": 7,
+    "direction": "south-east",
+    "label": "hurt"
+   },
+   "walk": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "move-heavy-pant-walk"
+   },
+   "dead": {
+    "count": 9,
+    "direction": "south-east",
+    "label": "death-explode-blood-burst"
+   },
+   "attack": {
+    "count": 11,
+    "direction": "south-east",
+    "label": "attack-nuke-switch"
+   }
+  },
+  "size": {
+   "width": 180,
+   "height": 180
+  }
+ },
+ "obj_bomb": {
+  "key": "obj_bomb",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "fall-tumble"
+   }
+  },
+  "size": {
+   "width": 64,
+   "height": 64
+  }
+ },
+ "obj_energybolt": {
+  "key": "obj_energybolt",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "fly"
+   }
+  },
+  "size": {
+   "width": 48,
+   "height": 48
+  }
+ },
+ "obj_firebolt": {
+  "key": "obj_firebolt",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "fly"
+   }
+  },
+  "size": {
+   "width": 72,
+   "height": 72
+  }
+ },
+ "obj_firebreath": {
+  "key": "obj_firebreath",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "burn-loop"
+   }
+  },
+  "size": {
+   "width": 96,
+   "height": 96
+  }
+ },
+ "obj_firepillar": {
+  "key": "obj_firepillar",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "burn-loop"
+   }
+  },
+  "size": {
+   "width": 128,
+   "height": 128
+  }
+ },
+ "obj_heal": {
+  "key": "obj_heal",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "heal"
+   }
+  },
+  "size": {
+   "width": 64,
+   "height": 64
+  }
+ },
+ "obj_hitspark": {
+  "key": "obj_hitspark",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "hit"
+   }
+  },
+  "size": {
+   "width": 48,
+   "height": 48
+  }
+ },
+ "obj_levelup": {
+  "key": "obj_levelup",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "levelup"
+   }
+  },
+  "size": {
+   "width": 96,
+   "height": 96
+  }
+ },
+ "obj_nuke": {
+  "key": "obj_nuke",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 11,
+    "direction": "unknown",
+    "label": "detonate"
+   }
+  },
+  "size": {
+   "width": 200,
+   "height": 200
+  }
+ },
+ "obj_poof": {
+  "key": "obj_poof",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "poof"
+   }
+  },
+  "size": {
+   "width": 64,
+   "height": 64
+  }
+ },
+ "obj_stone": {
+  "key": "obj_stone",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "glow"
+   }
+  },
+  "size": {
+   "width": 48,
+   "height": 48
+  }
+ },
+ "propA_bush": {
+  "key": "propA_bush",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "sway"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propA_fireflies": {
+  "key": "propA_fireflies",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "glow"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propA_log": {
+  "key": "propA_log",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propA_mushroom": {
+  "key": "propA_mushroom",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propA_reeds": {
+  "key": "propA_reeds",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "sway"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propA_tree": {
+  "key": "propA_tree",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "sway"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propB_building": {
+  "key": "propB_building",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propB_car": {
+  "key": "propB_car",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propB_lamp": {
+  "key": "propB_lamp",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propB_light": {
+  "key": "propB_light",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propB_rubble": {
+  "key": "propB_rubble",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propB_sign": {
+  "key": "propB_sign",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propC_cart": {
+  "key": "propC_cart",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propC_coal": {
+  "key": "propC_coal",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "glow"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propC_frame": {
+  "key": "propC_frame",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "idle": {
+    "count": 7,
+    "direction": "unknown",
+    "label": "idle"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propC_lantern": {
+  "key": "propC_lantern",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "attack": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "swing"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propC_lava": {
+  "key": "propC_lava",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "bubble"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ },
+ "propC_vent": {
+  "key": "propC_vent",
+  "clips": {
+   "rotations": {
+    "count": 1,
+    "direction": "unknown",
+    "label": ""
+   },
+   "anim1": {
+    "count": 9,
+    "direction": "unknown",
+    "label": "steam"
+   }
+  },
+  "size": {
+   "width": 176,
+   "height": 176
+  }
+ }
+}

@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "b1a06001-eef0-4325-b3c9-1d45da7d2632",
+  "name": "Idle",
+  "prompt": "A gaunt, frail skinny man with a slender bony frame wearing a white three-piece suit, dark-purple collared shirt, purple pocket square, and black dress shoes, side view idle animation. Messy unkempt shaggy black hair, bare face without sunglasses, showing an erratic twitchy addict expression with distinctively small, narrow, hollow sunken eyes. Right hand tightly gripping a short, compact single-edged Japanese sashimi slicing knife held leveled forward, left hand shoved casually inside the trouser pocket. Unsteady nervous shifting stance, subtle jittery breathing motion. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t10.png",
+  "cell_size": {
+   "width": 132,
+   "height": 132
+  },
+  "sheet_size": {
+   "width": 1452,
+   "height": 660
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - knife swing",
+    "animation_group_id": "12299b29-cdff-4771-a2b7-6ba69802be0f",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "1a699649-5e0e-4ce4-aa3d-3f99305c5670",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "56fe50f4-b4ad-432f-920a-7cea38d26d15",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "94ae6959-b9b9-4d3b-854d-ea5d5098149b",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:36.540560+00:00"
+}

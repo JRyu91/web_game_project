@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "009d6a9a-99ec-4854-a7cf-64e0f1eced85",
+  "name": "base",
+  "prompt": "a jagged sulphur vent in dark rock, yellow crystal crust, wisps of steam rising, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propC_vent.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "steam",
+    "animation_group_id": "1bb4c636-e019-4413-8e7e-82d04cf42a14",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:23:12.301296+00:00"
+}

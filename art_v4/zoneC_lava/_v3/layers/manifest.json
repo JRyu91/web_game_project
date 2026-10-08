@@ -1,0 +1,178 @@
+{
+ "zone": "C_lava",
+ "width": 3200,
+ "height": 720,
+ "px_per_unit": 40,
+ "lighting": "cave",
+ "ground_line_y": 594,
+ "hud_safe": {
+  "top": 80,
+  "bottom": 110
+ },
+ "grading_note": "out=blend(brightness(saturation(rgb,sat),br),tint,a); emissive pixels re-drawn ungraded on top",
+ "character_grading": {
+  "tint": [
+   150,
+   60,
+   30
+  ],
+  "a": 0.14,
+  "sat": 0.96,
+  "br": 0.92
+ },
+ "layers": [
+  {
+   "name": "back_wall",
+   "file": "back_wall.png",
+   "parallax": 0.05,
+   "z": 0,
+   "sortingOrder": -50,
+   "emissive": false,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     30,
+     10,
+     12
+    ],
+    "a": 0.45,
+    "sat": 0.45,
+    "br": 0.55
+   }
+  },
+  {
+   "name": "ceiling",
+   "file": "ceiling.png",
+   "parallax": 0.1,
+   "z": 1,
+   "sortingOrder": -40,
+   "emissive": false,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     30,
+     10,
+     12
+    ],
+    "a": 0.45,
+    "sat": 0.45,
+    "br": 0.55
+   }
+  },
+  {
+   "name": "far",
+   "file": "far.png",
+   "parallax": 0.15,
+   "z": 2,
+   "sortingOrder": -30,
+   "emissive": true,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     34,
+     12,
+     12
+    ],
+    "a": 0.4,
+    "sat": 0.55,
+    "br": 0.65
+   }
+  },
+  {
+   "name": "mid",
+   "file": "mid.png",
+   "parallax": 0.35,
+   "z": 3,
+   "sortingOrder": -20,
+   "emissive": false,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     40,
+     12,
+     12
+    ],
+    "a": 0.3,
+    "sat": 0.65,
+    "br": 0.75
+   }
+  },
+  {
+   "name": "lavafalls",
+   "file": "lavafalls.png",
+   "parallax": 0.35,
+   "z": 4,
+   "sortingOrder": -10,
+   "emissive": true,
+   "emissive_rule": null,
+   "grading": null
+  },
+  {
+   "name": "ground",
+   "file": "ground.png",
+   "parallax": 1.0,
+   "z": 5,
+   "sortingOrder": 0,
+   "emissive": true,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     80,
+     20,
+     10
+    ],
+    "a": 0.05,
+    "sat": 1.0,
+    "br": 1.0
+   }
+  },
+  {
+   "name": "props_back",
+   "file": "props_back.png",
+   "parallax": 1.0,
+   "z": 6,
+   "sortingOrder": 10,
+   "emissive": true,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     90,
+     24,
+     12
+    ],
+    "a": 0.1,
+    "sat": 1.0,
+    "br": 1.0
+   }
+  },
+  {
+   "name": "props_front",
+   "file": "props_front.png",
+   "parallax": 1.0,
+   "z": 7,
+   "sortingOrder": 20,
+   "emissive": true,
+   "emissive_rule": "pixels r>200,g>70,b<140,r-b>110 keep original color",
+   "grading": {
+    "tint": [
+     90,
+     24,
+     12
+    ],
+    "a": 0.1,
+    "sat": 1.0,
+    "br": 1.0
+   }
+  },
+  {
+   "name": "embers",
+   "file": "embers.png",
+   "parallax": 1.0,
+   "z": 8,
+   "sortingOrder": 30,
+   "emissive": true,
+   "emissive_rule": null,
+   "grading": null
+  }
+ ]
+}

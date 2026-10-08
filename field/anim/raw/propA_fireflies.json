@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "f49f6c61-1ff4-47dc-bd11-3672b7868701",
+  "name": "base",
+  "prompt": "a swarm of glowing yellow-green fireflies floating among tall dark grass blades at dusk, side view, painterly pixel art",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propA_fireflies.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "glow",
+    "animation_group_id": "45d7929c-cdfc-4124-9bec-e919b7fce523",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:16:17.727776+00:00"
+}

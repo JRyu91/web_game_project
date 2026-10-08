@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "827e691a-e8f4-4b93-b4b6-8245f14ee1a6",
+  "name": "base",
+  "prompt": "a bent broken street lamp post, rusted metal, cracked lamp head hanging by wires, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propB_lamp.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "idle",
+    "animation_group_id": "306ae4ac-ae6e-4fa6-8ca1-67512a2f4295",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:22:24.292791+00:00"
+}

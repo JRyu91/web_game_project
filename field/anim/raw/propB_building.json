@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "f31e5706-5d48-45aa-b954-5a557c116aa7",
+  "name": "base",
+  "prompt": "a collapsed concrete building skeleton, broken floors and bent exposed rebar, crumbling grey pillars, side view, painterly pixel art, bold outline, limited palette",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propB_building.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "idle",
+    "animation_group_id": "2b6f3f50-4ba5-4439-93cb-43ac55486b43",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:22:22.055533+00:00"
+}

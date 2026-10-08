@@ -1,0 +1,54 @@
+{
+ "source": "a_round/dev/assets_r1/ui_potion_shop_panel_288.png (bbox 35,16-252,177 크롭 217x161)",
+ "sprite": "shop_panel_9s.png",
+ "size": [
+  72,
+  72
+ ],
+ "border": {
+  "left": 20,
+  "right": 20,
+  "top": 20,
+  "bottom": 20
+ },
+ "unity_spriteBorder_LBRT": [
+  20,
+  20,
+  20,
+  20
+ ],
+ "draw_mode": "Tiled (변·중앙 반복, 늘이기 금지 — 픽셀 깨짐)",
+ "pixels_per_unit_note": "게임 UI 배율 정수배만",
+ "title_plate": {
+  "sprite": "shop_title_plate.png",
+  "size": [
+   105,
+   27
+  ],
+  "anchor": "상단 중앙, 위로 2px 걸침"
+ },
+ "slots": {
+  "grid": "2x2",
+  "cell": [
+   84,
+   52
+  ],
+  "gap": [
+   8,
+   6
+  ],
+  "icon_box": [
+   40,
+   40
+  ],
+  "icon": "32x32 중앙",
+  "price_box": [
+   38,
+   14
+  ],
+  "origin": [
+   20,
+   30
+  ]
+ }
+}

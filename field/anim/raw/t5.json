@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "99547853-7e3c-44a4-b705-0527db124c8e",
+  "name": "Idle",
+  "prompt": "A massive brown bear, side view. Broad muzzle, dark round nose, small rounded ears, fierce growling jaw. Dense shaggy dark-brown fur, muscular shoulder hump, stout heavy torso, stubby tail. Standing firm on thick padded paws, exposed blunt claws, no weapon, no armor. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 64,
+   "height": 64
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t5.png",
+  "cell_size": {
+   "width": 88,
+   "height": 88
+  },
+  "sheet_size": {
+   "width": 968,
+   "height": 440
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death v2 - collapse bleed",
+    "animation_group_id": "31504994-bc43-4116-95b1-d5fe8471241f",
+    "direction": "east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "3eb2323b-c83e-4dc3-b641-9b26446e6f3b",
+    "direction": "east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack v2 - full rear up",
+    "animation_group_id": "6ff26a53-f1c0-478a-a333-d3357f6c9d2a",
+    "direction": "east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "98a1a37b-896f-4120-abf6-fa9cb94ccc94",
+    "direction": "east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:15.091444+00:00"
+}

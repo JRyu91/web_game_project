@@ -1,0 +1,109 @@
+{
+ "character": {
+  "id": "0eaa7ca7-f153-48ba-b590-0d6d31024968",
+  "name": "Idle",
+  "prompt": "A young male adventurer, side view. Short messy brown hair, determined face. Sleeveless dark-teal tunic with a brown leather chest strap, fingerless leather gloves, grey trousers, knee-high brown leather boots. Empty hands, no weapon, bare head. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "main_m.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1936,
+   "height": 1584
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "sword swing 1 - overhand chop",
+    "animation_group_id": "01b36ba8-1b2e-4b1f-9bb9-c20c61955c1b",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "hurt v2 - taking punch (template)",
+    "animation_group_id": "0481e2f7-307b-4759-83e6-f4d7612733b7",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "12945cff-ee43-4c38-a5cd-a7c28539d5ac",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "Two-Footed Jump",
+    "animation_group_id": "1d2574b1-cf19-4c49-a95e-df3892bff413",
+    "direction": "south-east"
+   },
+   {
+    "row": 5,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall backward",
+    "animation_group_id": "ae71b780-06e6-4d16-9dad-e5f8fff1c46b",
+    "direction": "south-east"
+   },
+   {
+    "row": 6,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "sword swing 2 - rotary slash",
+    "animation_group_id": "afbd622c-89d7-4562-b044-a62926e78755",
+    "direction": "south-east"
+   },
+   {
+    "row": 7,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "sword thrust - lunge stab",
+    "animation_group_id": "d70cc1e3-1525-4242-93b0-c55100cad7d6",
+    "direction": "south-east"
+   },
+   {
+    "row": 8,
+    "type": "animation",
+    "frame_count": 4,
+    "animation": "Breathing Idle",
+    "animation_group_id": "e02084d2-3f37-4405-aa29-b3678c221a38",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:34:55.381231+00:00"
+}

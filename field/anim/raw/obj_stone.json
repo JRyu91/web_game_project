@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "721c2184-5bdd-4e83-9db0-5becccc635a5",
+  "name": "base",
+  "prompt": "a glowing magical enhancement stone, a faceted blue crystal shard with a soft inner light and sparkles",
+  "size": {
+   "width": 48,
+   "height": 48
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_stone.png",
+  "cell_size": {
+   "width": 48,
+   "height": 48
+  },
+  "sheet_size": {
+   "width": 336,
+   "height": 96
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "glow",
+    "animation_group_id": "43715a04-360f-4f7f-8a37-235766c757ed",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:59.408548+00:00"
+}

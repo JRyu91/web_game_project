@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "e3b86ce1-c38c-4ade-b9ac-58bde9123b4f",
+  "name": "Idle",
+  "prompt": "A colossal Buddhist monk zombie with a massive muscular build, side view. Sunken hollow eyes, wrinkled decaying grey-green skin, bared rotten teeth, bald scarred head. Tattered saffron-orange monk robes draped over one broad shoulder, exposing a massive scarred chest, oversized heavy wooden prayer beads around the thick neck, frayed dark sash, torn wrapped cloth sandals. Heavy hunched combat stance, massive clawed hands clenched, no armor, no weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t12.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1936,
+   "height": 880
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - both arms forward",
+    "animation_group_id": "11f4ebd7-6974-4940-b35a-63e6c8d8f6a4",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "5b4c89a9-97b7-4baf-b63a-48adac1d6945",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "8fdc46ca-1b72-4d0d-86a7-f046f6549dd4",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "Walking",
+    "animation_group_id": "cd3990d8-9924-4660-b62f-20a962e28492",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:48.356821+00:00"
+}

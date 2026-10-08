@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "dd952101-1920-40c9-87c3-1c41ddc4d052",
+  "name": "base",
+  "prompt": "a golden level-up burst, a radiant column of golden light rising from the ground with floating sparkles and glowing rings",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_levelup.png",
+  "cell_size": {
+   "width": 96,
+   "height": 96
+  },
+  "sheet_size": {
+   "width": 864,
+   "height": 192
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "levelup",
+    "animation_group_id": "b30fb3d4-4b57-491f-872f-ccaf852a2b61",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:54.947018+00:00"
+}

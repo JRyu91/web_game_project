@@ -1,0 +1,109 @@
+{
+ "character": {
+  "id": "01b1835b-3544-476b-93c3-efaa2c1f4744",
+  "name": "Idle",
+  "prompt": "A young female adventurer, side view. Long ponytail black hair, innocent face. Sleeveless white tunic with a brown leather chest strap, fingerless leather gloves, grey trousers, knee-high brown leather boots. Empty hands, no weapon, bare head. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "main_f.png",
+  "cell_size": {
+   "width": 172,
+   "height": 172
+  },
+  "sheet_size": {
+   "width": 1892,
+   "height": 1548
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "21089a64-b194-4402-85ee-2fc5c4b8de58",
+    "direction": "east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "sword swing 2 - rotary slash",
+    "animation_group_id": "277c244e-085e-407d-888f-33861d23b304",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 6,
+    "animation": "hurt v3 - taking punch (template)",
+    "animation_group_id": "4aa5629f-732d-419d-837f-e20c56ef91eb",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "Two-Footed Jump",
+    "animation_group_id": "687c89ab-0b03-45c1-82a1-dc1cfb40c0bf",
+    "direction": "south-east"
+   },
+   {
+    "row": 5,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "sword thrust v4 - lunge stab",
+    "animation_group_id": "8b312587-3eba-4cc3-8ca1-57fd1b17b1f0",
+    "direction": "south-east"
+   },
+   {
+    "row": 6,
+    "type": "animation",
+    "frame_count": 4,
+    "animation": "Breathing Idle",
+    "animation_group_id": "ad5b5604-79d5-4944-9dfe-4cba04bf0a67",
+    "direction": "south-east"
+   },
+   {
+    "row": 7,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "sword swing 1 - overhand chop",
+    "animation_group_id": "baa199e0-b3c0-41c2-ac4b-b29c38caca68",
+    "direction": "south-east"
+   },
+   {
+    "row": 8,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall backward",
+    "animation_group_id": "c922fb15-b469-4c9e-9664-8cf2d0910208",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:34:58.994306+00:00"
+}

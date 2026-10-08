@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "b4fb7d8a-7399-4468-8803-48dcc49effb4",
+  "name": "Idle",
+  "prompt": "A fierce wild boar, side view. Coarse flat snout, aggressive narrowed eyes, two sharp white tusks curving upward from lower jaw. Bristly dark-brown fur, stocky heavy torso, stiff spiky ridge along the spine, short tail. Heavy hooves planted on the ground, charging posture, no saddle, no armor. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 56,
+   "height": 56
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t4.png",
+  "cell_size": {
+   "width": 76,
+   "height": 76
+  },
+  "sheet_size": {
+   "width": 836,
+   "height": 380
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "2a4f2728-eca4-4014-a6ae-d1142a86fd75",
+    "direction": "east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "403fcf9d-cc1a-4d51-b311-0c21f5782e41",
+    "direction": "east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - collapse bleed",
+    "animation_group_id": "68288f7b-d540-4405-b626-75929b690752",
+    "direction": "east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - tusk ram",
+    "animation_group_id": "fd869c64-969b-4537-acd4-52d616def022",
+    "direction": "east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:11.464477+00:00"
+}

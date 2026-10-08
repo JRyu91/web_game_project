@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "8be79054-dbef-4fa9-8158-dc702e5c5251",
+  "name": "base",
+  "prompt": "a cluster of forest mushrooms, tall red-capped and small brown toadstools growing from mossy ground, side view, painterly pixel art",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propA_mushroom.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "idle",
+    "animation_group_id": "0febc619-1b08-4c1c-8d6a-8ff9d4d98f89",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:16:13.589804+00:00"
+}

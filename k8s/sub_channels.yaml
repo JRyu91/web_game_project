@@ -37,7 +37,7 @@ spec:
                     values: ["spot"]
       containers:
         - name: channel
-          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v2.2
+          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v3.0.0
           ports:
             - containerPort: 8080
           env:
@@ -51,6 +51,9 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef: { name: db-credentials, key: DATABASE_URL }
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: game-admin-credentials, key: ADMIN_PASSWORD }
             - name: CHANNEL_BASES
               value: "/ch0,/ch1,/ch2,/ch3,/ch4"
             - name: DRAIN_TIMEOUT_SEC

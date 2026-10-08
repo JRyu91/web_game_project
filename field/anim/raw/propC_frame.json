@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "4c2d9daf-b64b-4d86-aede-662d1c3e7b64",
+  "name": "base",
+  "prompt": "a wooden mine shaft support frame, thick timber beams and cross braces, dark and weathered, side view, painterly pixel art, bold outline",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propC_frame.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1232,
+   "height": 352
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "idle",
+    "animation_group_id": "042584a6-ae95-4296-b550-ae77bd186b25",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:24:20.525728+00:00"
+}

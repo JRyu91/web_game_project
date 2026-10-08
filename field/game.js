@@ -63,6 +63,8 @@ const ctx = cv.getContext('2d');
 const state = {
   t: 0, last: 0, running: false,
   cam: 0, viewScale: 1,   // fit() 호출 전에도 렌더가 안전하도록 기본값을 둔다
+  zone: 'A',              // 존 A(숲)/B(폐허)/C(용암). 존 시스템 붙기 전까지 A 고정
+
   save: null,
   me: null,
   players: [],
@@ -73,6 +75,7 @@ const state = {
   account: null,
   chat: [],
   channel: { id: 1, kills: 0 },   // kills = 채널 전체 누적 (소환 게이지)
+  remote: {},          // 채널 안 다른 접속자. id -> {name,level,gender,equip,x,face}. 보이기만 하고 전투·충돌엔 안 낀다
   summonReady: { senator: false, pooh: false },
   seq: 0,
   god: false,
@@ -472,8 +475,12 @@ function seeded(seed) {
   return () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296;
 }
 
-// 지면 — 잔디 띠, 흙, 잔돌. 세로로 층을 나눠야 납작해 보이지 않는다.
+// 지면 — 존 타일셋(anim/ground.js)을 먼저 시도하고, 아직 로딩 안 됐으면 단색 띠로 폴백.
 function drawGround(gy, w, h) {
+  // 타일 윗면(잔디/재)이 기존 잔디 띠(gy-3)와 얼추 맞도록 surfaceY 를 살짝 위로.
+  // 스프라이트 발끝(gy)과의 정밀 정합은 FSM 통합 때 앵커로 잡는다.
+  if (window.Ground && Ground.draw(ctx, state.zone, state.cam, gy - 4 * state.viewScale, w, h, 44 * state.viewScale)) return;
+
   ctx.fillStyle = '#6aa03f'; ctx.fillRect(0, gy - 3, w, 8);
   ctx.fillStyle = '#4f7a35'; ctx.fillRect(0, gy + 5, w, 9);
   ctx.fillStyle = '#3f5a2a'; ctx.fillRect(0, gy + 14, w, 5);
@@ -535,6 +542,12 @@ function render() {
   for (const f of state.fx) if (f.k === 'vol') drawFx(f, gy);   // 지면 균열은 몬스터 밑에
   for (const m of state.monsters) drawMonster(m, gy);
   for (const p of state.players) drawPlayer(p, gy);
+  // 다른 채널원 — 좌표만 서버가 뿌려준 걸 그대로 그린다. 전투·충돌 판정은 안 걸린다(그냥 유령).
+  // x 가 아직 안 왔으면(첫 pos 도착 전) 안 그린다 — 원점(0)에 겹쳐 보이는 걸 막는다.
+  for (const g of Object.values(state.remote)) {
+    if (g.x == null) continue;
+    drawPlayer({ ...g, isMe: false, dead: 0, hp: 1, maxHp: 1, bob: now() * 2, sw: SWINGS[0], swing: 0 }, gy);
+  }
 
   for (const f of state.fx) if (f.k !== 'vol') drawFx(f, gy);
 
@@ -1383,8 +1396,8 @@ async function startGame(acc) {
   state.players = [state.me];
   if (acc.role === 'admin') grantAllGear(true);
 
-  // 다른 유저는 서버 roster 로만 카운트한다(캐릭터 렌더링은 이 프로젝트 범위 밖).
-  // 채널 인원·포화 테스트는 관리자 메뉴 "동료 추가" 로 서버측 봇을 늘려서 한다.
+  // 다른 채널원은 state.remote 에 유령으로 렌더링된다(Net.on.roster/pos). 전투 참여는 안 한다 — 아래 참고.
+  // 채널 인원·포화 테스트는 관리자 메뉴 "동료 추가" 로 서버측 봇을 늘려서 한다(봇은 좌표가 없어 렌더는 안 됨).
 
   fit();
   addEventListener('resize', fit);
@@ -1410,6 +1423,22 @@ async function startGame(acc) {
   Net.on.roster = list => {
     $('chMembers').textContent = `${list.length} / ${C.CHANNEL_CAP}`;
     if (Net.index != null) { $('chId').textContent = Net.index; state.channel.id = Net.index; }
+    // 명부 기준으로 유령을 갱신한다. 나 자신·좌표 없는 봇은 뺀다. 나간 사람은 여기서 지워진다.
+    const ids = new Set();
+    for (const r of list) {
+      if (r.id === Net.me) continue;
+      ids.add(r.id);
+      const g = state.remote[r.id] || (state.remote[r.id] = {});
+      g.id = r.id; g.name = r.name; g.level = r.level; g.gender = r.gender; g.equip = r.equip || {};
+    }
+    for (const id of Object.keys(state.remote)) if (!ids.has(id)) delete state.remote[id];
+  };
+  // 초당 여러 번 오는 남의 좌표. 이 값은 그리기에만 쓴다 — 충돌·전투 판정엔 안 걸린다.
+  Net.on.pos = m => {
+    if (!m.id || m.id === Net.me) return;
+    const g = state.remote[m.id];
+    if (!g) return;    // roster 로 먼저 알려지지 않은 id 는 무시(유령 원본 없음)
+    g.x = m.x; g.face = m.face;
   };
   // 서버가 "저 채널로 옮겨라" 고 하면(수동 이동이든 드레인이든) net.js 가 알아서 재접속한다. 여기선 안내만.
   Net.on.transferring = m => say('시스템', m.reason === 'drain'
@@ -1430,7 +1459,8 @@ async function startGame(acc) {
 
   Net.connect(state.save.name, state.save.level, {
     id: state.account.id,
-    getSnapshot: () => C.transferState(state.me),   // 1초마다 서버로 보낼 "지금 내 상태"
+    gender: state.me.gender,
+    getSnapshot: () => C.transferState(state.me),   // 1초마다 서버로 보낼 "지금 내 상태" (pos 루프도 여기서 x/face 만 뽑아 씀)
   });
 
   // 채널 패널의 드롭다운을 redis 명부로 채운다. 파드가 늘면 여기도 자동으로 늘어난다.

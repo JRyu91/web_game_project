@@ -1,0 +1,259 @@
+{
+ "L045_화염검": {
+  "frames": 8,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "fire",
+   "fire"
+  ],
+  "grip": [
+   46,
+   86
+  ]
+ },
+ "L045_화염지팡이": {
+  "frames": 8,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "fire"
+  ],
+  "grip": [
+   50,
+   72
+  ]
+ },
+ "L050_뇌명검": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "light",
+   "light"
+  ],
+  "grip": [
+   45,
+   83
+  ]
+ },
+ "L050_폭풍지팡이": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "light",
+   "light"
+  ],
+  "grip": [
+   46,
+   65
+  ]
+ },
+ "L055_서리검": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "wind",
+   "wind"
+  ],
+  "grip": [
+   52,
+   87
+  ]
+ },
+ "L060_명왕검": {
+  "frames": 6,
+  "fps": 10,
+  "order": "back",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "smoke",
+   "smoke"
+  ],
+  "grip": [
+   50,
+   84
+  ]
+ },
+ "L060_심연지팡이": {
+  "frames": 6,
+  "fps": 10,
+  "order": "back",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "smoke",
+   "smoke"
+  ],
+  "grip": [
+   49,
+   66
+  ]
+ },
+ "L070_뇌신검": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "wind",
+   "light"
+  ],
+  "grip": [
+   50,
+   86
+  ]
+ },
+ "L070_천공지팡이": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "cloud",
+   "light"
+  ],
+  "grip": [
+   50,
+   63
+  ]
+ },
+ "L075_광휘검": {
+  "frames": 6,
+  "fps": 10,
+  "order": "back",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "halo",
+   "halo"
+  ],
+  "grip": [
+   46,
+   81
+  ]
+ },
+ "L075_성좌지팡이": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "halo",
+   "halo"
+  ],
+  "grip": [
+   50,
+   65
+  ]
+ },
+ "L085_공허지팡이": {
+  "frames": 6,
+  "fps": 10,
+  "order": "back",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "smoke",
+   "smoke",
+   "ring"
+  ],
+  "grip": [
+   44,
+   66
+  ]
+ },
+ "L085_절멸검": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "ring",
+   "ring"
+  ],
+  "grip": [
+   49,
+   86
+  ]
+ },
+ "L095_최후의검": {
+  "frames": 8,
+  "fps": 10,
+  "order": "back",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "fire",
+   "fire"
+  ],
+  "grip": [
+   50,
+   83
+  ]
+ },
+ "L100_오메가": {
+  "frames": 6,
+  "fps": 10,
+  "order": "back",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "feather",
+   "feather",
+   "halo"
+  ],
+  "grip": [
+   45,
+   86
+  ]
+ },
+ "L100_적룡스태프": {
+  "frames": 6,
+  "fps": 10,
+  "order": "front",
+  "behind_follow": true,
+  "loop": "loop",
+  "blend": "normal",
+  "bases": [
+   "cloud",
+   "light"
+  ],
+  "grip": [
+   46,
+   62
+  ]
+ }
+}

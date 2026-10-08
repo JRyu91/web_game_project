@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "43280f35-d373-49c8-97c6-1a9158fc9457",
+  "name": "Idle",
+  "prompt": "A monstrous four-legged deep-blue shark beast, side view predatory prowling animation. Sleek pointed shark head, wide gaping jaw packed with triangular jagged teeth, black pupil-less eyes, gills flaring along the neck, prominent dorsal fin on back. Dark navy-blue skin covered in pale jagged bite scars, heavy muscular torso supported by four beastly legs, thick shark tail swishing rhythmically. Wearing classic all-white low-top leather sneakers (Air Force 1 style) on all four paws, pacing forward in a heavy low stalking gait, no weapon. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t15.png",
+  "cell_size": {
+   "width": 128,
+   "height": 128
+  },
+  "sheet_size": {
+   "width": 1408,
+   "height": 640
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death - fall bleed",
+    "animation_group_id": "4a8e7ef8-804a-41e2-a54b-85fa49bfbdd0",
+    "direction": "south-east"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - charge bite",
+    "animation_group_id": "548fbc76-278f-402a-948a-5097e0e63e19",
+    "direction": "south-east"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "Walking",
+    "animation_group_id": "a906be81-6d03-4369-b8ee-268b248b65b3",
+    "direction": "south-east"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "c1d6739b-6d21-4079-8d89-a94164a126b2",
+    "direction": "south-east"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:04.474577+00:00"
+}

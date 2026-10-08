@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "6d6a37f0-d062-411b-9718-57ec22621bea",
+  "name": "base",
+  "prompt": "a bubbling pool of glowing molten orange lava with a rocky crusted rim, side view, painterly pixel art, bold outline, limited palette",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propC_lava.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "bubble",
+    "animation_group_id": "f95eb843-83e7-458f-81e9-9500da3510ba",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:22:35.352162+00:00"
+}

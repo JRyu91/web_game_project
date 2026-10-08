@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "36a5e3c2-25c3-4a76-924c-189cc8156ee3",
+  "name": "base",
+  "prompt": "a large leafy deciduous tree with a thick gnarled trunk and full green canopy, side view, painterly pixel art, bold outline, limited palette",
+  "size": {
+   "width": 176,
+   "height": 176
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "propA_tree.png",
+  "cell_size": {
+   "width": 176,
+   "height": 176
+  },
+  "sheet_size": {
+   "width": 1584,
+   "height": 352
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "sway",
+    "animation_group_id": "cacf9386-2959-4461-bfdb-530597277f16",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T16:16:09.106855+00:00"
+}

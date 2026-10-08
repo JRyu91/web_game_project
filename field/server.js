@@ -9,6 +9,7 @@ const { WebSocketServer } = require('ws');
 const { createClient } = require('redis');
 const { Pool } = require('pg');
 const C = require('./core.js');
+const I = require('./items.js');
 
 const PORT = Number(process.env.PORT) || 8080;
 const CHANNEL_ID = process.env.CHANNEL_ID || 'channel-0';
@@ -29,6 +30,16 @@ const MY_BASE = (process.env.CHANNEL_BASES || '').split(',')[INDEX] || '';
 
 /* ---------- 접속자 ---------- */
 const players = new Map(); //ws -> { id, name, level, snapshot }
+const saveQueues = new Map();
+
+//ponytail: 계정별 로컬 큐. 다른 파드의 동시 접속은 Redis 계정 소유권으로 막아야 한다.
+function serialSave(id, operation) {
+  const task = (saveQueues.get(id) || Promise.resolve()).catch(() => {}).then(operation);
+  saveQueues.set(id, task);
+  const clear = () => { if (saveQueues.get(id) === task) saveQueues.delete(id); };
+  task.then(clear, clear);
+  return task;
+}
 
 //채널 포화·KEDA 스케일을 브라우저 탭 여러 개 안 열고 테스트하려고 두는 가짜 접속자.
 //관리자 메뉴 버튼으로 늘리고 줄인다. 메모리에만 있고 이관 대상이 아니다(드레인되면 그냥 사라짐).
@@ -39,8 +50,13 @@ let draining = false;
 //실접속자 + 봇. 정원·명부·지표는 전부 이걸 기준으로 센다.
 const everyone = () => [...players.values(), ...bots.values()];
 
+//gender·equip 은 렌더링용(다른 채널원 모습 표시). x·face 는 여기 안 들어있다 — 'pos' 메시지로 따로, 더 자주 온다.
 const roster = () =>
-  everyone().map(p => ({ id: p.id, name: p.name, level: p.level }));
+  everyone().map(p => ({
+    id: p.id, name: p.name, level: p.level,
+    gender: p.gender || 'male',
+    equip: (p.snapshot && p.snapshot.equip) || null,
+  }));
 
 function send(ws, msg) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -73,6 +89,9 @@ async function heartbeat() {
   const row = { index: INDEX, base: MY_BASE, players: m.active_players, full: m.full, draining };
   try {
     await redis.set(`channel:${INDEX}`, JSON.stringify(row), { EX: CHANNEL_TTL_SEC });
+    for (const me of players.values()) if (me.owner) await redis.eval(
+      "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('expire',KEYS[1],30) end return 0",
+      { keys: ['owner:' + me.id], arguments: [me.owner] });
   } catch (e) {
     console.error('[heartbeat]', e.message);
   }
@@ -91,19 +110,18 @@ async function listChannels() {
   }
 }
 
-//드레인할 때 접속자를 어디로 보낼지 고른다. 살아있고, 나 아니고, 닫히는 중 아니고, 안 찬 채널 중 제일 한가한 곳.
-async function pickTarget() {
-  const list = await listChannels();
-  const ok = list.filter(c => c.index !== INDEX && !c.draining && !c.full);
-  if (!ok.length) return null;
-  return ok.sort((a, b) => a.players - b.players)[0];
+// Redis 소유권으로 서로 다른 파드의 동시 인벤 변경을 막는다. 토큰이 같은 연결만 갱신·해제한다.
+async function releaseOwner(me) {
+  if (!redis || !me.owner) return;
+  await redis.eval("if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('del',KEYS[1]) end return 0",
+    { keys: ['owner:' + me.id], arguments: [me.owner] });
 }
 
 //플레이어 상태를 사물함에 맡긴다. 받는 채널이 이걸 꺼내서 이어붙인다.
 async function park(p) {
   if (!redis || !p.snapshot) return false;
   try {
-    await redis.set(`transfer:${p.id}`, JSON.stringify(p.snapshot), { EX: TRANSFER_TTL_SEC });
+    await redis.set(`transfer:${p.id}`, JSON.stringify(I.transport(p.save,p.snapshot)), { EX: TRANSFER_TTL_SEC });
     return true;
   } catch (e) {
     console.error('[park]', e.message);
@@ -115,9 +133,8 @@ async function park(p) {
 async function claim(id) {
   if (!redis) return null;
   try {
-    const raw = await redis.get(`transfer:${id}`);
+    const raw = await redis.getDel(`transfer:${id}`);
     if (!raw) return null;
-    await redis.del(`transfer:${id}`);
     return JSON.parse(raw);
   } catch (e) {
     console.error('[claim]', e.message);
@@ -171,7 +188,7 @@ async function initDb() {
   await pool.query('CREATE INDEX IF NOT EXISTS chats_user_time_idx ON chats (user_id, created_at DESC)');
   db = pool;
   console.log('[db] Cloud SQL 연결, accounts·saves·chats 테이블 준비');
-  await ensureAdmin();
+  if (process.env.ADMIN_PASSWORD) await ensureAdmin();
 }
 
 /* ---------- 계정 (Cloud SQL) ---------- */
@@ -188,28 +205,57 @@ function verifyPw(pw, stored) {
   return a.length === b.length && crypto.timingSafeEqual(a, b); //길이·시간 비교로 타이밍 공격을 줄인다
 }
 
-//관리 계정은 없으면 만들고, 있으면 비번을 지금 값으로 맞춘다 — 예전에 클라이언트(auth.js)가 하던 걸 그대로 서버로 옮겼다.
-const ADMIN = { id: 'admin', pw: 'test123!' };
 async function ensureAdmin() {
   await db.query(
     `INSERT INTO accounts (user_id, name, pw_hash, role) VALUES ($1, $2, $3, 'admin')
      ON CONFLICT (user_id) DO UPDATE SET pw_hash = $3`,
-    [ADMIN.id, '관리자', hashPw(ADMIN.pw)]
+    ['admin', '관리자', hashPw(process.env.ADMIN_PASSWORD)]
   );
 }
 
+const localAccounts = new Map();
+const sessions = new Map();
+const SESSION_SEC = 86400;
+const AUTH_REQUIRED = !!DATABASE_URL;
+const cookieToken = req => (req.headers.cookie || '').match(/(?:^|;\s*)game_session=([a-f0-9]{64})(?:;|$)/)?.[1];
+function sameOrigin(req) {
+  if (!req.headers.origin) return true;
+  try { return new URL(req.headers.origin).host === req.headers.host; } catch { return false; }
+}
+async function sessionFor(req) {
+  const token = cookieToken(req);
+  if (!token) return null;
+  const raw = redis ? await redis.get('session:' + token) : sessions.get(token);
+  const session = raw && JSON.parse(raw);
+  return session && session.expires > Date.now() ? session : null;
+}
+async function issueSession(req, res, account) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const data = JSON.stringify({ ...account, expires: Date.now() + SESSION_SEC * 1000 });
+  if (redis) await redis.set('session:' + token, data, { EX: SESSION_SEC });
+  else { sessions.set(token, data); setTimeout(() => sessions.delete(token), SESSION_SEC * 1000).unref(); }
+  const secure = AUTH_REQUIRED || req.headers['x-forwarded-proto'] === 'https';
+  res.setHeader('Set-Cookie', `game_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SEC}${secure ? '; Secure' : ''}`);
+}
+
 function validAccount(name, id, pw) {
-  if (!name || name.length < 1 || name.length > 10) return '캐릭터 이름은 1~10자로 정한다';
-  if (!id || id.length < 3) return '아이디는 3자 이상이어야 한다';
+  if (typeof name !== 'string' || name.length < 1 || name.length > 10) return '캐릭터 이름은 1~10자로 정한다';
+  if (typeof id !== 'string' || id.length < 3 || id.length > 64) return '아이디는 3자 이상이어야 한다';
   if (!/^[a-zA-Z0-9_]+$/.test(id)) return '아이디는 영문·숫자·밑줄만 쓸 수 있다';
-  if (!pw || pw.length < 4) return '비밀번호는 4자 이상이어야 한다';
+  if (typeof pw !== 'string' || pw.length < 4 || pw.length > 128) return '비밀번호는 4자 이상이어야 한다';
   return null;
 }
 
 async function accountSignup(name, id, pw, gender) {
-  if (!db) return { err: 'DB 연결 안 됨' };
+  if (DATABASE_URL && !db) return { err: 'DB 연결 안 됨' };
   const err = validAccount(name, id, pw);
   if (err) return { err };
+  if (!db) {
+    if (localAccounts.has(id) || [...localAccounts.values()].some(a => a.name === name)) return { err: '이미 있는 아이디이거나 캐릭터 이름이다' };
+    const account = { id, name, gender: gender === 'female' ? 'female' : 'male', role: 'user' };
+    localAccounts.set(id, { ...account, pw_hash: hashPw(pw) });
+    return { ok: account };
+  }
   try {
     const dup = await db.query('SELECT 1 FROM accounts WHERE user_id = $1 OR name = $2', [id, name]);
     if (dup.rowCount) return { err: '이미 있는 아이디이거나 캐릭터 이름이다' };
@@ -224,11 +270,18 @@ async function accountSignup(name, id, pw, gender) {
 }
 
 async function accountLogin(id, pw) {
-  if (!db) return { err: 'DB 연결 안 됨' };
+  if (typeof id !== 'string' || typeof pw !== 'string' || id.length > 64 || pw.length > 128) return { err: '아이디와 비밀번호를 확인하세요' };
+  if (DATABASE_URL && !db) return { err: 'DB 연결 안 됨' };
+  if (!db) {
+    const row = localAccounts.get(id);
+    if (!row || !verifyPw(pw, row.pw_hash)) return { err: '아이디와 비밀번호를 확인하세요' };
+    const { pw_hash, ...account } = row;
+    return { ok: account };
+  }
   try {
     const r = await db.query('SELECT user_id, name, pw_hash, gender, role FROM accounts WHERE user_id = $1', [id]);
     const row = r.rows[0];
-    if (!row) return { err: '없는 아이디다' };
+    if (!row || (row.role === 'admin' && !process.env.ADMIN_PASSWORD)) return { err: '아이디와 비밀번호를 확인하세요' };
     if (!verifyPw(pw, row.pw_hash)) return { err: '비밀번호가 다르다' };
     return { ok: { id: row.user_id, name: row.name, gender: row.gender, role: row.role } };
   } catch (e) {
@@ -253,7 +306,7 @@ async function accountRoster() {
 }
 
 async function accountRemove(id) {
-  if (!db) return false;
+  if (!db) { memSaves.delete(id); return localAccounts.delete(id); }
   try {
     const r = await db.query(`DELETE FROM accounts WHERE user_id = $1 AND role <> 'admin'`, [id]); //관리 계정은 못 지운다
     return r.rowCount > 0;
@@ -273,19 +326,22 @@ async function logChat(userId, text) {
   }
 }
 
+//ponytail: DATABASE_URL 없을 때 세이브는 프로세스 메모리에만 둔다(로컬 베타용). 서버를 끄면 사라진다.
+const memSaves = new Map();
+
 async function loadSave(id) {
-  if (!db) return null;
+  if (!db) return memSaves.has(id) ? JSON.parse(memSaves.get(id)) : null;
   try {
     const r = await db.query('SELECT data FROM saves WHERE user_id = $1', [id]);
     return r.rows[0]?.data ?? null;
   } catch (e) {
     console.error('[db load]', e.message);
-    return null;
+    throw e;
   }
 }
 
 async function putSave(id, data) {
-  if (!db) return false;
+  if (!db) { memSaves.set(id, JSON.stringify(data)); return true; }
   try {
     //name·level 은 data 에서 꺼내 컬럼에도 같이 쓴다. 게임 코드는 여전히 data 통째로만 읽는다.
     const name = String(data.name || '모험가').slice(0, 20);
@@ -318,46 +374,67 @@ function readJson(req) {
 
 /* ---------- 정적 파일 ---------- */
 const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.wasm': 'application/wasm', '.data': 'application/octet-stream',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon'
 };
-
-//Ingress 가 /ch0/core.js 를 경로 그대로 넘겨준다(GKE 는 경로 재작성이 없다). 그래서 앞의 /ch0 을 내가 떼야 한다.
 function stripBase(urlPath) {
-  if (MY_BASE.startsWith('/') && urlPath.startsWith(MY_BASE)) {
-    return urlPath.slice(MY_BASE.length) || '/';
-  }
+  if (MY_BASE && (urlPath === MY_BASE || urlPath.startsWith(MY_BASE + '/'))) return urlPath.slice(MY_BASE.length) || '/';
   return urlPath;
 }
-
 function serveStatic(urlPath, res) {
-  const rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
-  const file = path.resolve(__dirname, rel);
-  if (!file.startsWith(__dirname)) { //../ 로 파드 안 아무 파일이나 읽어가는 걸 막는다
-    res.writeHead(403).end('forbidden');
-    return;
+  let rel;
+  try { rel = decodeURIComponent(urlPath).replace(/^\/+/, '') || 'index.html'; }
+  catch { res.writeHead(400).end(); return; }
+  if (rel !== 'index.html' && rel !== 'launcher.js' && rel !== 'launcher.css' && !rel.startsWith('web/')) {
+    res.writeHead(404).end('not found'); return;
   }
-  fs.readFile(file, (err, buf) => {
-    if (err) {
-      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('not found');
-      return;
-    }
-    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
-    res.end(buf);
+  const file = path.resolve(__dirname, rel);
+  const webRoot = path.join(__dirname, 'web') + path.sep;
+  if (rel.startsWith('web/') && !file.startsWith(webRoot)) { res.writeHead(403).end(); return; }
+  fs.stat(file, (err, stat) => {
+    if (err || !stat.isFile()) { res.writeHead(404).end('not found'); return; }
+    const compressed = file.endsWith('.gz');
+    const ext = path.extname(compressed ? file.slice(0, -3) : file);
+    const headers = { 'content-type': MIME[ext] || 'application/octet-stream',
+      'content-length': stat.size, 'cache-control': /\/[a-f0-9]{32}\./.test(file) ? 'public, max-age=31536000, immutable' : 'no-store',
+      'x-content-type-options': 'nosniff' };
+    if (compressed) headers['content-encoding'] = 'gzip';
+    res.writeHead(200, headers);
+    if (res.req.method === 'HEAD') { res.end(); return; }
+    const stream = fs.createReadStream(file);
+    stream.on('error', () => res.destroy()); stream.pipe(res);
   });
 }
 
 /* ---------- HTTP ---------- */
 const server = http.createServer(async (req, res) => {
+  try {
+  if (closing) { res.writeHead(503).end('closing'); return; }
   const urlPath = stripBase(req.url.split('?')[0]);
+  if (!sameOrigin(req)) { res.writeHead(403).end(); return; }
+  const session = await sessionFor(req);
+  res.setHeader('Cache-Control', 'no-store');
+  if (urlPath === '/account/me') {
+    res.writeHead(session ? 200 : 401, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(session ? { ok: { id: session.id, name: session.name, gender: session.gender, role: session.role } } : { err: '로그인이 필요합니다' })); return;
+  }
+  if (urlPath === '/account/logout' && req.method === 'POST') {
+    const token = cookieToken(req);
+    if (token) { if (redis) await redis.del('session:' + token); else sessions.delete(token); }
+    res.setHeader('Set-Cookie', 'game_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+    res.writeHead(204).end(); return;
+  }
+  if (urlPath === '/version') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ version: require('./package.json').version })); return;
+  }
 
   if (urlPath === '/healthz') {
-    res.writeHead(draining ? 503 : 200, { 'content-type': 'text/plain' }); //드레인 중엔 503 을 줘야 LB 가 신규 트래픽을 끊는다
-    res.end(draining ? 'draining' : 'ok');
+    const ready = !draining && (!DATABASE_URL || !!db) && (!REDIS_URL || !!redis);
+    res.writeHead(ready ? 200 : 503, { 'content-type': 'text/plain' }); //드레인 중엔 503 을 줘야 LB 가 신규 트래픽을 끊는다
+    res.end(ready ? 'ok' : 'unavailable');
     return;
   }
 
@@ -382,20 +459,32 @@ const server = http.createServer(async (req, res) => {
   }
 
   //세이브 load/save. 경로의 id 는 계정 id. DB 한 곳을 보므로 어느 채널로 와도 된다.
-  //ponytail: 인증 없음 — id 만 알면 남의 세이브도 덮어쓴다. 관리계정 평문 비번과 같은 수준의 임시 상태.
+  // 운영 DB 사용 시 로그인 계정의 세이브만 조회·변경할 수 있다.
   const saveMatch = urlPath.match(/^\/save\/([^/]+)$/);
   if (saveMatch) {
     const id = decodeURIComponent(saveMatch[1]);
+    if ((AUTH_REQUIRED || session) && session?.id !== id) { res.writeHead(401).end('login required'); return; }
     if (req.method === 'GET') {
-      const data = await loadSave(id);
+      const data = await serialSave(id, async () => [...players.values()].find(p => p.id === id && p.save)?.save || await loadSave(id));
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ data }));
       return;
     }
     if (req.method === 'POST') {
       const body = await readJson(req);
-      if (!body || typeof body !== 'object') { res.writeHead(400).end('bad json'); return; }
-      const ok = await putSave(id, body);
+      if (!body || typeof body !== 'object' || Array.isArray(body) ||
+          (body.potionThreshold !== undefined && ![20, 30, 40, 50, 60].includes(body.potionThreshold))) {
+        res.writeHead(400).end('bad preferences'); return;
+      }
+      const ok = await serialSave(id, async () => {
+        const online = [...players.values()].find(p => p.id === id && p.save);
+        const base = online ? online.save : await loadSave(id);
+        const data = I.normalize(JSON.parse(JSON.stringify(base || {})));
+        if (body.potionThreshold !== undefined) data.potionThreshold = body.potionThreshold;
+        if (!(await putSave(id, data))) return false;
+        if (online) online.save = data;
+        return true;
+      });
       res.writeHead(ok ? 204 : 503).end();
       return;
     }
@@ -404,7 +493,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   //계정 가입/로그인. DB 한 곳에 두니 세이브랑 마찬가지로 어느 채널 파드·어느 기기로 접속해도 같다.
-  //ponytail: 세션·토큰이 없다 — id/pw 확인만 하고 끝. 로그인 뒤 요청은 여전히 무인증(/save 와 동일 수준).
+  // 세션 쿠키는 Redis에 공유되어 채널을 옮겨도 같은 계정을 확인한다.
   if (urlPath === '/account/signup' && req.method === 'POST') {
     const body = await readJson(req);
     if (!body) { res.writeHead(400).end('bad json'); return; }
@@ -417,29 +506,79 @@ const server = http.createServer(async (req, res) => {
     const body = await readJson(req);
     if (!body) { res.writeHead(400).end('bad json'); return; }
     const r = await accountLogin(body.id, body.pw);
+    if (r.ok) await issueSession(req, res, r.ok);
     res.writeHead(r.err ? 400 : 200, { 'content-type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(r));
     return;
   }
   if (urlPath === '/account/roster') {
+    if (session?.role !== 'admin') { res.writeHead(403).end(); return; }
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(await accountRoster()));
     return;
   }
   if (urlPath === '/account/remove' && req.method === 'POST') {
     const body = await readJson(req);
-    const ok = body && await accountRemove(body.id);
+    if (!session || session.id !== body?.id) { res.writeHead(403).end(); return; }
+    const ok = await serialSave(session.id, async () => {
+      for (const [socket, me] of players) if (me.id === session.id) socket.close(1000, 'account removed');
+      return accountRemove(session.id);
+    });
     res.writeHead(ok ? 204 : 404).end();
     return;
   }
 
   serveStatic(urlPath, res);
+  } catch (err) {
+    console.error('[http]', err.message);
+    if (!res.headersSent) res.writeHead(503);
+    res.end('request failed');
+  }
 });
 
-/* ---------- WebSocket ---------- */
-const wss = new WebSocketServer({ server });
+/* ---------- 아이템 (권위 서버) ---------- */
+// Server-issued per-connection receipts prevent duplicate, unknown and tier-swapped rewards.
+// ponytail: the client still simulates damage/spawns; fully authoritative combat is needed to stop plausible fabricated encounters.
+const KILL_BURST = 14, KILL_PER_SEC = 3, BOSS_GAP_MS = 60000;
+const ITEM_REQ = new Set(['inv', 'kill', 'equip', 'enhance', 'buy', 'sell', 'potion', 'summon', 'learn', 'disassemble', 'expand', 'auto_sell', 'summon_ack', 'map']);
 
-wss.on('connection', ws => {
+function itemRequest(me, msg) {
+  const s = me.save;
+  switch (msg.type) {
+    case 'map': return I.map(s, msg.zone);
+    case 'inv': return { ok: true };
+    case 'learn': return I.learn(s, msg.item);
+    case 'disassemble': return I.disassemble(s, msg.uid, msg.uids, msg.level);
+    case 'expand': return I.expand(s);
+    case 'auto_sell': return I.autoSell(s, msg.enabled, msg.level);
+    case 'kill': {
+      const monster = me.monsters.get(msg.receipt);
+      if (!monster || monster.tier !== msg.tier) return {ok:false,code:'bad_receipt'};
+      if (Date.now()-monster.at < 300) return {ok:false,code:'too_fast'};
+      const now = Date.now();
+      me.tokens = Math.min(KILL_BURST, me.tokens + (now - me.tokenAt) / 1000 * KILL_PER_SEC); me.tokenAt = now;
+      if (me.tokens < 1) return { ok: false, code: 'rate' };
+      const boss = Number(msg.tier) >= 19;
+      if (boss && now - me.bossAt < BOSS_GAP_MS) return { ok: false, code: 'rate' };
+      const r = I.kill(s, msg.tier);
+      if (r.ok) { me.tokens--; if (boss) me.bossAt = now; }
+      return r;
+    }
+    case 'equip': return I.equip(s, msg.slot, msg.uid);
+    case 'enhance': return I.enhance(s, msg.uid);
+    case 'buy': return I.buy(s, msg.item, msg.qty);
+    case 'sell': return I.sell(s, msg.uid, msg.uids);
+    case 'potion': return I.usePotion(s);
+    case 'summon': return I.summon(s, msg.tier);
+    case 'summon_ack': return I.summonAck(s, msg.tier, msg.spawned, msg.token);
+  }
+}
+
+/* ---------- WebSocket ---------- */
+const wss = new WebSocketServer({ server, maxPayload: 16384 });
+
+wss.on('connection', (ws, req) => {
+  if (!sameOrigin(req)) { ws.close(1008, 'origin'); return; }
   if (draining) {
     send(ws, { type: 'closed', reason: '폐쇄 중인 채널이다' });
     ws.close();
@@ -461,11 +600,41 @@ wss.on('connection', ws => {
     } catch {
       return;
     }
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.type !== 'string') return;
+    if (closing) return;
 
+    try {
     if (msg.type === 'join') {
+      if (me.joining) return; me.joining = true;
+      const account = await sessionFor(req);
+      if ((AUTH_REQUIRED || cookieToken(req)) && !account) { send(ws, { type: 'closed', reason: '로그인이 필요합니다' }); ws.close(1008); return; }
+      if (account) {
+        if (msg.id && msg.id !== account.id) { ws.close(1008, 'account'); return; }
+        msg.id = account.id; msg.name = account.name; msg.gender = account.gender;
+      }
       if (msg.id) me.id = String(msg.id).slice(0, 64); //계정 id 를 그대로 쓴다. 이게 사물함 열쇠라 채널이 바뀌어도 같아야 한다
+      await serialSave(me.id, async () => {
+      if (ws.readyState !== 1) return;
+      if (redis) {
+        me.owner = crypto.randomBytes(16).toString('hex');
+        if (!(await redis.set('owner:' + me.id, me.owner, { NX: true, EX: 30 }))) {
+          me.owner = null; send(ws, { type: 'closed', reason: '이미 접속 중인 계정입니다' }); ws.close(1008); return;
+        }
+      }
+      me.authExpires = account?.expires;
       me.name = String(msg.name || '모험가').slice(0, 10);
       me.level = Number(msg.level) || 1;
+      me.gender = msg.gender === 'female' ? 'female' : 'male';
+
+      //같은 계정이 이 채널에 이미 붙어 있으면 옛 연결을 끊는다(인벤 이중 사용 방지).
+      let prev = null; //끊는 연결이 들고 있던 세이브가 DB 보다 최신이다(쓰기 대기 중일 수 있음)
+      for (const [ows, p] of players) if (ows !== ws && msg.id && p.id === me.id) { prev = p.save; send(ows, { type: 'closed', reason: '다른 곳에서 접속했다' }); ows.close(); }
+      me.account = !!msg.id;
+      me.save = I.normalize(prev || (msg.id && await loadSave(me.id)) || { name: me.name, gender: me.gender });
+      me.save.name = me.name; me.save.gender = me.gender;
+      me.level = me.save.level;
+      me.tokens = KILL_BURST; me.tokenAt = Date.now(); me.bossAt = 0;
+      me.monsters = new Map(); me.spawnTokens = 14; me.spawnAt = Date.now();
 
       const parked = msg.resume ? await claim(me.id) : null; //다른 채널에서 넘어온 거면 맡긴 짐이 있다
       if (parked) send(ws, { type: 'resume', state: parked });
@@ -479,8 +648,32 @@ wss.on('connection', ws => {
         roster: roster(),
         resumed: !!parked,
       });
+      send(ws, { type: 'inv', req: 'join', ok: true, code: '', state: I.view(me.save) });
       broadcast({ type: 'system', text: `${me.name} 님이 입장했다.` }, ws);
       broadcast({ type: 'roster', roster: roster() });
+      });
+      return;
+    }
+
+    if (!me.save) return; // No gameplay/chat/state messages before the authenticated join completes.
+
+    if (msg.type === 'spawn' || msg.type === 'despawn') {
+      await serialSave(me.id, async () => {
+        if (!me.save || me.transferring || ws.readyState !== 1) return;
+        if (AUTH_REQUIRED && (!me.authExpires || me.authExpires < Date.now())) { ws.close(1008, 'session expired'); return; }
+        if (redis && (!me.owner || await redis.get('owner:' + me.id) !== me.owner)) { ws.close(1008, 'account owner'); return; }
+        if (msg.type === 'despawn') { me.monsters.delete(msg.receipt); return; }
+        const now = Date.now();
+        me.spawnTokens = Math.min(14,me.spawnTokens+(now-me.spawnAt)/1000); me.spawnAt = now;
+        let r = I.spawnAllowed(me.save,msg.tier);
+        if (!Number.isSafeInteger(msg.monsterId) || msg.monsterId < 1 || [...me.monsters.values()].some(m=>m.id===msg.monsterId)) r={ok:false,code:'bad_spawn'};
+        else if (me.monsters.size >= 14) r={ok:false,code:'spawn_full'};
+        else if (me.spawnTokens < 1) r={ok:false,code:'spawn_rate'};
+        else if (msg.tier >= 19 && [...me.monsters.values()].some(m=>m.tier>=19)) r={ok:false,code:'boss_alive'};
+        let receipt;
+        if (r.ok) { receipt=crypto.randomUUID(); me.monsters.set(receipt,{id:msg.monsterId,tier:msg.tier,at:now}); me.spawnTokens--; }
+        send(ws,{type:'spawn',monsterId:msg.monsterId,tier:msg.tier,receipt,ok:r.ok,code:r.code||''});
+      });
       return;
     }
 
@@ -494,14 +687,49 @@ wss.on('connection', ws => {
 
     //클라가 1초마다 자기 상태를 통째로 보낸다. 서버는 들고만 있다가 이관할 때 사물함에 넣는다.
     if (msg.type === 'state') {
-      me.level = Number(msg.level) || me.level;
-      if (msg.snapshot) me.snapshot = msg.snapshot;
+      if (!me.save) me.level = Number(msg.level) || me.level; //세이브가 있으면 레벨은 서버 값
+      if (msg.snapshot && me.save) me.snapshot = I.transport(me.save, msg.snapshot);
       broadcast({ type: 'roster', roster: roster() }, ws);
+      return;
+    }
+
+    //초당 여러 번 오는 좌표. 그대로 남한테 뿌리기만 한다 — 서버가 들고 있지도, 판정에 쓰지도 않는다.
+    //그래서 서로 "보이기만" 하고 접촉(충돌·전투) 판정은 애초에 없다.
+    if (msg.type === 'pos') {
+      const x = Number(msg.x);
+      if (!Number.isFinite(x)) return;
+      broadcast({ type: 'pos', id: me.id, x: Math.min(78.5,Math.max(1.5,x)), face: msg.face === -1 ? -1 : 1 }, ws);
+      return;
+    }
+
+    //아이템 요청. 결과는 항상 'inv' 한 종류로 돌려준다(성공·실패 모두 state 포함, seq 는 그대로 되돌려 줌).
+    if (ITEM_REQ.has(msg.type)) {
+      await serialSave(me.id, async () => {
+      if (ws.readyState !== 1 || me.transferring) return;
+      if (AUTH_REQUIRED && (!me.authExpires || me.authExpires < Date.now())) { ws.close(1008, 'session expired'); return; }
+      if (redis && (!me.owner || await redis.get('owner:' + me.id) !== me.owner)) { ws.close(1008, 'account owner'); return; }
+      if (!me.save) { send(ws, { type: 'inv', req: msg.type, seq: msg.seq, ok: false, code: 'not_joined' }); return; }
+      const before = me.save, rateBefore = {tokens:me.tokens, tokenAt:me.tokenAt, bossAt:me.bossAt};
+      me.save = JSON.parse(JSON.stringify(before));
+      let r = itemRequest(me, msg);
+      // 저장에 실패한 변경은 성공으로 알리지 않고 이전 자원·장비로 되돌린다.
+      if (r.ok && msg.type !== 'inv' && me.account && !(await putSave(me.id, me.save))) {
+        me.save = before; Object.assign(me,rateBefore);
+        r = { ok: false, code: 'save_failed' };
+      }
+      send(ws, { type: 'inv', req: msg.type, seq: msg.seq, ok: r.ok, code: r.code || '', drop: r.drop, enh: r.enh, sell: r.sell, disassemble: r.disassemble, state: I.view(me.save) });
+      if (r.ok && msg.type === 'kill') me.monsters.delete(msg.receipt);
+      if (r.ok && msg.type === 'map') me.monsters.clear();
+      if (r.ok && msg.type !== 'inv') {
+        if (me.level !== me.save.level) { me.level = me.save.level; broadcast({ type: 'roster', roster: roster() }); }
+      }
+      });
       return;
     }
 
     //관리자 메뉴의 "동료 추가/내보내기". 가짜 접속자를 늘리고 줄인다. 채널 포화·KEDA 테스트용.
     if (msg.type === 'bot') {
+      if ((await sessionFor(req))?.role !== 'admin') return;
       const delta = Number(msg.delta) || 0;
       if (delta > 0 && everyone().length < C.CHANNEL_CAP) {
         const id = C.newId('bot');
@@ -517,6 +745,8 @@ wss.on('connection', ws => {
 
     //게임 안에서 "채널 이동" 을 눌렀을 때. 드레인이랑 똑같은 짓을 한 명한테만 한다.
     if (msg.type === 'switch') {
+      await serialSave(me.id, async () => {
+      if (ws.readyState !== 1 || !me.save || me.transferring) return;
       const list = await listChannels();
       const target = list.find(c => c.index === Number(msg.to));
       if (!target || target.index === INDEX) {
@@ -529,13 +759,22 @@ wss.on('connection', ws => {
         send(ws, { type: 'system', text: '상태 저장에 실패해서 이동을 취소했다.' }); //짐을 못 맡겼는데 보내면 상태가 날아간다
         return;
       }
+      me.transferring = true;
+      await releaseOwner(me);
       send(ws, { type: 'transfer', to: target.index, base: target.base, reason: 'switch' });
       ws.close();
+      });
       return;
+    }
+    } catch (err) {
+      console.error('[message]', err.message);
+      send(ws, { type: 'system', text: '요청 처리에 실패했다.' });
+      if (msg.type === 'join') ws.close(1011, 'join failed');
     }
   });
 
   ws.on('close', () => {
+    releaseOwner(me).catch(e => console.error('[owner release]', e.message));
     players.delete(ws);
     broadcast({ type: 'system', text: `${me.name} 님이 나갔다.` });
     broadcast({ type: 'roster', roster: roster() });
@@ -546,10 +785,12 @@ wss.on('connection', ws => {
 /* ---------- 종료 처리 ---------- */
 let closing = false;
 
-function shutdown(reason) {
+async function shutdown(reason) {
   if (closing) return;
   closing = true;
   console.log(`[shutdown] ${reason}`);
+  // 이미 접수한 저장을 마친 뒤 종료한다. 저장 실패는 요청 응답에서도 실패로 알린다.
+  await Promise.allSettled([...saveQueues.values()]);
   if (redis) redis.del(`channel:${INDEX}`).catch(() => {}); //명부에서 나를 지운다. 안 지워도 TTL 로 사라지지만 그만큼 빈 채널이 보인다
   wss.close();
   server.close(() => process.exit(0));
@@ -567,20 +808,21 @@ process.on('SIGTERM', async () => {
     return;
   }
 
-  const target = await pickTarget();
-  if (!target) {
-    //갈 데가 없으면 넘길 수가 없다. 알려만 주고 스스로 나가길 기다린다.
-    console.log('[drain] 보낼 채널이 없다. 접속자가 빠지길 기다린다.');
-    broadcast({ type: 'drain', text: '이 채널이 곧 닫힌다. 갈 수 있는 다른 채널이 없다.' });
-  } else {
-    console.log(`[drain] ${players.size}명을 ${target.index}번 채널로 넘긴다.`);
-    for (const [ws, p] of players) {
-      if (await park(p)) {
-        send(ws, { type: 'transfer', to: target.index, base: target.base, reason: 'drain' });
-      } else {
-        send(ws, { type: 'drain', text: '이 채널이 곧 닫힌다.' });
-      }
-    }
+  // 이번 드레인에서 배정한 인원도 더해서 한 채널에 몰아 보내지 않는다.
+  const targets = (await listChannels()).filter(c=>c.index !== INDEX && !c.draining && !c.full);
+  for (const [ws,p] of players) {
+    const target = targets.filter(c=>c.players<C.CHANNEL_CAP).sort((a,b)=>a.players-b.players)[0];
+    if (!target) { send(ws,{type:'drain',text:'이 채널이 곧 닫힌다. 다른 채널의 빈자리를 기다려 주세요.'}); continue; }
+    const transferred = await serialSave(p.id,async()=>{
+      if (p.transferring || ws.readyState !== 1 || !(await park(p))) return false;
+      p.transferring=true;
+      await releaseOwner(p);
+      send(ws,{type:'transfer',to:target.index,base:target.base,reason:'drain'});
+      ws.close();
+      return true;
+    });
+    if (transferred) target.players++;
+    else send(ws,{type:'drain',text:'상태 저장에 실패해서 이관을 보류했다.'});
   }
 
   setTimeout(() => shutdown('드레인 시간 초과'), DRAIN_TIMEOUT_SEC * 1000);

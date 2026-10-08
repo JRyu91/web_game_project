@@ -12,9 +12,11 @@ const Net = {
 
   _name: null,
   _level: 1,
+  _gender: 'male',
   _accountId: null,
   _getSnapshot: null, //game.js 가 넘겨주는 "지금 내 상태 통째로" 반환 함수
   _stateTimer: null,
+  _posTimer: null,
   _knocking: false,   //채널 순차 노크 중복 방지
   _base: '/',
 
@@ -28,6 +30,7 @@ const Net = {
     if (location.protocol === 'file:') return; //붙을 서버가 없다. 혼자 모드
     this._name = name;
     this._level = level || 1;
+    this._gender = opts.gender === 'female' ? 'female' : 'male';
     this._accountId = opts.id || this._accountId;
     if (opts.getSnapshot) this._getSnapshot = opts.getSnapshot;
     this._open('/', false);
@@ -65,9 +68,11 @@ const Net = {
         id: this._accountId,
         name: this._name,
         level: this._level,
+        gender: this._gender,
         resume,            //true 면 서버가 사물함에서 내 짐을 꺼내준다
       }));
       this._startStateLoop();
+      this._startPosLoop();
     };
 
     ws.onmessage = ev => {
@@ -114,6 +119,7 @@ const Net = {
     ws.onclose = () => {
       this.connected = false;
       this._stopStateLoop();
+      this._stopPosLoop();
     };
     ws.onerror = () => { this.connected = false; };
   },
@@ -169,6 +175,22 @@ const Net = {
 
   _stopStateLoop() {
     if (this._stateTimer) { clearInterval(this._stateTimer); this._stateTimer = null; }
+  },
+
+  //채널 안 다른 사람 눈에 내가 "움직이는 걸로" 보이게 하는 용도. 전투·이관은 여전히 _stateTimer(1초) 스냅샷이 맡는다 —
+  //이건 좌표만 가볍게, 자주 쏜다. 서버는 받은 좌표를 그대로 남에게 뿌리기만 하고 판정엔 안 쓴다(접촉 없음).
+  _startPosLoop() {
+    this._stopPosLoop();
+    this._posTimer = setInterval(() => {
+      if (!this.connected || !this._getSnapshot) return;
+      const s = this._getSnapshot();
+      if (!s) return;
+      this.ws.send(JSON.stringify({ type: 'pos', x: s.x, face: s.face }));
+    }, 150);
+  },
+
+  _stopPosLoop() {
+    if (this._posTimer) { clearInterval(this._posTimer); this._posTimer = null; }
   },
 
   chat(text) {

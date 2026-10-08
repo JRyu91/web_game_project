@@ -1,0 +1,389 @@
+{
+"_note": "Stage 3 무기 손 테이블. 좌표 = CharactersBaked 캔버스 px(좌상 원점, 오른쪽 보는 원본). dir = 무기 방향 인덱스(0=위, 45° 시계). back = 몸 뒤(order 5). ex/ey = 수동 추정, x/y = 장갑 스냅(Tools/hand_snap.py). walk 는 재생성 대기라 비움. idle/walk 들기 방식(CarryStyle)은 GearAttachment 상수.",
+"hands": {
+"main_m/idle/0": {
+"x": 63,
+"y": 90,
+"ex": 63,
+"ey": 90
+},
+"main_m/idle/1": {
+"x": 64,
+"y": 90,
+"ex": 63,
+"ey": 90
+},
+"main_m/idle/2": {
+"x": 64,
+"y": 90,
+"ex": 63,
+"ey": 90
+},
+"main_m/idle/3": {
+"x": 64,
+"y": 90,
+"ex": 63,
+"ey": 90
+},
+"main_m/attack/3": {
+"x": 43,
+"y": 71,
+"dir": 7,
+"back": true,
+"ex": 43,
+"ey": 71
+},
+"main_m/attack/5": {
+"x": 41,
+"y": 54,
+"dir": 7,
+"back": true,
+"ex": 41,
+"ey": 54
+},
+"main_m/attack/7": {
+"x": 79,
+"y": 91,
+"dir": 2,
+"back": false,
+"ex": 79,
+"ey": 91
+},
+"main_m/attack/8": {
+"x": 89,
+"y": 96,
+"dir": 2,
+"back": false,
+"ex": 89,
+"ey": 97
+},
+"main_m/attack/10": {
+"x": 84,
+"y": 98,
+"dir": 2,
+"back": false,
+"ex": 83,
+"ey": 97
+},
+"main_m/attack1/4": {
+"x": 36,
+"y": 61,
+"dir": 2,
+"back": true,
+"ex": 36,
+"ey": 60
+},
+"main_m/attack1/6": {
+"x": 45,
+"y": 57,
+"dir": 2,
+"back": true,
+"ex": 45,
+"ey": 57
+},
+"main_m/attack1/7": {
+"x": 104,
+"y": 93,
+"dir": 2,
+"back": false,
+"ex": 105,
+"ey": 93
+},
+"main_m/attack1/8": {
+"x": 102,
+"y": 84,
+"dir": 2,
+"back": false,
+"ex": 102,
+"ey": 86
+},
+"main_m/attack1/10": {
+"x": 107,
+"y": 89,
+"dir": 2,
+"back": false,
+"ex": 107,
+"ey": 90
+},
+"main_f/idle/0": {
+"x": 63,
+"y": 80,
+"ex": 61,
+"ey": 81
+},
+"main_f/idle/1": {
+"x": 65,
+"y": 84,
+"ex": 64,
+"ey": 84
+},
+"main_f/idle/2": {
+"x": 66,
+"y": 83,
+"ex": 64,
+"ey": 84
+},
+"main_f/idle/3": {
+"x": 65,
+"y": 84,
+"ex": 65,
+"ey": 84
+},
+"main_f/attack/4": {
+"x": 42,
+"y": 54,
+"dir": 7,
+"back": true,
+"ex": 41,
+"ey": 55
+},
+"main_f/attack/6": {
+"x": 43,
+"y": 56,
+"dir": 7,
+"back": true,
+"ex": 42,
+"ey": 56
+},
+"main_f/attack/7": {
+"x": 65,
+"y": 82,
+"dir": 2,
+"back": false,
+"ex": 65,
+"ey": 82
+},
+"main_f/attack/8": {
+"x": 100,
+"y": 77,
+"dir": 2,
+"back": false,
+"ex": 100,
+"ey": 77
+},
+"main_f/attack/10": {
+"x": 104,
+"y": 78,
+"dir": 2,
+"back": false,
+"ex": 105,
+"ey": 79
+},
+"main_f/attack1/4": {
+"x": 77,
+"y": 72,
+"dir": 2,
+"back": true,
+"ex": 77,
+"ey": 73
+},
+"main_f/attack1/6": {
+"x": 81,
+"y": 75,
+"dir": 2,
+"back": true,
+"ex": 81,
+"ey": 75
+},
+"main_f/attack1/7": {
+"x": 98,
+"y": 66,
+"dir": 2,
+"back": false,
+"ex": 98,
+"ey": 66
+},
+"main_f/attack1/8": {
+"x": 102,
+"y": 69,
+"dir": 2,
+"back": false,
+"ex": 103,
+"ey": 68
+},
+"main_f/attack1/10": {
+"x": 104,
+"y": 69,
+"dir": 2,
+"back": false,
+"ex": 106,
+"ey": 71
+},
+"main_m/attack/4": {
+"x": 40,
+"y": 60,
+"dir": 7,
+"back": true,
+"ex": 40,
+"ey": 60
+},
+"main_m/attack/6": {
+"x": 45,
+"y": 56,
+"dir": 7,
+"back": true,
+"ex": 45,
+"ey": 56
+},
+"main_m/attack/9": {
+"x": 88,
+"y": 96,
+"dir": 2,
+"back": false,
+"ex": 88,
+"ey": 96
+},
+"main_f/attack/5": {
+"x": 42,
+"y": 54,
+"dir": 7,
+"back": true,
+"ex": 42,
+"ey": 54
+},
+"main_f/attack/9": {
+"x": 98,
+"y": 78,
+"dir": 2,
+"back": false,
+"ex": 98,
+"ey": 78
+},
+"main_f/attack/3": {
+"x": 45,
+"y": 67,
+"dir": 7,
+"back": true,
+"ex": 45,
+"ey": 67
+},
+"main_m/attack2/3": {
+"x": 71,
+"y": 75,
+"dir": 1,
+"back": true,
+"ex": 71,
+"ey": 75
+},
+"main_m/attack2/4": {
+"x": 64,
+"y": 67,
+"dir": 7,
+"back": true,
+"ex": 64,
+"ey": 67
+},
+"main_m/attack2/5": {
+"x": 60,
+"y": 65,
+"dir": 7,
+"back": true,
+"ex": 60,
+"ey": 65
+},
+"main_m/attack2/6": {
+"x": 60,
+"y": 65,
+"dir": 7,
+"back": true,
+"ex": 60,
+"ey": 65
+},
+"main_m/attack2/7": {
+"x": 56,
+"y": 65,
+"dir": 7,
+"back": true,
+"ex": 56,
+"ey": 65
+},
+"main_m/attack2/8": {
+"x": 52,
+"y": 64,
+"dir": 7,
+"back": true,
+"ex": 52,
+"ey": 64
+},
+"main_m/attack2/9": {
+"x": 105,
+"y": 67,
+"dir": 1,
+"back": true,
+"ex": 105,
+"ey": 67
+},
+"main_m/attack2/10": {
+"x": 106,
+"y": 67,
+"dir": 1,
+"back": true,
+"ex": 106,
+"ey": 67
+},
+"main_f/attack2/3": {
+"x": 92,
+"y": 55,
+"dir": 1,
+"back": true,
+"ex": 92,
+"ey": 55
+},
+"main_f/attack2/4": {
+"x": 59,
+"y": 53,
+"dir": 7,
+"back": true,
+"ex": 59,
+"ey": 53
+},
+"main_f/attack2/5": {
+"x": 45,
+"y": 58,
+"dir": 7,
+"back": true,
+"ex": 45,
+"ey": 58
+},
+"main_f/attack2/6": {
+"x": 47,
+"y": 61,
+"dir": 7,
+"back": true,
+"ex": 47,
+"ey": 61
+},
+"main_f/attack2/7": {
+"x": 81,
+"y": 82,
+"dir": 2,
+"back": true,
+"ex": 81,
+"ey": 82
+},
+"main_f/attack2/8": {
+"x": 78,
+"y": 85,
+"dir": 2,
+"back": true,
+"ex": 78,
+"ey": 85
+},
+"main_f/attack2/9": {
+"x": 78,
+"y": 85,
+"dir": 2,
+"back": true,
+"ex": 78,
+"ey": 85
+},
+"main_f/attack2/10": {
+"x": 78,
+"y": 85,
+"dir": 2,
+"back": true,
+"ex": 78,
+"ey": 85
+}
+}
+}

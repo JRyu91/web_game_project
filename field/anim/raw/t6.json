@@ -1,0 +1,77 @@
+{
+ "character": {
+  "id": "8bae3728-1c98-466a-b2eb-21728a0ad4a4",
+  "name": "Idle",
+  "prompt": "A striped wild tiger in a side view, wearing a red baseball jersey and a red baseball cap. It retains its intense yellow eyes, white whiskers, bared sharp fangs, and black-and-white facial markings. The vivid orange coat has crisp black stripes with a pale white underbelly, and a long striped tail curled low. It is in a low predatory stalk on padded paws with unsheathed claws, featuring no armor or accessories. Clean bold outline, limited palette, chibi 3-head proportions.",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 8,
+  "view": "side"
+ },
+ "spritesheet": {
+  "path": "t6.png",
+  "cell_size": {
+   "width": 120,
+   "height": 120
+  },
+  "sheet_size": {
+   "width": 1320,
+   "height": 600
+  },
+  "columns": 11,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 8,
+    "directions": [
+     "south",
+     "south-east",
+     "east",
+     "north-east",
+     "north",
+     "north-west",
+     "west",
+     "south-west"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "attack - rear up paw swipe",
+    "animation_group_id": "13afefad-b961-4f34-ab91-44ba50ec854b",
+    "direction": "south"
+   },
+   {
+    "row": 2,
+    "type": "animation",
+    "frame_count": 11,
+    "animation": "death v3 - collapse bleed",
+    "animation_group_id": "46227bb3-9140-419b-ae13-549f207bf540",
+    "direction": "south"
+   },
+   {
+    "row": 3,
+    "type": "animation",
+    "frame_count": 8,
+    "animation": "Walking",
+    "animation_group_id": "bceaa343-5b41-47c6-9e9d-64621e776fef",
+    "direction": "south"
+   },
+   {
+    "row": 4,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hurt",
+    "animation_group_id": "ea284517-a71a-4351-9e31-c8974c84520c",
+    "direction": "south"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:35:18.291018+00:00"
+}

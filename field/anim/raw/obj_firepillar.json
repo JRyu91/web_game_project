@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "4360e424-3fd8-4436-b3d7-a9de34c739c0",
+  "name": "base",
+  "prompt": "a tall vertical pillar of roaring fire erupting straight up from the ground, a thick column of orange flame with a bright base, flying embers and smoke at the top",
+  "size": {
+   "width": 128,
+   "height": 128
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_firepillar.png",
+  "cell_size": {
+   "width": 128,
+   "height": 128
+  },
+  "sheet_size": {
+   "width": 1152,
+   "height": 256
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "burn-loop",
+    "animation_group_id": "58c5d2fb-d042-41e9-9251-d2e3378a829d",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:47.718596+00:00"
+}

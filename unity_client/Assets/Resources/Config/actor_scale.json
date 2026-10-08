@@ -1,0 +1,9 @@
+{
+  "_note": "tiers[i] = t(i+1) 몬스터 표시 배율. 정수 = 런타임 NxN(nearest), 비정수 = Tools/bake_player_scale.py 가 monsterBakedRoot/tN 에 미리 구움(바꾸면 재실행). 플레이어는 playerBakeFactor(5/6, nearest ≈102px)로 구운 playerRoot 를 1x 로. A 확정: t1 4/3(≈51px), t2-t4 2x, t5/t6 2.5. B 확정: t7 1.2, t8 1.5, t9 1.25, t10 1.125, t11 1.2, t12 1.5, 플레이어는 A와 같음. C 확정: t13-t18 1.5 보스(사용자 확정 2026-09-26): t19 2x(런타임 정수), t20 0.9, t21 1.4(구움). 스폰 규칙은 추후.",
+  "playerBakeFactor": 0.8333333,
+  "playerRoot": "Sprites/CharactersBaked",
+  "weaponRoot": "Sprites/WeaponsBaked",
+  "monsterBakedRoot": "Sprites/MonstersBaked",
+  "player": 1,
+  "tiers": [1.3333333,2,2,2,2.5,2.5, 1.2,1.5,1.25,1.125,1.2,1.5, 1.5,1.5,1.5,1.5,1.5,1.5, 2,0.9,1.4]
+}

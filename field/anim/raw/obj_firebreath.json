@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "abc9ba9c-a206-40ae-a206-4e805bfd9478",
+  "name": "base",
+  "prompt": "a horizontal jet of dragon fire breath, a thick stream of bright orange and yellow flame blasting sideways to the right with embers and smoke, tapering plume",
+  "size": {
+   "width": 96,
+   "height": 96
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_firebreath.png",
+  "cell_size": {
+   "width": 96,
+   "height": 96
+  },
+  "sheet_size": {
+   "width": 864,
+   "height": 192
+  },
+  "columns": 9,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 9,
+    "animation": "burn-loop",
+    "animation_group_id": "75dfe93a-720f-4e34-a7e5-7917bfb9b414",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:45.984177+00:00"
+}

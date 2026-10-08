@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "1eb7fce0-4a94-4cfb-aa1a-68fc175f2685",
+  "name": "base",
+  "prompt": "a bright white and yellow impact hit spark, a sharp starburst flash with radiating shards, combat hit effect",
+  "size": {
+   "width": 48,
+   "height": 48
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_hitspark.png",
+  "cell_size": {
+   "width": 48,
+   "height": 48
+  },
+  "sheet_size": {
+   "width": 336,
+   "height": 96
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "hit",
+    "animation_group_id": "47704a02-961d-4a4b-834e-5516c6aba350",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:53.577197+00:00"
+}

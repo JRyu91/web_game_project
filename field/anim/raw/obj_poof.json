@@ -1,0 +1,46 @@
+{
+ "object": {
+  "id": "359d6413-b192-4540-ba2e-c5602aaf67d3",
+  "name": "base",
+  "prompt": "a puff of grey smoke dissipating, a small round cloud breaking apart, death poof effect",
+  "size": {
+   "width": 64,
+   "height": 64
+  },
+  "directions": 1,
+  "view": "low top-down"
+ },
+ "spritesheet": {
+  "path": "obj_poof.png",
+  "cell_size": {
+   "width": 64,
+   "height": 64
+  },
+  "sheet_size": {
+   "width": 448,
+   "height": 128
+  },
+  "columns": 7,
+  "pivot": "cell-center",
+  "rows": [
+   {
+    "row": 0,
+    "type": "rotations",
+    "frame_count": 1,
+    "directions": [
+     "unknown"
+    ]
+   },
+   {
+    "row": 1,
+    "type": "animation",
+    "frame_count": 7,
+    "animation": "poof",
+    "animation_group_id": "5101f92a-1015-4c2f-be46-eb32191dd2b5",
+    "direction": "unknown"
+   }
+  ]
+ },
+ "export_version": "1.0",
+ "export_date": "2026-09-10T15:36:56.746325+00:00"
+}
