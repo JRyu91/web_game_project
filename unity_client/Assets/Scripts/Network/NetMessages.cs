@@ -6,7 +6,7 @@ namespace Game.Network {
 
 [Serializable] public class EquipWeaponMsg { public string kind; public int tier; public int enh; }
 [Serializable] public class EquipMsg { public EquipWeaponMsg weapon; }
-[Serializable] public class RosterEntry { public string zone; public bool bot; public string id; public string name; public int level; public string gender; public EquipMsg equip; }
+[Serializable] public class RosterEntry { public float x = 40; public int face = 1; public string zone; public bool bot; public string id; public string name; public int level; public string gender; public EquipMsg equip; }
 
 [Serializable] public class TypeOnly { public string type; }
 [Serializable] public class SavePreferences { public int potionThreshold; }
@@ -40,8 +40,9 @@ namespace Game.Network {
 [Serializable] public class InvEquip { public int weapon; public int helmet; public int armor; }
 [Serializable] public class Skillbook { public string key, name, weapon; public int level; public long price; public bool owned, available; }
 [Serializable] public class PendingSummon { public int tier, token; }
-[Serializable] public class InvState { public bool HasPendingDrop => pendingDrop != null && pendingDrop.uid > 0; public PendingSummon pendingSummon; public InvItem pendingDrop; public string zone; public int[] mapMinLevels; public string[] skills; public Skillbook[] skillbooks; public bool autoSell; public int autoSellLevel; public long expandCost; public bool expandAvailable; public int level; public long exp; public long gold; public int stones; public int potions; public long potionPrice; public int invCap; public int killCountT19; public int killCountT20; public InvEquip equip; public InvItem[] inv; }
-[Serializable] public class InvDrop { public int tier; public long gold; public long exp; public int stones; public int levelUp; public long sold; public InvItem item; }
+[Serializable] public class CombatTuning { public float weaponDamageMultiplier = 1f, statDamagePerPoint = 0.005f, luckCritPerPoint = 0.001f, critCap = 0.3f, critDamage = 1.5f, swordShortRange = 26f, swordRange = 44f, staffRange = 72.8f; public int dexDefensePerPoint = 1; public float[] skillCooldowns = {10f,20f,30f,60f,120f}; public float[] naturalStoneChances = {0.0195f,0.0389f,0.0623f}; }
+[Serializable] public class InvState { public int str, dex, intelligence, luk, statPoints; public CombatTuning combat; public bool HasPendingDrop => pendingDrop != null && pendingDrop.uid > 0; public PendingSummon pendingSummon; public InvItem pendingDrop; public string zone; public int[] mapMinLevels; public string[] skills; public Skillbook[] skillbooks; public bool autoSell; public int autoSellLevel; public bool autoDisassemble; public int autoDisassembleLevel; public long expandCost; public bool expandAvailable; public int level; public long exp; public long gold; public int stones; public int potions; public long potionPrice; public int invCap; public int killCountT19; public int killCountT20; public InvEquip equip; public InvItem[] inv; }
+[Serializable] public class InvDrop { public int tier; public long gold; public long exp; public int stones; public int levelUp; public long sold; public int disassembled; public InvItem item; }
 [Serializable] public class InvEnh { public int uid; public int from; public int to; public string result; public InvCost cost; }
 [Serializable] public class InvSkip { public int uid; public string code; }
 [Serializable] public class InvSell { public int[] sold; public long gold; public InvSkip[] skipped; }

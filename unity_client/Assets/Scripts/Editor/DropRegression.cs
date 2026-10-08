@@ -65,6 +65,10 @@ public static class DropRegression {
             Check(fx.PendingUid==0&&fx.VisibleCount==1,"confirmed pending item cannot begin acquisition");
             fx.Tick(1);Check(fx.VisibleCount==0,"pending acquisition did not finish");
             Check(reward.gold==9&&reward.stones==1&&state.inv.Length==1,"visuals changed authoritative rewards");
+            fx.Clear();
+            fx.Show(new InvDrop { gold = 9, disassembled = 3, item = item }, new InvState { inv = Array.Empty<InvItem>() }, Vector3.zero, target.transform);
+            Check(fx.VisibleCount == 2, "automatic disassembly must show gold+stone, no equipment");
+            fx.Clear();
             CheckManagerAck(root,fx);
             Debug.Log("[DropRegression] PASS: existing assets, auto acquisition, auto-sale, full-bag hold, single pending collection; no reward mutation");
         } finally { UnityEngine.Object.DestroyImmediate(root); }

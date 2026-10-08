@@ -15,6 +15,60 @@ using Game.Network;
 namespace Game.EditorTools {
 
 public static class Stage3Capture {
+    public static void RenderingRegression() {
+        var root = new GameObject("RenderingRegression");
+        try {
+            var manager = root.AddComponent<GameManager>();
+            var zone = ZoneController.Current != null ? ZoneController.Current.Zone.ToString() : "A";
+            var roster = new[] { new RosterEntry { id = "peer", name = "원격", zone = zone, gender = "female", x = 22, face = -1 } };
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(GameManager).GetMethod("UpdateRoster", flags).Invoke(manager, new object[] { roster });
+            var ghost = root.transform.Find("Ghost_peer");
+            if (ghost == null || ghost.position.x != 22 || !ghost.GetComponent<SpriteRenderer>().flipX || ghost.GetComponent<SpriteRenderer>().sortingOrder != 6)
+                throw new System.Exception("Roster must immediately create positioned, facing actor on gear body layer");
+            var label = ghost.GetComponentInChildren<TextMesh>();
+            if (label == null || !label.text.Contains("원격")) throw new System.Exception("Remote nameplate missing");
+            ghost.GetComponent<FrameAnimator>().Still("idle", 0);
+            ghost.GetComponent<ActorNameplate>().SendMessage("LateUpdate");
+            var bbox = SpriteBBox.Get(ghost.GetComponent<SpriteRenderer>().sprite);
+            if (Mathf.Abs(label.transform.localPosition.y - bbox.yMax - 0.2f) > 0.001f) throw new System.Exception("Nameplate must follow visible head");
+            typeof(GameManager).GetMethod("UpdateRoster", flags).Invoke(manager, new object[] { System.Array.Empty<RosterEntry>() });
+            if (root.transform.Find("Ghost_peer") != null) throw new System.Exception("Departed roster peer remains visible");
+            var playerGo = new GameObject("SkillRegressionPlayer"); playerGo.transform.SetParent(root.transform);
+            var player = playerGo.AddComponent<PlayerController>(); player.Init(true, "male", () => new List<MonsterController>());
+            var feedback = root.AddComponent<SkillFeedback>(); feedback.Init(player, () => new MonsterController[0]);
+            foreach (var asset in new[] { "obj_energybolt", "obj_firebolt", "obj_bomb", "obj_nuke" })
+                if (Resources.LoadAll<Sprite>("Sprites/FX/" + asset + "/anim1").Length == 0) throw new System.Exception("Missing skill resource: " + asset);
+            foreach (var skill in GameData.Skills) {
+                feedback.Clear(); feedback.Cast(skill);
+                if (!SkillFeedback.Supports(skill.key) || feedback.ActiveCount == 0) throw new System.Exception("Missing skill feedback: " + skill.key);
+                feedback.Tick(2);
+                if (feedback.ActiveCount != 0) throw new System.Exception("Skill feedback leaked: " + skill.key);
+            }
+            for (int i = 0; i < 40; i++) feedback.Cast(GameData.Skills[0]);
+            if (feedback.ActiveCount > 32) throw new System.Exception("Skill feedback exceeded cap");
+            feedback.Clear();
+            Debug.Log("PASS RenderingRegression: immediate roster, facing, gear layer, nameplate, departure, ten skill effects, lifecycle cap");
+        } finally { Object.DestroyImmediate(root); }
+    }
+
+    public static void RenderingCapture() {
+        Begin();
+        foreach (var skill in GameData.Skills) {
+            Setup("skill_" + skill.key, Zone.A, "m", skill.weapon);
+            var monsters = new List<MonsterController> { Mob(1, PX + 2, 99999), Mob(1, PX + 4, 99999) };
+            var feedback = _pl.gameObject.AddComponent<SkillFeedback>(); feedback.Init(_pl, () => monsters);
+            _pl.gameObject.AddComponent<ActorNameplate>().Init("모험가 · 나", new Color(1, 0.9f, 0.6f));
+            foreach (var visual in ActorVisual.All) visual.Refresh();
+            feedback.Cast(skill); feedback.Tick(0.18f);
+            Shot("team_v6/f_round/code/final/skill_" + skill.key);
+            if (skill.key == "end_staff") { feedback.Tick(0.35f); Shot("team_v6/f_round/code/final/skill_end_staff_impact"); }
+            feedback.Clear();
+        }
+        ZoneController.AnimTime = 0;
+        Debug.Log("PASS RenderingCapture: ten skill feedback frames");
+    }
+
     const string OUT = "../unity_review/stage3";
     const float DT = 1f / 60f;
     const float PX = 24.5f; // 화면 x≈180 빈 공간(나무·가로등 줄기와 안 겹침)

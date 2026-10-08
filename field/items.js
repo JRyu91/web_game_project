@@ -27,6 +27,16 @@ const expandCost = s => Math.round(200 * 1.04 ** s.bagExpansions);
 const disassembleYield = it => Math.ceil((itemLevel(it) / 5 + 1) * 0.8);
 const LEVEL_MAX = 100;
 const MAP_LEVELS = {A:1,B:35,C:70};
+const COMBAT = Object.freeze({weaponDamageMultiplier:1, statDamagePerPoint:0.005, dexDefensePerPoint:1, luckCritPerPoint:0.001, critCap:0.3, critDamage:1.5, swordShortRange:26, swordRange:44, staffRange:72.8, skillCooldowns:[10,20,30,60,120], naturalStoneChances:[STONE_DROP.basic,STONE_DROP.rare,STONE_DROP.unique]});
+const STAT_KEYS = ['str','dex','intelligence','luk'];
+const statPoints = s => 5 * (s.level - 1) - STAT_KEYS.reduce((sum,k)=>sum+s[k],0);
+function normalizeStats(s) {
+  for (const key of STAT_KEYS) {
+    if (s[key] === undefined) s[key] = 0;
+    if (!Number.isInteger(s[key]) || s[key] < 0 || s[key] > 495) throw new Error('invalid saved stats');
+  }
+  if (statPoints(s) < 0) throw new Error('invalid saved stats');
+}
 
 const xpToLevel = lv => Math.round(30 * lv * lv * (lv > 70 ? 1.05 ** (lv - 70) : 1));
 const table = slot => slot === 'helmet' ? HELMET : ARMOR;
@@ -59,6 +69,8 @@ function normalize(s) {
   if (s.skills === undefined) s.skills = [];
   if (s.autoSell === undefined) s.autoSell = false;
   if (s.autoSellLevel === undefined) s.autoSellLevel = 0;
+  if (s.autoDisassemble === undefined) s.autoDisassemble = false;
+  if (s.autoDisassembleLevel === undefined) s.autoDisassembleLevel = 0;
   for (const key of ['killCountT19','killCountT20']) {
     if (s[key] === undefined) s[key] = 0;
     if (!Number.isSafeInteger(s[key]) || s[key] < 0) throw new Error('invalid saved kill counter');
@@ -66,7 +78,9 @@ function normalize(s) {
   if (s.pendingSummon && (![19,20].includes(s.pendingSummon.tier) || !Number.isSafeInteger(s.pendingSummon.at) || s.pendingSummon.at < 0 || !Number.isSafeInteger(s.pendingSummon.token) || s.pendingSummon.token !== s.summonSerial)) throw new Error('invalid saved summon');
   if (!Number.isInteger(s.bagExpansions) || s.bagExpansions < 0 || s.bagExpansions > INV_MAX - INV_CAP ||
       !Array.isArray(s.skills) || new Set(s.skills).size !== s.skills.length || s.skills.some(k => !SKILLS.some(x => x.key === k)) ||
-      typeof s.autoSell !== 'boolean' || !Number.isInteger(s.autoSellLevel) || s.autoSellLevel < 0 || s.autoSellLevel > 100) throw new Error('invalid saved settings');
+      typeof s.autoSell !== 'boolean' || !Number.isInteger(s.autoSellLevel) || s.autoSellLevel < 0 || s.autoSellLevel > 100 ||
+      typeof s.autoDisassemble !== 'boolean' || !Number.isInteger(s.autoDisassembleLevel) || s.autoDisassembleLevel < 0 || s.autoDisassembleLevel > 100 ||
+      (s.autoSell && s.autoDisassemble)) throw new Error('invalid saved settings');
   if (Array.isArray(s.inv)) {
     const valid = s.inv.length <= capacity(s) && s.equip && ['weapon', 'helmet', 'armor'].every(k => Number.isInteger(s.equip[k])) &&
       [...s.inv, ...(s.pendingDrop ? [s.pendingDrop] : [])].every(i => i && Number.isSafeInteger(i.uid) && i.uid > 0 && ['weapon', 'helmet', 'armor'].includes(i.slot) &&
@@ -78,6 +92,7 @@ function normalize(s) {
       Number.isInteger(s.level) && s.level >= 1 && s.level <= LEVEL_MAX &&
       ['gold', 'exp', 'stones', 'potions'].every(k => Number.isSafeInteger(s[k]) && s[k] >= 0);
     if (!valid) throw new Error('invalid saved inventory');
+    normalizeStats(s);
     return sync(s);
   }
   // Legacy saves can contain fractional XP; migrate once into the integer server schema.
@@ -103,6 +118,7 @@ function normalize(s) {
       const it = addItem(s, slot, '', t); it.enh = clamp(s[slot + 'Enh'], ENH_MAX + 1); s.equip[slot] = it.uid;
     }
   }
+  normalizeStats(s);
   return sync(s);
 }
 
@@ -127,9 +143,10 @@ function sync(s) {
 function view(s) {
   return {
     zone: s.zone, mapMinLevels: [1,35,70],
+    str:s.str, dex:s.dex, intelligence:s.intelligence, luk:s.luk, statPoints:statPoints(s), combat:COMBAT,
     level: s.level, exp: s.exp, gold: s.gold, stones: s.stones, potions: s.potions,
     potionPrice: potionPrice(s.level), invCap: capacity(s), expandAvailable: capacity(s) < INV_MAX, expandCost: capacity(s) < INV_MAX ? expandCost(s) : 0,
-    skills: [...s.skills], autoSell: s.autoSell, autoSellLevel: s.autoSellLevel,
+    skills: [...s.skills], autoSell: s.autoSell, autoSellLevel: s.autoSellLevel, autoDisassemble: s.autoDisassemble, autoDisassembleLevel: s.autoDisassembleLevel,
     pendingSummon: s.pendingSummon ? {tier:s.pendingSummon.tier, token:s.pendingSummon.token} : null,
     pendingDrop: s.pendingDrop ? { ...s.pendingDrop, name: itemName(s.pendingDrop), level: itemLevel(s.pendingDrop), sell: sellPrice(s.pendingDrop), cost: enhCost(s.pendingDrop) } : null,
     skillbooks: SKILLS.map((x, n) => ({ ...x, price: SKILL_PRICES[x.key] || 0, available: Number.isSafeInteger(SKILL_PRICES[x.key]) && SKILL_PRICES[x.key] > 0, owned: s.skills.includes(x.key) })),
@@ -159,7 +176,7 @@ function kill(s, tier, rng = Math.random) {
   tier = Number(tier);
   const [, rank, minLv, , g] = MONS[tier - 1];
   const boss = tier >= 19;
-  const drop = { tier, gold: boss ? g : Math.floor(Math.round(g * 0.8) + rng() * (Math.round(g * 1.4) - Math.round(g * 0.8) + 1)), exp: monExp(tier), stones: 0, item: null, sold: 0, levelUp: 0 };
+  const drop = { tier, gold: boss ? g : Math.floor(Math.round(g * 0.8) + rng() * (Math.round(g * 1.4) - Math.round(g * 0.8) + 1)), exp: monExp(tier), stones: 0, item: null, sold: 0, disassembled: 0, levelUp: 0 };
   s.gold += drop.gold;
   if (tier >= 7 && tier <= 18) s.killCountT19 = (s.killCountT19 || 0) + 1; //B+C 일반 처치(spec_boss_spawn 소환 버튼)
   if (tier >= 13 && tier <= 18) s.killCountT20 = (s.killCountT20 || 0) + 1; //C 만
@@ -182,7 +199,7 @@ function kill(s, tier, rng = Math.random) {
       it = addItem(s, slot, '', tier2);
     }
     drop.item = { ...it, name: itemName(it), level: itemLevel(it) };
-    if (s.autoSell && itemLevel(it) <= s.autoSellLevel) { s.inv.pop(); drop.sold = sellPrice(it); s.gold += drop.sold; }
+    if (applyDropPolicy(s, it, drop)) s.inv.pop();
     else if (s.inv.length > capacity(s)) { s.inv.pop(); s.pendingDrop = it; }
   }
   sync(s);
@@ -283,7 +300,7 @@ function transport(s, raw) {
     hp:Math.floor(finite(raw.hp,raw.dead === true ? 0 : 1,maxHp,maxHp)), maxHp, level:s.level, exp:s.exp,
     equip:{weapon:{kind:weapon.kind,tier:weapon.tier,enh:weapon.enh}},
     dead:raw.dead === true,
-    skillTimers:s.skills.map(key=>({key,remaining:finite(timers.find(t=>t && t.key===key)?.remaining,0,[10,20,30,60,120][Math.floor(SKILLS.findIndex(x=>x.key===key)/2)])})),
+    skillTimers:s.skills.map(key=>({key,remaining:finite(timers.find(t=>t && t.key===key)?.remaining,0,COMBAT.skillCooldowns[Math.floor(SKILLS.findIndex(x=>x.key===key)/2)])})),
     potionCd:finite(raw.potionCd,0,5),attackCd:finite(raw.attackCd,0,2/3),hitDelay:finite(raw.hitDelay,0,2),
     regenAcc:finite(raw.regenAcc,0,1),respawnRemaining:finite(raw.respawnRemaining,0,3),
   };
@@ -317,10 +334,50 @@ function expand(s) {
   return { ok: true };
 }
 
+function allocateStat(s, key, qty) {
+  const k = key === 'int' ? 'intelligence' : key;
+  if (!STAT_KEYS.includes(k)) return fail('bad_stat');
+  if (!Number.isInteger(qty) || qty < 1) return fail('bad_qty');
+  if (qty > statPoints(s)) return fail('no_points');
+  s[k] += qty;
+  return {ok:true};
+}
+function allocateAuto(s) {
+  return allocateStat(s, gearClass(s) === 'mage' ? 'int' : 'str', statPoints(s));
+}
+
 function autoSell(s, enabled, level) {
   if (typeof enabled !== 'boolean' || !Number.isInteger(level) || level < 0 || level > 100) return fail('bad_filter');
   s.autoSell = enabled; s.autoSellLevel = level;
-  return { ok: true };
+  if (enabled) s.autoDisassemble = false;
+  return processPendingDrop(s);
+}
+
+// Only newly acquired or retained overflow drops enter the automatic policy.
+function applyDropPolicy(s, it, drop) {
+  if (s.autoDisassemble && itemLevel(it) <= s.autoDisassembleLevel) {
+    drop.disassembled = disassembleYield(it); s.stones += drop.disassembled; return true;
+  }
+  if (s.autoSell && itemLevel(it) <= s.autoSellLevel) {
+    drop.sold = sellPrice(it); s.gold += drop.sold; return true;
+  }
+  return false;
+}
+
+function processPendingDrop(s) {
+  const it = s.pendingDrop;
+  if (!it) return { ok: true };
+  const drop = { item: { ...it, name: itemName(it), level: itemLevel(it) }, sold: 0, disassembled: 0 };
+  if (!applyDropPolicy(s, it, drop)) return { ok: true };
+  s.pendingDrop = null;
+  return { ok: true, drop };
+}
+
+function autoDisassemble(s, enabled, level) {
+  if (typeof enabled !== 'boolean' || !Number.isInteger(level) || level < 0 || level > 100) return fail('bad_filter');
+  s.autoDisassemble = enabled; s.autoDisassembleLevel = level;
+  if (enabled) s.autoSell = false;
+  return processPendingDrop(s);
 }
 
 function disassemble(s, uid, uids, level) {
@@ -370,7 +427,7 @@ function usePotion(s) {
 }
 
 //서버만 바꾸는 세이브 키. POST /save 로 클라가 보내도 이 값들은 서버 쪽 것으로 덮어쓴다.
-const OWNED = ['zone', 'level', 'exp', 'gold', 'stones', 'potions', 'inv', 'nextUid', 'equip', 'skills', 'bagExpansions', 'autoSell', 'autoSellLevel', 'pendingDrop', 'pendingSummon', 'summonSerial',
+const OWNED = ['str', 'dex', 'intelligence', 'luk', 'statPoints', 'combat', 'zone', 'level', 'exp', 'gold', 'stones', 'potions', 'inv', 'nextUid', 'equip', 'skills', 'bagExpansions', 'autoSell', 'autoSellLevel', 'autoDisassemble', 'autoDisassembleLevel', 'pendingDrop', 'pendingSummon', 'summonSerial',
   'weaponKind', 'weaponTier', 'weaponEnh', 'helmetTier', 'helmetEnh', 'armorTier', 'armorEnh', 'gearClass', 'potionCount', 'killCountT19', 'killCountT20'];
 
-module.exports = { spawnAllowed, transport, map, summonAck, learn, expand, autoSell, disassemble, disassembleYield, normalize, view, kill, equip, enhance, buy, sell, usePotion, summon, OWNED, ENH_SUCC, DESTROY_FROM, DESTROY_P, enhCost, potionPrice, sellPrice, xpToLevel, monExp };
+module.exports = { allocateStat, allocateAuto, statPoints, COMBAT, spawnAllowed, transport, map, summonAck, learn, expand, autoSell, autoDisassemble, disassemble, disassembleYield, normalize, view, kill, equip, enhance, buy, sell, usePotion, summon, OWNED, ENH_SUCC, DESTROY_FROM, DESTROY_P, enhCost, potionPrice, sellPrice, xpToLevel, monExp };

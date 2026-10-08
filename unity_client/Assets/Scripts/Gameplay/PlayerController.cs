@@ -66,8 +66,6 @@ public class PlayerController : MonoBehaviour {
     float _regenAcc; // 비전투 리젠 소수 누적(프레임레이트 무관). 지연·비율 = CombatMath.RegenDelay/RegenRate (balance.json)
     const float RESPAWN_SEC = 3f;
     const float HIT_COOLDOWN = 1f;
-    const float SWORD_RANGE = 52f * PX_TO_UNIT;
-    const float STAFF_RANGE_MULT = 1.4f;
     const float ATK_SPEED = 1.5f; // 초당 타격
 
     // 파츠 기반 관절 스켈레톤(BodySkeleton) 사용 여부. 기본 false — 기존에 확인된 프레임시트 렌더링을
@@ -86,7 +84,17 @@ public class PlayerController : MonoBehaviour {
     readonly List<StaffProjectile> _projectiles = new List<StaffProjectile>();
 
     public WeaponDef CurrentWeapon => WeaponKind == "sword" ? GameData.Swords[WeaponTierIdx] : GameData.Staves[WeaponTierIdx];
-    public float Range => WeaponKind == "sword" ? (WeaponTierIdx <= 1 ? 26f : 44f) * PX_TO_UNIT : SWORD_RANGE * STAFF_RANGE_MULT;
+    readonly Game.Network.CombatTuning _defaultCombat = new Game.Network.CombatTuning();
+    public Game.Network.CombatTuning Combat => Inv?.combat ?? _defaultCombat;
+    public float AttackMultiplier => Combat.weaponDamageMultiplier * CombatMath.StatDamageMultiplier(WeaponKind == "staff" ? Inv?.intelligence ?? 0 : Inv?.str ?? 0, Combat.statDamagePerPoint);
+    public float CriticalChance => CombatMath.CritChance(Inv?.luk ?? 0, Combat.luckCritPerPoint, Combat.critCap);
+    public float CriticalDamageMultiplier => Combat.critDamage;
+    public int Defense => (HelmetTierIdx >= 0 ? CombatMath.GearDefWithEnhance(GameData.Helmets[HelmetTierIdx], HelmetEnhance) : 0)
+        + (ArmorTierIdx >= 0 ? CombatMath.GearDefWithEnhance(GameData.Armors[ArmorTierIdx], ArmorEnhance) : 0)
+        + (Inv?.dex ?? 0) * Combat.dexDefensePerPoint;
+    public float Range => (WeaponKind == "sword" ? (WeaponTierIdx <= 1 ? Combat.swordShortRange : Combat.swordRange) : Combat.staffRange) * PX_TO_UNIT;
+    public float SkillBaseCooldown(SkillDef skill) => Combat.skillCooldowns[Mathf.Clamp(skill.lv / 20 - 1, 0, Combat.skillCooldowns.Length - 1)];
+    int GrowthDamage(int damage) => CombatMath.ApplyGrowthDamage(damage, AttackMultiplier, CriticalChance, CriticalDamageMultiplier, _rng);
     public bool Penetrating => WeaponKind == "staff";
 
     public void Init(bool isLocal, string gender, Func<IEnumerable<MonsterController>> monsterProvider) {
@@ -255,9 +263,9 @@ public class PlayerController : MonoBehaviour {
 
     void CastSkill(SkillDef s, MonsterController[] pool, Dictionary<MonsterController, List<int>> damage) {
         if (!CanCast(s)) return;
-        _skillCd[s.key] = s.cd;
+        _skillCd[s.key] = SkillBaseCooldown(s);
         int atk = CombatMath.PlayerFixedAtk(Level) + CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng);
-        int dmg = Mathf.Max(1, Mathf.RoundToInt(atk * s.mult));
+        int dmg = GrowthDamage(Mathf.Max(1, Mathf.RoundToInt(atk * s.mult)));
         bool AheadOf(MonsterController m) => (m.transform.position.x - transform.position.x) * Face >= 0;
         foreach (var m in pool) {
             if (m == null || m.IsDead) continue;
@@ -275,7 +283,7 @@ public class PlayerController : MonoBehaviour {
     }
 
     void DoAttack(MonsterController primaryTarget, MonsterController[] pool, Dictionary<MonsterController, List<int>> damage) {
-        int dmg = CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng);
+        int dmg = GrowthDamage(CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng));
         if (!Penetrating) {
             AddDamage(damage, primaryTarget, dmg);
         } else {
@@ -351,9 +359,7 @@ public class PlayerController : MonoBehaviour {
     public void TakeDamage(int rawAtk) {
         if (!GameplayReady) return;
         if (_state == PlayerState.Dead) return;
-        int def = (HelmetTierIdx >= 0 ? CombatMath.GearDefWithEnhance(GameData.Helmets[HelmetTierIdx], HelmetEnhance) : 0)
-                + (ArmorTierIdx >= 0 ? CombatMath.GearDefWithEnhance(GameData.Armors[ArmorTierIdx], ArmorEnhance) : 0);
-        int real = CombatMath.Mitigate(rawAtk, def);
+        int real = CombatMath.Mitigate(rawAtk, Defense);
         Hp -= real;
         _hitTimer = CombatMath.RegenDelay;
         _vis.Flash(0.033f);
@@ -436,7 +442,7 @@ public class PlayerController : MonoBehaviour {
         _skillCd.Clear(); _pendingSkills.Clear();
         foreach (var timer in state.skillTimers ?? Array.Empty<Game.Network.SkillTimer>()) {
             var skill = GameData.Skills.FirstOrDefault(s => s.key == timer.key);
-            if (!string.IsNullOrEmpty(skill.key)) _skillCd[timer.key] = FiniteTimer(timer.remaining, skill.cd);
+            if (!string.IsNullOrEmpty(skill.key)) _skillCd[timer.key] = FiniteTimer(timer.remaining, SkillBaseCooldown(skill));
         }
         _anim.Play(state.dead ? "dead" : "idle", !state.dead);
         _gear.SetFace(Face);

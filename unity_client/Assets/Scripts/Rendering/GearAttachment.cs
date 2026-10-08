@@ -33,6 +33,7 @@ public class GearAttachment : MonoBehaviour {
     Sprite[] _dirs, _sheathFx;
     Sprite[][] _fx; // [dir][frame]
     Sprite _sheath;
+    string _weaponName;
     Fx _fxInfo; (Vector2 lt, string mode) _sheathCfgW;
     SpriteRenderer _fxSr;
     Material _mat, _fxMat;
@@ -78,6 +79,8 @@ public class GearAttachment : MonoBehaviour {
 
     // 파일명(확장자 없음, 예: "L000_낡은단검"). null = 숨김.
     public void SetWeapon(string name) {
+        if (_weaponName == name) { Apply(); return; }
+        _weaponName = name;
         _dirs = null; _fx = null; _sheath = null; _sheathFx = null;
         if (_fxCfg == null) LoadCfg();
         if (!string.IsNullOrEmpty(name)) {

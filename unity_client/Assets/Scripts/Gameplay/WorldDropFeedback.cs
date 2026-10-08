@@ -16,8 +16,8 @@ public sealed class WorldDropFeedback : MonoBehaviour {
     public void Show(InvDrop reward, InvState state, Vector3 position, Transform target) {
         if (reward == null) return;
         if (reward.gold > 0 || reward.sold > 0) Add("gold", position + Vector3.left * .4f, target);
-        if (reward.stones > 0) Add(reward.tier >= 13 ? "stone_unique" : reward.tier >= 7 ? "stone_rare" : "stone_basic", position + Vector3.right * .4f, target);
-        if (reward.item != null && reward.item.uid > 0 && reward.sold == 0) {
+        if (reward.stones > 0 || reward.disassembled > 0) Add(reward.tier >= 13 ? "stone_unique" : reward.tier >= 7 ? "stone_rare" : "stone_basic", position + Vector3.right * .4f, target);
+        if (reward.item != null && reward.item.uid > 0 && reward.sold == 0 && reward.disassembled == 0) {
             bool pending = state != null && state.HasPendingDrop && state.pendingDrop.uid == reward.item.uid;
             bool collected = state?.inv?.Any(i => i.uid == reward.item.uid) == true;
             if (pending || collected) Add(reward.item.slot, position, target, pending, reward.item.uid);

@@ -18,6 +18,7 @@ public static class CombatRegression {
     static void Check(bool condition, string message) { if (!condition) throw new Exception("[CombatRegression] " + message); }
 
     public static void Run() {
+        CheckGrowth();
         CheckAdaptiveCamera();
         CheckSkyGroundCoverage();
         CheckGhostRoster();
@@ -123,7 +124,7 @@ public static class CombatRegression {
         var root = new GameObject("GhostRegression");
         try {
             var manager = root.AddComponent<GameManager>(); manager.Spawner = root.AddComponent<MonsterSpawner>();
-            var entry = new RosterEntry { id = "remote_qa", name = "원격검사", gender = "female", zone = "A", equip = new EquipMsg { weapon = new EquipWeaponMsg { kind = "staff", tier = 0 } } };
+            var entry = new RosterEntry { id = "remote_qa", x = 10, face = 1, name = "원격검사", gender = "female", zone = "A", equip = new EquipMsg { weapon = new EquipWeaponMsg { kind = "staff", tier = 0 } } };
             Call(manager, "UpdateRoster", (object)new[] { entry, entry, new RosterEntry { id = "" }, new RosterEntry { id = "other_map", zone = "B" }, new RosterEntry { id = "bot", zone = "A", bot = true } });
             Check(manager.Spawner.MapMonsterCap == 5, "different-map player / bot / duplicate inflated monster capacity");
             Call(manager, "UpdateGhost", entry.id, 10f, 1);
@@ -223,6 +224,23 @@ public static class CombatRegression {
             }
             Debug.Log("[CombatRegression] adaptive camera PASS: six viewport sizes, A/B/C footline/body bounds, HUD/world integer zoom, compact scroll and 44px touch");
         } finally { WorldConfig.GroundY = oldGround; UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    static void CheckGrowth() {
+        Check(CombatMath.StatDamageMultiplier(0) == 1f && CombatMath.StatDamageMultiplier(100) == 1.5f, "STR/INT scaling");
+        Check(Mathf.Abs(CombatMath.CritChance(100) - 0.1f) < 0.00001f && CombatMath.CritChance(495) == 0.3f, "LUK critical chance/cap");
+        var rng = new System.Random(10); var baseline = new System.Random(10);
+        Check(CombatMath.ApplyGrowthDamage(100, 1f, 0f, 1.5f, rng) == 100 && rng.Next() == baseline.Next(), "zero growth alters base damage/RNG");
+        Check(CombatMath.ApplyGrowthDamage(100, 1.5f, 1f, 1.5f, rng) == 225, "growth plus critical damage");
+        var go = new GameObject("GrowthRegression");
+        try {
+            var player = go.AddComponent<PlayerController>(); player.Init(false, "male", () => Array.Empty<MonsterController>());
+            player.ApplyState(new InvState { level = 100, str = 100, intelligence = 40, dex = 30, luk = 325, combat = new CombatTuning(), equip = new InvEquip {weapon = 1}, inv = new[] {new InvItem {uid = 1, slot = "weapon", kind = "sword", tier = 0}} });
+            Check(player.AttackMultiplier == 1.5f && player.Defense == 30 && player.CriticalChance == 0.3f && Mathf.Abs(player.Range - 26f / 40f) < 0.00001f, "sword authoritative stats/range");
+            player.WeaponKind = "staff";
+            Check(Mathf.Abs(player.AttackMultiplier - 1.2f) < 0.00001f && Mathf.Abs(player.Range - 72.8f / 40f) < 0.00001f, "staff INT/range");
+        } finally { UnityEngine.Object.DestroyImmediate(go); }
+        Debug.Log("[CombatRegression] growth PASS: STR/INT, DEX, LUK cap, critical damage, zero-growth RNG and authoritative weapon stats");
     }
 
     static void CheckTransport(PlayerController player) {

@@ -10,7 +10,7 @@ async function evaluate(expression){const r=await call('Runtime.evaluate',{expre
  const page=await(await fetch('http://localhost:9223/json/new?about:blank',{method:'PUT'})).json();socket=new WebSocket(page.webSocketDebuggerUrl);
  socket.on('message',data=>{const r=JSON.parse(data);if(r.method==='Runtime.exceptionThrown')errors.push(r.params.exceptionDetails.text);if(r.method==='Page.javascriptDialogOpening'){errors.push(r.params.message);call('Page.handleJavaScriptDialog',{accept:true}).catch(()=>{});}if(r.id){const p=pending.get(r.id);if(!p)return;pending.delete(r.id);r.error?p.reject(Error(r.error.message)):p.resolve(r.result);}});
  await new Promise(r=>socket.once('open',r));await call('Page.enable');await call('Runtime.enable');
- for(const [width,height,mobile] of [[1280,800,false],[393,852,true],[852,393,true]]){
+ for(const [width,height,mobile] of [[1280,800,false],[1280,1304,false],[1920,1400,false],[1280,500,false],[393,852,true],[852,393,true]]){
   await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile});
   await call('Page.navigate',{url:base});
   for(let n=0;n<100;n++){if(await evaluate("document.readyState==='complete' && !!document.getElementById('game') && document.styleSheets.length>0"))break;await new Promise(r=>setTimeout(r,50));}
@@ -23,6 +23,9 @@ async function evaluate(expression){const r=await call('Runtime.evaluate',{expre
    assert(dimensions.canvas.x>=-1&&dimensions.canvas.right<=dimensions.width+1,'canvas horizontal fit');
    assert(dimensions.canvas.y>=dimensions.toolbar.bottom-1,'toolbar overlaps canvas');
    assert(dimensions.canvas.bottom<=dimensions.height+1,'canvas exceeds available height');
+   if(width>=1024)assert(dimensions.canvas.height<=dimensions.canvas.width*9/16+1,'desktop world must not grow taller than 16:9');
+   if(width>=1024)assert(Math.abs(dimensions.canvas.y-dimensions.toolbar.bottom)<1,'desktop toolbar stays adjacent to canvas');
+   if(!mobile&&height>=1304)assert(Math.abs(dimensions.canvas.height-dimensions.canvas.width*9/16)<1,'tall desktop keeps 16:9 framing');
   }
   console.log(`PASS launcher CSS ${width}x${height} normal/expanded, touch-action and viewport bounds`);
   await evaluate("document.getElementById('game').classList.remove('expanded');");

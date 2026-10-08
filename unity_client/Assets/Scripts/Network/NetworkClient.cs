@@ -248,6 +248,7 @@ public class NetworkClient : MonoBehaviour {
         if (!Connected || !Joined) return;
         _ = SendJson(new SwitchMsg { to = to });
     }
+    public void SendBot(int delta) { if (Connected && Joined && delta != 0) _ = SendJson(new BotMsg { delta = delta, level = _level }); }
     public void SyncLevel(int level) => _level = level;
     // inv/kill/equip/enhance/buy/sell/potion/summon. 반환 = seq
     public int Request(InvReq r) { if (!Connected || !Joined) return 0; r.seq = ++_seq; _ = SendJson(r); return r.seq; }

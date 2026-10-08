@@ -30,21 +30,26 @@ public class GameManager : MonoBehaviour {
     readonly Dictionary<int, SpawnRegistration> _spawns = new Dictionary<int, SpawnRegistration>();
     Snapshot _resumeState;
     string _systemMsg = "";
+    bool _isAdmin;
+    RosterEntry[] _channelRoster = Array.Empty<RosterEntry>();
+    readonly Dictionary<string, float> _ghostMovedAt = new Dictionary<string, float>();
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [System.Runtime.InteropServices.DllImport("__Internal")] static extern string WebConfig();
-    [Serializable] class BrowserSession { public string id, name, gender, wsUrl; }
+    [Serializable] class BrowserSession { public string id, name, gender, wsUrl, role; }
 #endif
     void Start() {
 #if UNITY_WEBGL && !UNITY_EDITOR
         var session = JsonUtility.FromJson<BrowserSession>(WebConfig());
-        AccountId = session.id; PlayerName = session.name; Gender = session.gender; ServerUrl = session.wsUrl;
+        AccountId = session.id; PlayerName = session.name; Gender = session.gender; ServerUrl = session.wsUrl; _isAdmin = session.role == "admin";
 #endif
         Application.runInBackground = true; // 방치형: 창이 포커스를 잃어도 계속 진행
         var playerGo = new GameObject("Player");
         playerGo.transform.position = new Vector3(10f, 0, 0); // 맵 [0,80] 안
         _player = playerGo.AddComponent<PlayerController>();
         _player.Init(true, Gender, () => Spawner.Alive);
+        playerGo.AddComponent<Game.Rendering.ActorNameplate>().Init(PlayerName + " · 나", new Color(1f, 0.9f, 0.6f));
+        gameObject.AddComponent<Game.Rendering.SkillFeedback>().Init(_player, () => Spawner.Alive);
         _dropFeedback = gameObject.AddComponent<WorldDropFeedback>();
         SetGameplayReady(false);
         _player.OnHpChanged += (hp, max) => { };
@@ -58,7 +63,7 @@ public class GameManager : MonoBehaviour {
         BindNetwork(net);
         net.Connect(ServerUrl, AccountId, PlayerName, _player.Level, Gender, () => _player.GetSnapshot());
 
-        new GameObject("GameUI").AddComponent<GameUI>().Init(Camera.main, _player, Spawner, net, () => StartCoroutine(PostSave())); // F안: 서버 inv → 인벤·강화·상점·소환
+        new GameObject("GameUI").AddComponent<GameUI>().Init(Camera.main, _player, Spawner, net, () => StartCoroutine(PostSave()), isAdmin: _isAdmin); // F안: 서버 inv → 인벤·강화·상점·소환
         SetupWorld(Camera.main, WorldConfig.MapWidth - WorldConfig.MapMargin - 2f);
         StartCoroutine(SaveLoop());
     }
@@ -71,7 +76,7 @@ public class GameManager : MonoBehaviour {
             if (m.req == "kill") ResolveKill(m);
             if (m.state != null && Enum.TryParse<Game.Rendering.Zone>(m.state.zone, out var zone)) {
                 var current = Game.Rendering.ZoneController.Current;
-                if (current != null && current.Zone != zone) { _dropFeedback.Clear(); current.SetZone(zone, current.Tod); }
+                if (current != null && current.Zone != zone) { _dropFeedback.Clear(); current.SetZone(zone, current.Tod); UpdateRoster(_channelRoster); }
             }
             _dropFeedback.SyncPending(m.state, _player.transform.position, _player.transform);
             if (net.Joined && m.state != null) {
@@ -275,24 +280,26 @@ public class GameManager : MonoBehaviour {
 
     void ClearGhosts() {
         foreach (var go in _ghosts.Values) RemoveGhostObject(go);
-        _ghosts.Clear(); _roster.Clear();
+        _ghosts.Clear(); _roster.Clear(); _ghostMovedAt.Clear(); _channelRoster = Array.Empty<RosterEntry>();
         if (Spawner != null) Spawner.SetPopulation(0);
     }
 
     static void RemoveGhostObject(GameObject go) { if (Application.isPlaying) Destroy(go); else DestroyImmediate(go); }
 
     void UpdateRoster(RosterEntry[] roster) {
+        _channelRoster = roster ?? Array.Empty<RosterEntry>();
         string zone = Game.Rendering.ZoneController.Current != null ? Game.Rendering.ZoneController.Current.Zone.ToString() : "A";
         var sameMap = (roster ?? Array.Empty<RosterEntry>()).Where(entry => entry != null && !entry.bot && !string.IsNullOrEmpty(entry.id) && entry.zone == zone).GroupBy(entry => entry.id).Select(group => group.Last()).ToArray();
         if (Spawner != null) Spawner.SetPopulation(sameMap.Length);
         var present = new Dictionary<string, RosterEntry>();
         foreach (var entry in sameMap)
             if (entry.id != NetworkClient.Instance?.Me) present[entry.id] = entry;
-        foreach (var id in _ghosts.Keys.Where(id => !present.ContainsKey(id)).ToArray()) { RemoveGhostObject(_ghosts[id]); _ghosts.Remove(id); }
+        foreach (var id in _ghosts.Keys.Where(id => !present.ContainsKey(id)).ToArray()) { RemoveGhostObject(_ghosts[id]); _ghosts.Remove(id); _ghostMovedAt.Remove(id); }
         _roster.Clear();
         foreach (var pair in present) {
             _roster[pair.Key] = pair.Value;
             if (_ghosts.TryGetValue(pair.Key, out var go)) RefreshGhost(go, pair.Value);
+            else UpdateGhost(pair.Key, pair.Value.x, pair.Value.face);
         }
     }
 
@@ -304,9 +311,7 @@ public class GameManager : MonoBehaviour {
         var defs = weapon?.kind == "staff" ? GameData.Staves : GameData.Swords;
         string name = weapon != null && (weapon.kind == "staff" || weapon.kind == "sword") && weapon.tier >= 0 && weapon.tier < defs.Length ? System.IO.Path.GetFileName(defs[weapon.tier].spritePath) : null;
         go.GetComponent<Game.Rendering.GearAttachment>().SetWeapon(name);
-        var label = go.GetComponentInChildren<TextMesh>();
-        label.text = (entry.name ?? entry.id) + " · 다른 플레이어";
-        label.transform.localPosition = new Vector3(0, go.GetComponent<SpriteRenderer>().sprite.bounds.max.y + 0.2f, 0);
+        go.GetComponent<Game.Rendering.ActorNameplate>().SetText((entry.name ?? entry.id) + " · 다른 플레이어");
     }
 
     void UpdateGhost(string id, float x, int face) {
@@ -314,19 +319,16 @@ public class GameManager : MonoBehaviour {
         bool existed = _ghosts.TryGetValue(id, out var go);
         if (!existed) {
             go = new GameObject($"Ghost_{id}"); go.transform.SetParent(transform, false);
-            var sr = go.AddComponent<SpriteRenderer>(); sr.sortingOrder = 4;
+            var sr = go.AddComponent<SpriteRenderer>(); sr.sortingOrder = 6;
             var anim = go.AddComponent<Game.Rendering.FrameAnimator>(); anim.Renderer = sr;
             anim.SetSource($"{Game.Rendering.ActorScale.PlayerRoot}/{(entry.gender == "female" ? "main_f" : "main_m")}"); anim.Play("idle");
             var gear = go.AddComponent<Game.Rendering.GearAttachment>(); gear.Init(sr, anim);
             go.AddComponent<Game.Rendering.ActorVisual>().Init(sr, Game.Rendering.ActorScale.Player, false);
-            var label = new GameObject("RemoteName").AddComponent<TextMesh>(); label.transform.SetParent(go.transform, false);
-            label.anchor = TextAnchor.LowerCenter; label.fontSize = 32; label.characterSize = 0.3f; label.color = new Color(0.72f, 0.85f, 1);
-            var font = Resources.Load<Font>("Fonts/Galmuri11");
-            if (font != null) { label.font = font; label.GetComponent<MeshRenderer>().sharedMaterial = font.material; }
-            label.GetComponent<MeshRenderer>().sortingOrder = 10;
+            go.AddComponent<Game.Rendering.ActorNameplate>().Init((entry.name ?? entry.id) + " · 다른 플레이어", new Color(0.72f, 0.85f, 1));
             _ghosts[id] = go; RefreshGhost(go, entry);
         }
         bool moving = existed && Mathf.Abs(x - go.transform.position.x) > 0.01f;
+        if (moving) _ghostMovedAt[id] = Time.time;
         go.GetComponent<Game.Rendering.FrameAnimator>().Play(moving ? "walk" : "idle");
         go.transform.position = new Vector3(Mathf.Clamp(x, WorldConfig.MapMargin, WorldConfig.MapWidth - WorldConfig.MapMargin), go.transform.position.y, 0);
         go.GetComponent<Game.Rendering.GearAttachment>().SetFace(face);
@@ -337,6 +339,8 @@ public class GameManager : MonoBehaviour {
     void Update() {
         _fpsT += Time.unscaledDeltaTime; _fpsN++;
         if (_fpsT >= 5f) { Debug.Log($"[fps] {_fpsN / _fpsT:0.0} avg over {_fpsT:0.0}s"); _fpsT = 0; _fpsN = 0; }
+        foreach (var pair in _ghostMovedAt.ToArray())
+            if (Time.time - pair.Value > 0.4f && _ghosts.TryGetValue(pair.Key, out var ghost)) { ghost.GetComponent<Game.Rendering.FrameAnimator>().Play("idle"); _ghostMovedAt.Remove(pair.Key); }
         TickWorld(Time.time, Spawner != null ? Spawner.Alive.FirstOrDefault(IsBoss) : null);
     }
 

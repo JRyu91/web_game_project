@@ -7,6 +7,8 @@ const WebSocket = require('ws');
 const base = process.argv.slice(2).find(x=>!x.startsWith('--')) || 'http://localhost:18080';
 const mobile=process.argv.includes('--mobile');
 const checkPeer=process.argv.includes('--peer');
+const checkSystems=process.argv.includes('--systems'),systemResponses=new Map();
+assert(!checkSystems || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'systems fixture is local-only');
 assert(!checkPeer || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'peer fixture is local-only');
 const stage=new URL(base).host.replace(/[^a-zA-Z0-9_-]/g,'_');
 const captureName=`web-${stage}-${mobile?'mobile':'desktop'}`;
@@ -44,11 +46,12 @@ async function evaluate(expression) {
       if(/Exception|\[net\]|\[save\]|\[fps\]/.test(text)) notes.push(text);
     }
     if(e.method==='Network.webSocketFrameReceived') {
-      try {const m=JSON.parse(e.params.response.payloadData);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
+      try {const m=JSON.parse(e.params.response.payloadData);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
     }
   });
   await new Promise(resolve=>ws.once('open',resolve));
   await call('Runtime.enable');await call('Network.enable');await call('Page.enable');
+  if(process.argv.includes('--stats')&&!mobile) await call('Emulation.setDeviceMetricsOverride',{width:1280,height:1304,deviceScaleFactor:1,mobile:false});
   if(mobile){await call('Emulation.setDeviceMetricsOverride',{width:393,height:852,deviceScaleFactor:1,mobile:true});await call('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});}
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
@@ -65,6 +68,18 @@ async function evaluate(expression) {
   await until(()=>kills>=2,'automatic combat rewards',90000);
   assert(latest.gold>0&&latest.exp>=0&&latest.inv.length>=1);
   await rewardCapture;
+  if(checkSystems) {
+    await until(()=>latest.statPoints>0,'natural level-up points',120000);
+    async function request(seq,fields){await evaluate(`window.gameSocket.send(${JSON.stringify(JSON.stringify({...fields,seq}))})`);await until(()=>systemResponses.has(seq),'systems ACK');return systemResponses.get(seq);}
+    const before=latest;
+    const allocated=await request(900001,{type:'allocate_stat',item:'str',qty:1});
+    assert.equal(allocated.ok,true);assert.equal(allocated.state.str,before.str+1);
+    assert.equal(allocated.state.statPoints,before.statPoints-1+5*(allocated.state.level-before.level));
+    const rejected=await request(900002,{type:'allocate_stat',item:'str',qty:496});assert.equal(rejected.ok,false);assert.equal(rejected.state.str,allocated.state.str);
+    const dismantle=await request(900003,{type:'auto_disassemble',enabled:true,level:0});assert(dismantle.ok&&dismantle.state.autoDisassemble&&!dismantle.state.autoSell);
+    const selling=await request(900004,{type:'auto_sell',enabled:true,level:0});assert(selling.ok&&selling.state.autoSell&&!selling.state.autoDisassemble);
+    console.log('PASS real WebGL natural level-up -> allocation/rejection and exclusive automatic policies');
+  }
   const before={gold:latest.gold,level:latest.level};
   // Pausing transport freezes gameplay; reload must restore persisted server progression.
   await evaluate("window.gameSocket.close()");
@@ -74,6 +89,7 @@ async function evaluate(expression) {
   await evaluate("document.getElementById('play').click()");
   await until(()=>joined>=2,'rejoin',180000);
   assert(latest.gold>=before.gold&&latest.level>=before.level,'progress retained after reload');
+  if(checkSystems)assert(latest.str>=1&&latest.autoSell&&!latest.autoDisassemble,'allocated stats and automatic policy retained after reload');
   fs.mkdirSync(out,{recursive:true});
   if(checkPeer){
     peer=new WebSocket(base.replace(/^http/,'ws'));
@@ -87,6 +103,33 @@ async function evaluate(expression) {
   await pause(1500);
   const screenshot=await call('Page.captureScreenshot',{format:'png'});
   fs.writeFileSync(path.join(out,captureName+'.png'),Buffer.from(screenshot.data,'base64'));
+  if(process.argv.includes('--stats')) {
+    const bounds=await evaluate("(()=>{const c=document.getElementById('unity-canvas'),r=c.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,rw:c.width,rh:c.height};})()");
+    const zoom=Math.max(1,Math.min(Math.floor(bounds.rw/1280),Math.floor(bounds.rh/720)));
+    const width=bounds.rw/zoom,height=bounds.rh/zoom,compact=mobile||width<1000||height<640;
+    const point=(x,y)=>({x:bounds.x+x*zoom*bounds.width/bounds.rw,y:bounds.y+y*zoom*bounds.height/bounds.rh});
+    async function click(p) {
+      if(mobile){await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await pause(100);await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
+      else{await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...p});await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...p});}
+      await pause(500);
+    }
+    const columns=Math.max(1,Math.min(6,Math.floor((width-20)/120)));
+    await click(compact?point(10+(4%columns+.5)*(width-20)/columns,116+Math.floor(4/columns)*48):point(width-125,25));
+    const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-stats.png'),Buffer.from(shot.data,'base64'));
+    if(mobile){
+      const start=point(width/2,height/2+100);
+      for(let drag=0;drag<2;drag++){
+        await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[start]});
+        for(let n=1;n<=8;n++){await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:start.x,y:start.y-n*50}]});await pause(40);}
+        await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await pause(400);
+      }
+      const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-stats-scroll.png'),Buffer.from(shot.data,'base64'));
+    }
+    const pw=compact?Math.min(width-20,620):640,ph=compact?Math.min(height-20,620):640;
+    await click(point(width/2+pw/2-(compact?34:29),height/2-(compact?10:0)-ph/2+(compact?34:27)));
+    const closed=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-stats-closed.png'),Buffer.from(closed.data,'base64'));
+    console.log('Stats open/scroll/close injected; screenshots require visual review.');
+  }
   if(mobile){
     // Same running Unity instance: iPhone's unavailable API and a browser rejection must both fall back safely.
     for(const unsupported of [true,false]){

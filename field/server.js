@@ -53,11 +53,11 @@ const everyone = () => [...players.values(), ...bots.values()];
 const livePlayers = () => [...players].filter(([ws,p]) => ws.readyState === 1 && p.save && !p.transferring).map(([,p])=>p);
 const mapPlayers = zone => livePlayers().filter(p => p.save.zone === zone);
 
-//gender·equip 은 렌더링용(다른 채널원 모습 표시). x·face 는 여기 안 들어있다 — 'pos' 메시지로 따로, 더 자주 온다.
+// Roster positions seed peer rendering before the first live position message.
 const roster = () =>
   [...livePlayers(), ...bots.values()].map(p => ({
     id: p.id, name: p.name, level: p.level, zone: p.save?.zone || '', bot: !p.save,
-    gender: p.gender || 'male',
+    gender: p.gender || 'male', x: p.x ?? p.snapshot?.x ?? 40, face: p.face ?? p.snapshot?.face ?? 1,
     equip: (p.snapshot && p.snapshot.equip) || null,
   }));
 
@@ -543,17 +543,20 @@ const server = http.createServer(async (req, res) => {
 // Server-issued per-connection receipts prevent duplicate, unknown and tier-swapped rewards.
 // ponytail: the client still simulates damage/spawns; fully authoritative combat is needed to stop plausible fabricated encounters.
 const KILL_BURST = 14, KILL_PER_SEC = 3, BOSS_GAP_MS = 60000;
-const ITEM_REQ = new Set(['inv', 'kill', 'equip', 'enhance', 'buy', 'sell', 'potion', 'summon', 'learn', 'disassemble', 'expand', 'auto_sell', 'summon_ack', 'map']);
+const ITEM_REQ = new Set(['inv', 'kill', 'equip', 'enhance', 'buy', 'sell', 'potion', 'summon', 'learn', 'disassemble', 'expand', 'auto_sell', 'auto_disassemble', 'allocate_stat', 'allocate_auto', 'summon_ack', 'map']);
 
 function itemRequest(me, msg) {
   const s = me.save;
   switch (msg.type) {
     case 'map': return I.map(s, msg.zone);
     case 'inv': return { ok: true };
+    case 'allocate_stat': return I.allocateStat(s, msg.item, msg.qty);
+    case 'allocate_auto': return I.allocateAuto(s);
     case 'learn': return I.learn(s, msg.item);
     case 'disassemble': return I.disassemble(s, msg.uid, msg.uids, msg.level);
     case 'expand': return I.expand(s);
     case 'auto_sell': return I.autoSell(s, msg.enabled, msg.level);
+    case 'auto_disassemble': return I.autoDisassemble(s, msg.enabled, msg.level);
     case 'kill': {
       const monster = me.monsters.get(msg.receipt);
       if (!monster || monster.tier !== msg.tier) return {ok:false,code:'bad_receipt'};
@@ -638,9 +641,10 @@ wss.on('connection', (ws, req) => {
       me.level = me.save.level;
       me.tokens = KILL_BURST; me.tokenAt = Date.now(); me.bossAt = 0;
       me.monsters = new Map(); me.spawnTokens = 5; me.spawnAt = Date.now();
+      me.chatTokens = 4; me.chatAt = Date.now();
 
       const parked = msg.resume ? await claim(me.id) : null; //다른 채널에서 넘어온 거면 맡긴 짐이 있다
-      if (parked) send(ws, { type: 'resume', state: parked });
+      if (parked) { me.snapshot = I.transport(me.save, parked); send(ws, { type: 'resume', state: parked }); }
 
       send(ws, {
         type: 'welcome',
@@ -681,8 +685,13 @@ wss.on('connection', (ws, req) => {
     }
 
     if (msg.type === 'chat') {
-      const text = String(msg.text || '').slice(0, 120).trim();
+      if (typeof msg.text !== 'string' || msg.text.length > 120) return;
+      const text = msg.text.trim();
       if (!text) return;
+      const now = Date.now();
+      me.chatTokens = Math.min(4, me.chatTokens + (now - me.chatAt) / 1000); me.chatAt = now;
+      if (me.chatTokens < 1) return;
+      me.chatTokens--;
       broadcast({ type: 'chat', who: me.name, text }); //보낸 사람한테도 돌려준다. 클라가 자기 말을 따로 안 그려도 되게
       logChat(me.id, text); //유저 채팅만 DB 에 남긴다(봇은 WS 가 없어서 여기 못 온다)
       return;
@@ -696,12 +705,13 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    //초당 여러 번 오는 좌표. 그대로 남한테 뿌리기만 한다 — 서버가 들고 있지도, 판정에 쓰지도 않는다.
+    // Store bounded render positions for roster initialization; combat remains client simulated.
     //그래서 서로 "보이기만" 하고 접촉(충돌·전투) 판정은 애초에 없다.
     if (msg.type === 'pos') {
       const x = Number(msg.x);
       if (!Number.isFinite(x)) return;
-      broadcast({ type: 'pos', id: me.id, x: Math.min(78.5,Math.max(1.5,x)), face: msg.face === -1 ? -1 : 1 }, ws);
+      me.x = Math.min(78.5, Math.max(1.5, x)); me.face = msg.face === -1 ? -1 : 1;
+      broadcast({ type: 'pos', id: me.id, x: me.x, face: me.face }, ws);
       return;
     }
 
@@ -733,10 +743,12 @@ wss.on('connection', (ws, req) => {
     //관리자 메뉴의 "동료 추가/내보내기". 가짜 접속자를 늘리고 줄인다. 채널 포화·KEDA 테스트용.
     if (msg.type === 'bot') {
       if ((await sessionFor(req))?.role !== 'admin') return;
-      const delta = Number(msg.delta) || 0;
+      const delta = msg.delta;
+      if (delta !== 1 && delta !== -1) return;
+      if (delta === 1 && (!Number.isInteger(msg.level) || msg.level < 1 || msg.level > 100)) return;
       if (delta > 0 && everyone().length < C.CHANNEL_CAP) {
         const id = C.newId('bot');
-        bots.set(id, { id, name: `봇${bots.size + 1}`, level: Number(msg.level) || 1 });
+        bots.set(id, { id, name: `봇${bots.size + 1}`, level: msg.level });
       } else if (delta < 0) {
         const k = [...bots.keys()].pop();
         if (k) bots.delete(k);
