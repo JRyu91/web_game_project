@@ -83,6 +83,7 @@ public class PlayerController : MonoBehaviour {
     bool _swordAlt;
     readonly List<SkillDef> _pendingSkills = new List<SkillDef>();
     BodySkeleton _skeleton;
+    readonly List<StaffProjectile> _projectiles = new List<StaffProjectile>();
 
     public WeaponDef CurrentWeapon => WeaponKind == "sword" ? GameData.Swords[WeaponTierIdx] : GameData.Staves[WeaponTierIdx];
     public float Range => WeaponKind == "sword" ? (WeaponTierIdx <= 1 ? 26f : 44f) * PX_TO_UNIT : SWORD_RANGE * STAFF_RANGE_MULT;
@@ -115,6 +116,7 @@ public class PlayerController : MonoBehaviour {
         _vis = gameObject.AddComponent<ActorVisual>();
         _vis.Init(_sr, ActorScale.Player, false);
 
+        ZoneController.OnZoneChanged += ClearProjectilesOnZone;
         if (isLocal) Local = this;
     }
 
@@ -164,7 +166,8 @@ public class PlayerController : MonoBehaviour {
 
     // 캡처 툴이 고정 dt 로 직접 호출할 수 있게 분리.
     public void Step(float dt) {
-        if (!GameplayReady) return;
+        if (!GameplayReady) { ClearProjectiles(); return; }
+        TickProjectiles(dt);
         if (_state == PlayerState.Dead) { UpdateRespawn(dt); return; }
         if (this != Local) return; // 원격 플레이어는 유령 렌더만, AI/입력 없음 (RemotePlayerGhost 담당)
 
@@ -276,13 +279,23 @@ public class PlayerController : MonoBehaviour {
         if (!Penetrating) {
             AddDamage(damage, primaryTarget, dmg);
         } else {
-            // 지팡이: 사거리 내 모든 몹 관통
-            foreach (var m in pool) {
-                if (m == null || m.IsDead) continue;
-                if (ActorVisual.Gap(m.transform, transform) <= Range) AddDamage(damage, m, dmg);
-            }
+            _gear.Apply();
+            _projectiles.Add(new StaffProjectile(_gear.Muzzle, transform.position.x, Face, WeaponTierIdx, dmg, HitStopSec));
         }
     }
+
+    void TickProjectiles(float dt) {
+        if (_projectiles.Count == 0) return;
+        var pool = _monsterProvider?.Invoke()?.ToArray() ?? Array.Empty<MonsterController>();
+        foreach (var bolt in _projectiles.ToArray()) {
+            if (!GameplayReady || IsDead) { ClearProjectiles(); break; }
+            bolt.Step(dt, pool);
+            if (bolt.Finished) { bolt.Dispose(); _projectiles.Remove(bolt); }
+        }
+    }
+    void ClearProjectilesOnZone(Zone zone) => ClearProjectiles();
+    void ClearProjectiles() { foreach (var bolt in _projectiles) bolt.Dispose(); _projectiles.Clear(); }
+    void OnDestroy() { ZoneController.OnZoneChanged -= ClearProjectilesOnZone; ClearProjectiles(); if (Local == this) Local = null; }
 
     MonsterController FindNearestTarget() {
         MonsterController best = null; float bestDist = float.MaxValue;
@@ -391,6 +404,7 @@ public class PlayerController : MonoBehaviour {
     }
 
     void Die() {
+        ClearProjectiles();
         _state = PlayerState.Dead;
         Hp = 0;
         _anim.Play("dead", loop: false);
@@ -408,6 +422,7 @@ public class PlayerController : MonoBehaviour {
 
     // NetworkClient 가 1초(state)/150ms(pos) 주기로 물어보는 스냅샷.
     public void RestoreTransport(Game.Network.Snapshot state) {
+        ClearProjectiles();
         transform.position = new Vector3(float.IsNaN(state.x) || float.IsInfinity(state.x) ? WorldConfig.MapMargin : Mathf.Clamp(state.x, WorldConfig.MapMargin, WorldConfig.MapWidth - WorldConfig.MapMargin), transform.position.y, 0);
         Face = state.face < 0 ? -1 : 1;
         MaxHp = CombatMath.PlayerMaxHp(Level);

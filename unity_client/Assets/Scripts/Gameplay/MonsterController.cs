@@ -166,9 +166,11 @@ public class MonsterController : MonoBehaviour {
         return ApplyDamage(real);
     }
 
-    bool ApplyDamage(int real) {
+    public bool TakeProjectileDamage(int damage) => ApplyDamage(CombatMath.Mitigate(damage, Def.def), true);
+
+    bool ApplyDamage(int real, bool projectile = false) {
         if (_state == MobState.Dead) return false;
-        if (_hitCooldownTimer > 0f) return false;
+        if (!projectile && _hitCooldownTimer > 0f) return false;
         _hitCooldownTimer = HIT_COOLDOWN;
         Hp -= real;
         PlayerController.CombatLog?.Invoke($"damage t{Def.tier} -{real} hp={Mathf.Max(0, Hp)}");

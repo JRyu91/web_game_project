@@ -105,13 +105,20 @@ public class GearAttachment : MonoBehaviour {
         Apply();
     }
 
+    public Vector3 Muzzle {
+        get {
+            var bounds = SpriteBBox.Get(_weaponSr.sprite);
+            bool flip = _weaponSr.flipX;
+            return _weaponSr.transform.TransformPoint(new Vector3(flip ? -bounds.xMax : bounds.xMax, bounds.center.y, 0));
+        }
+    }
     void LateUpdate() => Apply();
     void OnDestroy() { if (_mat != null) Destroy(_mat); if (_fxMat != null) Destroy(_fxMat); }
 
     // 현재 몸 프레임 → 손 위치/방향/앞뒤. 테이블에 없는 프레임은 숨김(허공 무기 방지).
     public void Apply() {
         if (_weaponSr == null) return;
-        if (_anim != null && _anim.Reacting) { _weaponSr.enabled = false; _fxSr.enabled = false; return; }
+        bool reacting = _anim != null && _anim.Reacting;
         if (_hands == null) LoadHands();
         bool show = false, sheath = false; float x = 0, y = 0; int dir = 0; bool back = false;
         if (_dirs != null && _anim != null && _anim.Clip != null) {
@@ -129,7 +136,7 @@ public class GearAttachment : MonoBehaviour {
                 if (dir < 0) show = false;
             }
         }
-        _weaponSr.enabled = show;
+        _weaponSr.enabled = show && !reacting;
         _fxSr.enabled = false;
         if (!show) return;
         var body = _bodyRenderer.sprite;
@@ -141,7 +148,7 @@ public class GearAttachment : MonoBehaviour {
         _weaponSr.flipX = flip;
         _weaponSr.sortingOrder = back ? 5 : 7; // 몸 6
         if (_mat != null) _mat.mainTexture = _weaponSr.sprite.texture;
-        if (_fx == null) return;
+        if (reacting || _fx == null) return;
         var fs = sheath ? _sheathFx : _fx[dir];
         var f = fs[(int)(ZoneController.Now * _fxInfo.fps) % _fxInfo.frames];
         if (f == null) return;

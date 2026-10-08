@@ -49,7 +49,8 @@ public static class CombatRegression {
             const int seed = 123;
             Field(player, "_rng").SetValue(player, new System.Random(seed));
             var rng = new System.Random(seed);
-            int expected = CombatMath.Mitigate(CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, rng), def.def);
+            int basic = CombatMath.Mitigate(CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, rng), def.def);
+            int expected = basic;
             foreach (var skill in skills) {
                 int atk = CombatMath.PlayerFixedAtk(player.Level) + CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, rng);
                 expected += CombatMath.Mitigate(Mathf.Max(1, Mathf.RoundToInt(atk * skill.mult)), def.def);
@@ -57,7 +58,9 @@ public static class CombatRegression {
             pending.AddRange(skills);
             Call(player, "StartAttack", target);
             Call(player, "Impact");
-            Check(target.Hp == def.hp - expected, "기본 공격 + 두 스킬의 개별 방어력 적용 불일치");
+            Check(target.Hp == def.hp - expected + basic, "지팡이 기본 공격이 비행 전에 즉시 피해를 넣음");
+            Call(player, "TickProjectiles", 0.2f);
+            Check(target.Hp == def.hp - expected, "투사체 기본 공격 + 두 스킬의 개별 방어력 적용 불일치");
             Check(pending.Count == 0, "시전 후 대기 스킬이 남음");
             var cds = (Dictionary<string, float>)Field(player, "_skillCd").GetValue(player);
             Check(skills.All(s => cds[s.key] == s.cd), "스킬 쿨다운 미적용");
@@ -259,7 +262,8 @@ public static class CombatRegression {
             var rng = new System.Random(seed);
             var def = GameData.Monsters[0]; def.hp = 1000000; def.def = 100;
             var target = (MonsterController)Call(spawner, "Spawn", def, 0.1f);
-            int expected = CombatMath.Mitigate(CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, rng), def.def);
+            int basic = CombatMath.Mitigate(CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, rng), def.def);
+            int expected = basic;
             foreach (var skill in GameData.Skills.Where(s => s.weapon == "staff" && s.lv <= player.Level)) {
                 int atk = CombatMath.PlayerFixedAtk(player.Level) + CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, rng);
                 expected += CombatMath.Mitigate(Mathf.Max(1, Mathf.RoundToInt(atk * skill.mult)), def.def);
@@ -276,7 +280,9 @@ public static class CombatRegression {
             Check(player.GetComponent<SpriteRenderer>().sprite == Resources.LoadAll<Sprite>($"{ActorScale.PlayerRoot}/main_m/hurt").OrderBy(frame => frame.name).First(), "hurt frame was not displayed");
             // Player.Step이 자동 공격을 시작하고 Tick이 실제 impact 프레임 이벤트를 발생시킨다.
             for (int i = 0; i < 120 && impacts == 0; i++) { player.Step(dt); animator.Tick(dt); }
-            Check(impacts == 1 && casts == 2 && target.Hp == def.hp - expected, "애니메이션 impact 기본 공격 + 자동 스킬 피해 불일치");
+            Check(impacts == 1 && casts == 2 && target.Hp == def.hp - expected + basic, "애니메이션 impact 스킬 피해 / 투사체 지연 불일치");
+            Call(player, "TickProjectiles", 0.2f);
+            Check(target.Hp == def.hp - expected, "hurt 중 발사한 투사체 기본 공격 피해 불일치");
             Check(impactDuringReaction, "attack impact did not survive active hurt reaction");
             animator.Tick(0.24f); Check(!animator.Reacting, "hurt overlay did not return to normal animation");
             Field(target, "_hitCooldownTimer").SetValue(target, 0f);

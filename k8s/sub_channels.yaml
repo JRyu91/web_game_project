@@ -37,7 +37,7 @@ spec:
                     values: ["spot"]
       containers:
         - name: channel
-          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v3.0.3
+          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v3.0.4
           ports:
             - containerPort: 8080
           env:

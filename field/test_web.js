@@ -13,7 +13,7 @@ const captureName=`web-${stage}-${mobile?'mobile':'desktop'}`;
 const out = path.resolve(__dirname, '../unity_client/Logs');
 const account = 'webqa_' + crypto.randomBytes(6).toString('hex');
 const password = crypto.randomBytes(16).toString('hex');
-let ws, peer, peerPresent=false, seq = 0, kills = 0, joined = 0, latest, cookie;
+let rewardCapture, ws, peer, peerPresent=false, seq = 0, kills = 0, joined = 0, latest, cookie;
 const peerId='peer_'+crypto.randomBytes(6).toString('hex');
 const pending = new Map(), errors = [], notes = [];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -44,7 +44,7 @@ async function evaluate(expression) {
       if(/Exception|\[net\]|\[save\]|\[fps\]/.test(text)) notes.push(text);
     }
     if(e.method==='Network.webSocketFrameReceived') {
-      try {const m=JSON.parse(e.params.response.payloadData);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok)kills++;if(m.state)latest=m.state;}} catch {}
+      try {const m=JSON.parse(e.params.response.payloadData);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
     }
   });
   await new Promise(resolve=>ws.once('open',resolve));
@@ -53,7 +53,7 @@ async function evaluate(expression) {
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.3');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.4');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);
@@ -64,6 +64,7 @@ async function evaluate(expression) {
   await until(()=>joined>0,'real browser WebSocket join');
   await until(()=>kills>=2,'automatic combat rewards',90000);
   assert(latest.gold>0&&latest.exp>=0&&latest.inv.length>=1);
+  await rewardCapture;
   const before={gold:latest.gold,level:latest.level};
   // Pausing transport freezes gameplay; reload must restore persisted server progression.
   await evaluate("window.gameSocket.close()");

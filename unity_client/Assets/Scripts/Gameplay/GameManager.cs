@@ -24,7 +24,8 @@ public class GameManager : MonoBehaviour {
     readonly Dictionary<string, GameObject> _ghosts = new Dictionary<string, GameObject>();
     readonly Dictionary<string, RosterEntry> _roster = new Dictionary<string, RosterEntry>();
     readonly List<string> _chatLog = new List<string>();
-    sealed class SpawnRegistration { public MonsterController monster; public int tier; public string receipt; public bool dead; public int killSeq; public float retryAt; }
+    sealed class SpawnRegistration { public MonsterController monster; public int tier; public string receipt; public bool dead; public int killSeq; public float retryAt; public Vector3 deathPosition; }
+    WorldDropFeedback _dropFeedback;
     int _monsterId;
     readonly Dictionary<int, SpawnRegistration> _spawns = new Dictionary<int, SpawnRegistration>();
     Snapshot _resumeState;
@@ -44,6 +45,7 @@ public class GameManager : MonoBehaviour {
         playerGo.transform.position = new Vector3(10f, 0, 0); // 맵 [0,80] 안
         _player = playerGo.AddComponent<PlayerController>();
         _player.Init(true, Gender, () => Spawner.Alive);
+        _dropFeedback = gameObject.AddComponent<WorldDropFeedback>();
         SetGameplayReady(false);
         _player.OnHpChanged += (hp, max) => { };
         _player.OnLevelChanged += (lv, exp, need) => NetworkClient.Instance?.SyncLevel(lv);
@@ -63,14 +65,15 @@ public class GameManager : MonoBehaviour {
 
     void BindNetwork(NetworkClient net) {
         net.OnSpawn += SpawnRegistered;
-        net.OnConnecting += () => { ClearGhosts(); _spawns.Clear(); _player.PendingKillRewards = false; _resumeState = null; SetGameplayReady(false); Loading = true; _systemMsg = "서버 접속 중 — 플레이 일시정지"; };
+        net.OnConnecting += () => { _dropFeedback.Clear(); ClearGhosts(); _spawns.Clear(); _player.PendingKillRewards = false; _resumeState = null; SetGameplayReady(false); Loading = true; _systemMsg = "서버 접속 중 — 플레이 일시정지"; };
         net.OnWelcome += m => { SetGameplayReady(false); Loading = true; _systemMsg = $"채널 {net.Channel} 접속 — 저장 상태 확인 중"; };
         net.OnInv += m => {
             if (m.req == "kill") ResolveKill(m);
             if (m.state != null && Enum.TryParse<Game.Rendering.Zone>(m.state.zone, out var zone)) {
                 var current = Game.Rendering.ZoneController.Current;
-                if (current != null && current.Zone != zone) current.SetZone(zone, current.Tod);
+                if (current != null && current.Zone != zone) { _dropFeedback.Clear(); current.SetZone(zone, current.Tod); }
             }
+            _dropFeedback.SyncPending(m.state, _player.transform.position, _player.transform);
             if (net.Joined && m.state != null) {
                 SetGameplayReady(!m.state.HasPendingDrop);
                 if (m.state.HasPendingDrop) _systemMsg = "가방이 가득 찼습니다. 장비를 정리하면 보관된 드롭을 회수합니다";
@@ -91,7 +94,7 @@ public class GameManager : MonoBehaviour {
         net.OnTransfer += m => StartCoroutine(Transfer(m));
         net.OnResume += s => _resumeState = s;
         net.OnFull += () => _systemMsg = "채널이 가득 찼습니다. 새로고침 후 다른 채널을 선택하세요";
-        net.OnDisconnected += () => { ClearGhosts(); _spawns.Clear(); SetGameplayReady(false); _systemMsg = "서버 연결 끊김 — 플레이 일시정지"; Loading = false; };
+        net.OnDisconnected += () => { _dropFeedback.Clear(); ClearGhosts(); _spawns.Clear(); SetGameplayReady(false); _systemMsg = "서버 연결 끊김 — 플레이 일시정지"; Loading = false; };
     }
 
     void RegisterMonster(MonsterController monster) {
@@ -131,7 +134,7 @@ public class GameManager : MonoBehaviour {
     void ResolveKill(InvMsg message) {
         var pair = _spawns.FirstOrDefault(p => p.Value.killSeq != 0 && p.Value.killSeq == message.seq);
         if (pair.Key == 0) return;
-        if (message.ok) { _player.ConfirmKillReward(); _spawns.Remove(pair.Key); }
+        if (message.ok) { _player.ConfirmKillReward(); _spawns.Remove(pair.Key); _dropFeedback.Show(message.drop, message.state, pair.Value.deathPosition, _player.transform); }
         else if (message.code == "save_failed" || message.code == "too_fast" || message.code == "rate") {
             pair.Value.killSeq = 0; pair.Value.retryAt = Time.realtimeSinceStartup + 3;
         } else { _spawns.Remove(pair.Key); _systemMsg = "처치 보상 확인 실패: " + message.code; }
@@ -140,7 +143,7 @@ public class GameManager : MonoBehaviour {
 
     void MonsterDied(MonsterController monster) {
         var registration = _spawns.Values.FirstOrDefault(r => r.monster == monster);
-        if (registration != null) { registration.dead = true; _player.PendingKillRewards = true; }
+        if (registration != null) { registration.deathPosition = monster.transform.position; registration.dead = true; _player.PendingKillRewards = true; }
     }
 
     void MonsterRemoved(MonsterController monster) {
