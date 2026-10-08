@@ -50,10 +50,13 @@ let draining = false;
 //실접속자 + 봇. 정원·명부·지표는 전부 이걸 기준으로 센다.
 const everyone = () => [...players.values(), ...bots.values()];
 
+const livePlayers = () => [...players].filter(([ws,p]) => ws.readyState === 1 && p.save && !p.transferring).map(([,p])=>p);
+const mapPlayers = zone => livePlayers().filter(p => p.save.zone === zone);
+
 //gender·equip 은 렌더링용(다른 채널원 모습 표시). x·face 는 여기 안 들어있다 — 'pos' 메시지로 따로, 더 자주 온다.
 const roster = () =>
-  everyone().map(p => ({
-    id: p.id, name: p.name, level: p.level,
+  [...livePlayers(), ...bots.values()].map(p => ({
+    id: p.id, name: p.name, level: p.level, zone: p.save?.zone || '', bot: !p.save,
     gender: p.gender || 'male',
     equip: (p.snapshot && p.snapshot.equip) || null,
   }));
@@ -634,7 +637,7 @@ wss.on('connection', (ws, req) => {
       me.save.name = me.name; me.save.gender = me.gender;
       me.level = me.save.level;
       me.tokens = KILL_BURST; me.tokenAt = Date.now(); me.bossAt = 0;
-      me.monsters = new Map(); me.spawnTokens = 14; me.spawnAt = Date.now();
+      me.monsters = new Map(); me.spawnTokens = 5; me.spawnAt = Date.now();
 
       const parked = msg.resume ? await claim(me.id) : null; //다른 채널에서 넘어온 거면 맡긴 짐이 있다
       if (parked) send(ws, { type: 'resume', state: parked });
@@ -664,10 +667,10 @@ wss.on('connection', (ws, req) => {
         if (redis && (!me.owner || await redis.get('owner:' + me.id) !== me.owner)) { ws.close(1008, 'account owner'); return; }
         if (msg.type === 'despawn') { me.monsters.delete(msg.receipt); return; }
         const now = Date.now();
-        me.spawnTokens = Math.min(14,me.spawnTokens+(now-me.spawnAt)/1000); me.spawnAt = now;
+        me.spawnTokens = Math.min(5,me.spawnTokens+(now-me.spawnAt)/1000); me.spawnAt = now;
         let r = I.spawnAllowed(me.save,msg.tier);
         if (!Number.isSafeInteger(msg.monsterId) || msg.monsterId < 1 || [...me.monsters.values()].some(m=>m.id===msg.monsterId)) r={ok:false,code:'bad_spawn'};
-        else if (me.monsters.size >= 14) r={ok:false,code:'spawn_full'};
+        else if (me.monsters.size >= 5 || mapPlayers(me.save.zone).reduce((total,p)=>total+(p.monsters?.size||0),0) >= mapPlayers(me.save.zone).length*5) r={ok:false,code:'spawn_full'};
         else if (me.spawnTokens < 1) r={ok:false,code:'spawn_rate'};
         else if (msg.tier >= 19 && [...me.monsters.values()].some(m=>m.tier>=19)) r={ok:false,code:'boss_alive'};
         let receipt;
@@ -719,7 +722,7 @@ wss.on('connection', (ws, req) => {
       }
       send(ws, { type: 'inv', req: msg.type, seq: msg.seq, ok: r.ok, code: r.code || '', drop: r.drop, enh: r.enh, sell: r.sell, disassemble: r.disassemble, state: I.view(me.save) });
       if (r.ok && msg.type === 'kill') me.monsters.delete(msg.receipt);
-      if (r.ok && msg.type === 'map') me.monsters.clear();
+      if (r.ok && msg.type === 'map') { me.monsters.clear(); broadcast({ type:'roster', roster:roster() }); }
       if (r.ok && msg.type !== 'inv') {
         if (me.level !== me.save.level) { me.level = me.save.level; broadcast({ type: 'roster', roster: roster() }); }
       }

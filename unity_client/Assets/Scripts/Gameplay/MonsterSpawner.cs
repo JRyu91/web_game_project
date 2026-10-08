@@ -9,7 +9,15 @@ namespace Game.Gameplay {
 // field/core.js spawnTable/pickSpawn 포팅 + 존 필터. 존별 티어 풀 = Resources/Config/zone_spawn.json.
 public class MonsterSpawner : MonoBehaviour {
     public float WorldMinX = WorldConfig.MapMargin, WorldMaxX = WorldConfig.MapWidth - WorldConfig.MapMargin;
-    public int MaxAlive = 14;
+    public int MaxAlive = 5;
+    public int MapMonsterCap { get; private set; }
+
+    public void SetPopulation(int playersOnMap) {
+        MapMonsterCap = Mathf.Max(0, playersOnMap) * 5;
+        // Five owned encounters per real player keep the whole-map total <= population * 5.
+        MaxAlive = playersOnMap > 0 ? 5 : 0;
+        foreach (var monster in _alive.Skip(MaxAlive).ToArray()) Remove(monster);
+    }
     public float SpawnInterval = 1.2f;
     // 보스 등장 방식 미정이라 weight 0 티어(t19-21)가 풀에 있으면 이 값으로 드물게 등장. USER_DECISION.
     public float ZeroWeightFallback = 1f;
@@ -71,7 +79,7 @@ public class MonsterSpawner : MonoBehaviour {
         if (monster == null) return;
         _alive.Remove(monster); CountKill(monster);
         OnMonsterRemoved?.Invoke(monster);
-        Destroy(monster.gameObject);
+        if (Application.isPlaying) Destroy(monster.gameObject); else DestroyImmediate(monster.gameObject);
     }
 
     Zone _lastZone;

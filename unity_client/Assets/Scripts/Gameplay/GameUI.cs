@@ -72,7 +72,7 @@ public class GameUI : MonoBehaviour {
         _root = (RectTransform)transform;
 
         // 우상단 메뉴
-        string[] menu = { "inv:가방", "enh:강화", "shop:상점", "sum:소환", "map:맵", "stats:성장", "chat:채팅" };
+        string[] menu = { "inv:가방", "shop:상점", "sum:소환", "map:맵", "stats:성장", "chat:채팅" };
         for (int i = 0; i < menu.Length; i++) {
             var kv = menu[i].Split(':'); string id = kv[0];
             _menus.Add(Btn(_root, kv[1], new Vector2(-10 - (menu.Length - 1 - i) * 78, -10), new Vector2(74, BtnH), () => Toggle(id), new Vector2(1, 1)));

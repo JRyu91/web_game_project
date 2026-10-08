@@ -101,10 +101,8 @@ public class MonsterController : MonoBehaviour {
 
         float dx = player.transform.position.x - transform.position.x;
         float dist = ActorVisual.Gap(player.transform, transform); // 몸 반폭 합 제외(spec 2-4)
-        _face = dx >= 0 ? 1 : -1;
-        _sr.flipX = _face < 0;
-
         if (dist <= ATTACK_RANGE) {
+            _face = dx >= 0 ? 1 : -1; _sr.flipX = _face < 0;
             _attackCd -= dt;
             _state = MobState.Attack;
             if (_attackCd <= 0f) {
@@ -114,6 +112,7 @@ public class MonsterController : MonoBehaviour {
                 if (!_anim.IsStill) _anim.Still("walk", IdleFrame);             // 공격 사이 대기(루프 재생 금지)
             }
         } else if (dist <= CHASE_RANGE) {
+            _face = dx >= 0 ? 1 : -1; _sr.flipX = _face < 0;
             _state = MobState.Walk;
             _anim.Play("walk");
             transform.position += new Vector3(Mathf.Sign(dx) * CHASE_SPEED * dt, 0, 0);
@@ -147,9 +146,13 @@ public class MonsterController : MonoBehaviour {
         if (_state == MobState.Dead) return;
         _state = MobState.Walk;
         _anim.Play("walk");
-        float x = transform.position.x + PATROL_SPEED * dt * _face;
-        if (x > PatrolMaxX) { x = PatrolMaxX; _face = -1; _sr.flipX = true; }
-        if (x < PatrolMinX) { x = PatrolMinX; _face = 1; _sr.flipX = false; }
+        float previous = transform.position.x;
+        if (previous >= PatrolMaxX) _face = -1;
+        else if (previous <= PatrolMinX) _face = 1;
+        float x = previous + PATROL_SPEED * dt * _face;
+        // A chase can leave the patrol range; return smoothly instead of teleporting to its edge.
+        x = previous > PatrolMaxX ? Mathf.Max(x, PatrolMaxX) : previous < PatrolMinX ? Mathf.Min(x, PatrolMinX) : Mathf.Clamp(x, PatrolMinX, PatrolMaxX);
+        _sr.flipX = _face < 0;
         transform.position = new Vector3(x, transform.position.y, 0);
     }
 

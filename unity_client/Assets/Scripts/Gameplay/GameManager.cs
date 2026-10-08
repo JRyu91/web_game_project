@@ -91,7 +91,7 @@ public class GameManager : MonoBehaviour {
         net.OnTransfer += m => StartCoroutine(Transfer(m));
         net.OnResume += s => _resumeState = s;
         net.OnFull += () => _systemMsg = "채널이 가득 찼습니다. 새로고침 후 다른 채널을 선택하세요";
-        net.OnDisconnected += () => { ClearGhosts(); SetGameplayReady(false); _systemMsg = "서버 연결 끊김 — 플레이 일시정지"; Loading = false; };
+        net.OnDisconnected += () => { ClearGhosts(); _spawns.Clear(); SetGameplayReady(false); _systemMsg = "서버 연결 끊김 — 플레이 일시정지"; Loading = false; };
     }
 
     void RegisterMonster(MonsterController monster) {
@@ -273,14 +273,18 @@ public class GameManager : MonoBehaviour {
     void ClearGhosts() {
         foreach (var go in _ghosts.Values) RemoveGhostObject(go);
         _ghosts.Clear(); _roster.Clear();
+        if (Spawner != null) Spawner.SetPopulation(0);
     }
 
     static void RemoveGhostObject(GameObject go) { if (Application.isPlaying) Destroy(go); else DestroyImmediate(go); }
 
     void UpdateRoster(RosterEntry[] roster) {
+        string zone = Game.Rendering.ZoneController.Current != null ? Game.Rendering.ZoneController.Current.Zone.ToString() : "A";
+        var sameMap = (roster ?? Array.Empty<RosterEntry>()).Where(entry => entry != null && !entry.bot && !string.IsNullOrEmpty(entry.id) && entry.zone == zone).GroupBy(entry => entry.id).Select(group => group.Last()).ToArray();
+        if (Spawner != null) Spawner.SetPopulation(sameMap.Length);
         var present = new Dictionary<string, RosterEntry>();
-        foreach (var entry in roster ?? Array.Empty<RosterEntry>())
-            if (entry != null && !string.IsNullOrEmpty(entry.id) && entry.id != NetworkClient.Instance?.Me) present[entry.id] = entry;
+        foreach (var entry in sameMap)
+            if (entry.id != NetworkClient.Instance?.Me) present[entry.id] = entry;
         foreach (var id in _ghosts.Keys.Where(id => !present.ContainsKey(id)).ToArray()) { RemoveGhostObject(_ghosts[id]); _ghosts.Remove(id); }
         _roster.Clear();
         foreach (var pair in present) {

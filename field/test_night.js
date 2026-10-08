@@ -73,18 +73,21 @@ console.log('PASS fractional legacy migration/reconnect, unsafe legacy rejection
 async function receipts() {
   const {spawn}=require('child_process'),WebSocket=require('ws');
   const child=spawn(process.execPath,['server.js'],{cwd:__dirname,env:{...process.env,PORT:'18390',DATABASE_URL:'',REDIS_URL:''},stdio:'ignore'});
-  let ws;
+  let ws, peer;
   try {
     let ready=false;
     for(let n=0;n<100;n++){try{if((await fetch('http://127.0.0.1:18390/healthz')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,30));}
     assert.equal(ready,true,'isolated server ready');
     ws=new WebSocket('ws://127.0.0.1:18390');
     await new Promise((resolve,reject)=>{ws.once('open',resolve);ws.once('error',reject);});
-    function request(message,type){return new Promise((resolve,reject)=>{
-      const timeout=setTimeout(()=>{ws.off('message',receive);reject(new Error('response timeout '+type));},3000);
-      const receive=raw=>{const m=JSON.parse(raw);if(m.type!==type || (type==='inv'&&m.req!==message.type))return;clearTimeout(timeout);ws.off('message',receive);resolve(m);};
-      ws.on('message',receive);ws.send(JSON.stringify(message));
+    let latestRoster=[];
+    ws.on('message',raw=>{const m=JSON.parse(raw);if(m.roster)latestRoster=m.roster;});
+    function request(message,type,socket=ws){return new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>{socket.off('message',receive);reject(new Error('response timeout '+type));},3000);
+      const receive=raw=>{const m=JSON.parse(raw);if(m.type!==type || (type==='inv'&&m.req!==message.type))return;clearTimeout(timeout);socket.off('message',receive);resolve(m);};
+      socket.on('message',receive);socket.send(JSON.stringify(message));
     });}
+    async function waitFor(check){for(let n=0;n<100&&!check();n++)await new Promise(r=>setTimeout(r,20));assert.ok(check(),'roster condition');}
     assert.equal((await request({type:'join',id:'receipt_test',name:'Receipt'},'inv')).ok,true);
     assert.equal((await request({type:'kill',tier:1,receipt:'made-up'},'inv')).code,'bad_receipt');
     assert.equal((await request({type:'spawn',tier:7,monsterId:1},'spawn')).code,'wrong_zone');
@@ -101,11 +104,27 @@ async function receipts() {
     // Clear resets the active ledger, not the spawn-rate budget.
     await new Promise(r=>setTimeout(r,2300));
     const alive=[];
-    for(let id=3;id<17;id++){const issued=await request({type:'spawn',tier:1,monsterId:id},'spawn');assert.equal(issued.ok,true);alive.push(issued.receipt);}
-    assert.equal((await request({type:'spawn',tier:1,monsterId:17},'spawn')).code,'spawn_full');
+    for(let id=3;id<8;id++){const issued=await request({type:'spawn',tier:1,monsterId:id},'spawn');assert.equal(issued.ok,true);alive.push(issued.receipt);}
+    assert.equal((await request({type:'spawn',tier:1,monsterId:8},'spawn')).code,'spawn_full');
+    peer=new WebSocket('ws://127.0.0.1:18390');
+    await new Promise((resolve,reject)=>{peer.once('open',resolve);peer.once('error',reject);});
+    assert.equal((await request({type:'join',id:'receipt_peer',name:'Peer'},'inv',peer)).ok,true);
+    await waitFor(()=>latestRoster.filter(p=>!p.bot&&p.zone==='A').length===2);
+    const peerAlive=[];
+    for(let id=1;id<=5;id++){const issued=await request({type:'spawn',tier:1,monsterId:id},'spawn',peer);assert.equal(issued.ok,true);peerAlive.push(issued.receipt);}
+    assert.equal(alive.length+peerAlive.length,2*5,'two real players own ten total encounters');
+    assert.equal((await request({type:'spawn',tier:1,monsterId:6},'spawn',peer)).code,'spawn_full');
+    assert.equal((await request({type:'spawn',tier:1,monsterId:8},'spawn')).code,'spawn_full','a second player does not give the first player duplicate slots');
+    peer.send(JSON.stringify({type:'bot',delta:1}));
+    peer.send(JSON.stringify({type:'state',snapshot:{x:1}}));
+    await new Promise(r=>setTimeout(r,30));
+    assert.equal(latestRoster.filter(p=>!p.bot&&p.zone==='A').length,2,'fake bot request cannot inflate real population');
+    peer.close(); await new Promise(resolve=>peer.once('close',resolve));
+    await waitFor(()=>latestRoster.filter(p=>!p.bot&&p.zone==='A').length===1);
+    assert.equal((await request({type:'spawn',tier:1,monsterId:8},'spawn')).code,'spawn_full','departure leaves at most five owned encounters');
     for(const receipt of alive)ws.send(JSON.stringify({type:'despawn',receipt}));
-    assert.equal((await request({type:'spawn',tier:1,monsterId:18},'spawn')).code,'spawn_rate');
-    console.log('PASS real issued receipt, tier/zone/age boundaries, replay protection, map invalidation and 14 active cap');
-  } finally { if(ws)ws.terminate();child.kill('SIGKILL');await new Promise(r=>child.once('exit',r)); }
+    assert.equal((await request({type:'spawn',tier:1,monsterId:9},'spawn')).code,'spawn_rate');
+    console.log('PASS real issued receipt, tier/zone/age boundaries, replay protection, map invalidation and five owned encounters per real player, same-map 2x5 total, departure and real roster metadata');
+  } finally { if(peer)peer.terminate();if(ws)ws.terminate();child.kill('SIGKILL');await new Promise(r=>child.once('exit',r)); }
 }
 receipts().catch(e=>{console.error(e);process.exitCode=1;});

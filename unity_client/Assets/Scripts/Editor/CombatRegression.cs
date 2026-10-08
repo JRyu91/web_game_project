@@ -21,6 +21,7 @@ public static class CombatRegression {
         CheckAdaptiveCamera();
         CheckSkyGroundCoverage();
         CheckGhostRoster();
+        CheckPatrolAndPopulation();
         var root = new GameObject("CombatRegression");
         try {
             var spawner = root.AddComponent<MonsterSpawner>();
@@ -118,9 +119,10 @@ public static class CombatRegression {
     static void CheckGhostRoster() {
         var root = new GameObject("GhostRegression");
         try {
-            var manager = root.AddComponent<GameManager>();
-            var entry = new RosterEntry { id = "remote_qa", name = "원격검사", gender = "female", equip = new EquipMsg { weapon = new EquipWeaponMsg { kind = "staff", tier = 0 } } };
-            Call(manager, "UpdateRoster", (object)new[] { entry, entry, new RosterEntry { id = "" } });
+            var manager = root.AddComponent<GameManager>(); manager.Spawner = root.AddComponent<MonsterSpawner>();
+            var entry = new RosterEntry { id = "remote_qa", name = "원격검사", gender = "female", zone = "A", equip = new EquipMsg { weapon = new EquipWeaponMsg { kind = "staff", tier = 0 } } };
+            Call(manager, "UpdateRoster", (object)new[] { entry, entry, new RosterEntry { id = "" }, new RosterEntry { id = "other_map", zone = "B" }, new RosterEntry { id = "bot", zone = "A", bot = true } });
+            Check(manager.Spawner.MapMonsterCap == 5, "different-map player / bot / duplicate inflated monster capacity");
             Call(manager, "UpdateGhost", entry.id, 10f, 1);
             var ghosts = (Dictionary<string, GameObject>)Field(manager, "_ghosts").GetValue(manager);
             Check(ghosts.Count == 1, "duplicate / empty roster ids created extra ghosts");
@@ -138,9 +140,44 @@ public static class CombatRegression {
             Check(ghosts.Count == 0, "late position resurrected a departed remote");
             Call(manager, "UpdateRoster", (object)new[] { entry }); Call(manager, "UpdateGhost", entry.id, 10f, 1);
             Call(manager, "ClearGhosts");
-            Check(ghosts.Count == 0 && ((Dictionary<string, RosterEntry>)Field(manager, "_roster").GetValue(manager)).Count == 0, "channel reset retains remote metadata");
+            Check(ghosts.Count == 0 && ((Dictionary<string, RosterEntry>)Field(manager, "_roster").GetValue(manager)).Count == 0 && manager.Spawner.MaxAlive == 0, "channel reset retains remote metadata / monster capacity");
             Debug.Log("[CombatRegression] ghost PASS: roster gender / gear / name, movement-only walk, departed cleanup, late pos rejection and channel reset");
         } finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    static void CheckPatrolAndPopulation() {
+        var root = new GameObject("PatrolPopulationRegression");
+        var previousLocal = PlayerController.Local;
+        try {
+            var playerGo = new GameObject("Player"); playerGo.transform.SetParent(root.transform);
+            var player = playerGo.AddComponent<PlayerController>(); player.Init(true, "male", () => Array.Empty<MonsterController>());
+            var mobGo = new GameObject("PatrolMob"); mobGo.transform.SetParent(root.transform);
+            var mob = mobGo.AddComponent<MonsterController>();
+            var def = GameData.Monsters[0]; def.hp = 1000000;
+            mob.Init(def, new Vector3(12, 0), 10, 12); player.transform.position = new Vector3(50, 0);
+            mob.Step(0.1f);
+            Check(mob.transform.position.x < 11.95f, "far player overrides endpoint patrol direction / stationary walking");
+            for (int i = 0; i < 10; i++) mob.Step(0.1f);
+            Check(mob.transform.position.x < 11.5f, "patrol did not continue moving away from endpoint");
+            mob.transform.position = new Vector3(15, mob.transform.position.y); player.transform.position = new Vector3(21, 0);
+            mob.Step(0.1f); float chased = mob.transform.position.x;
+            Check(chased > 15, "fixture did not chase outside patrol range");
+            player.transform.position = new Vector3(50, 0); mob.Step(0.1f);
+            Check(mob.transform.position.x < chased && chased - mob.transform.position.x < 0.07f && mob.transform.position.x > 12, "chase-to-patrol teleported instead of returning smoothly");
+            for (int i = 0; i < 80; i++) mob.Step(0.1f);
+            Check(mob.transform.position.x >= 10 && mob.transform.position.x <= 12, "monster failed to return to its patrol range");
+            var spawner = root.AddComponent<MonsterSpawner>();
+            Call(spawner, "SpawnBoss", 19);
+            for (int i = 0; i < 7; i++) Call(spawner, "Spawn", def, 10f + i);
+            spawner.SetPopulation(2);
+            Check(spawner.MapMonsterCap == 10 && spawner.MaxAlive == 5 && spawner.Alive.Count == 5 && spawner.Boss != null, "per-player five slots / total population cap / boss counting failed");
+            spawner.SetPopulation(1);
+            Check(spawner.MapMonsterCap == 5 && spawner.Alive.Count == 5, "departed player's slots inflated map limit");
+            spawner.SetPopulation(0);
+            Check(spawner.MaxAlive == 0 && spawner.MapMonsterCap == 0 && spawner.Alive.Count == 0 && spawner.Boss == null, "disconnect retained encounters or boss");
+            Check(spawner.TickBoss(1000000) == 0 && spawner.Alive.Count == 0, "zero population spawned a boss");
+            Debug.Log("[CombatRegression] patrol/population PASS: far-player edge, chase return, five slots/player, boss included, departure and zero population");
+        } finally { typeof(PlayerController).GetProperty("Local").SetValue(null, previousLocal); UnityEngine.Object.DestroyImmediate(root); }
     }
 
     static void CheckAdaptiveCamera() {

@@ -6,7 +6,7 @@ namespace Game.Network {
 
 [Serializable] public class EquipWeaponMsg { public string kind; public int tier; public int enh; }
 [Serializable] public class EquipMsg { public EquipWeaponMsg weapon; }
-[Serializable] public class RosterEntry { public string id; public string name; public int level; public string gender; public EquipMsg equip; }
+[Serializable] public class RosterEntry { public string zone; public bool bot; public string id; public string name; public int level; public string gender; public EquipMsg equip; }
 
 [Serializable] public class TypeOnly { public string type; }
 [Serializable] public class SavePreferences { public int potionThreshold; }
