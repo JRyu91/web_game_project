@@ -6,12 +6,15 @@ const crypto = require('node:crypto');
 const WebSocket = require('ws');
 const base = process.argv.slice(2).find(x=>!x.startsWith('--')) || 'http://localhost:18080';
 const mobile=process.argv.includes('--mobile');
+const checkPeer=process.argv.includes('--peer');
+assert(!checkPeer || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'peer fixture is local-only');
 const stage=new URL(base).host.replace(/[^a-zA-Z0-9_-]/g,'_');
 const captureName=`web-${stage}-${mobile?'mobile':'desktop'}`;
 const out = path.resolve(__dirname, '../unity_client/Logs');
 const account = 'webqa_' + crypto.randomBytes(6).toString('hex');
 const password = crypto.randomBytes(16).toString('hex');
-let ws, seq = 0, kills = 0, joined = 0, latest, cookie;
+let ws, peer, peerPresent=false, seq = 0, kills = 0, joined = 0, latest, cookie;
+const peerId='peer_'+crypto.randomBytes(6).toString('hex');
 const pending = new Map(), errors = [], notes = [];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn, label, timeout = 60000) {
@@ -41,7 +44,7 @@ async function evaluate(expression) {
       if(/Exception|\[net\]|\[save\]|\[fps\]/.test(text)) notes.push(text);
     }
     if(e.method==='Network.webSocketFrameReceived') {
-      try {const m=JSON.parse(e.params.response.payloadData);if(m.type==='inv') {if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok)kills++;if(m.state)latest=m.state;}} catch {}
+      try {const m=JSON.parse(e.params.response.payloadData);if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok)kills++;if(m.state)latest=m.state;}} catch {}
     }
   });
   await new Promise(resolve=>ws.once('open',resolve));
@@ -50,7 +53,7 @@ async function evaluate(expression) {
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.1');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.2');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);
@@ -70,9 +73,19 @@ async function evaluate(expression) {
   await evaluate("document.getElementById('play').click()");
   await until(()=>joined>=2,'rejoin',180000);
   assert(latest.gold>=before.gold&&latest.level>=before.level,'progress retained after reload');
+  fs.mkdirSync(out,{recursive:true});
+  if(checkPeer){
+    peer=new WebSocket(base.replace(/^http/,'ws'));
+    await new Promise((resolve,reject)=>{peer.once('error',reject);peer.once('open',()=>peer.send(JSON.stringify({type:'join',id:peerId,name:'퇴장검증',gender:'female'})));peer.on('message',data=>{const m=JSON.parse(data);if(m.type==='inv'&&m.req==='join'&&m.ok)resolve();});});
+    await until(()=>peerPresent,'remote roster arrival');
+    peer.send(JSON.stringify({type:'pos',x:12,face:-1}));await pause(1200);
+    const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-peer.png'),Buffer.from(shot.data,'base64'));
+    peer.close();await until(()=>!peerPresent,'remote roster removal');await pause(500);
+    console.log('PASS real peer join/position/leave; peer screenshot and final screenshot require visual review');
+  }
   await pause(1500);
   const screenshot=await call('Page.captureScreenshot',{format:'png'});
-  fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'.png'),Buffer.from(screenshot.data,'base64'));
+  fs.writeFileSync(path.join(out,captureName+'.png'),Buffer.from(screenshot.data,'base64'));
   if(mobile){
     // Same running Unity instance: iPhone's unavailable API and a browser rejection must both fall back safely.
     for(const unsupported of [true,false]){
@@ -115,6 +128,7 @@ async function evaluate(expression) {
   assert.equal(errors.length,0,errors.join('\n'));
   console.log(JSON.stringify({result:'PASS',base,mobile,captureName,joins:joined,kills,gold:latest.gold,level:latest.level,errors,notes:notes.slice(-10)}));
 })().catch(e=>{console.error(e.stack);console.error(JSON.stringify({errors,notes:notes.slice(-15),joined,kills}));process.exitCode=1;}).finally(async()=>{
+  peer?.close();
   if(ws?.readyState===WebSocket.OPEN){
     try {await evaluate("window.gameSocket?.close()");await evaluate(`fetch('/account/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:${JSON.stringify(account)}})})`);await call('Page.close');}catch{}
     ws.close();

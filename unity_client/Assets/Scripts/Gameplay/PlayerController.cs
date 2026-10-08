@@ -343,7 +343,8 @@ public class PlayerController : MonoBehaviour {
         int real = CombatMath.Mitigate(rawAtk, def);
         Hp -= real;
         _hitTimer = CombatMath.RegenDelay;
-        _vis.Flash(0.033f); // 몬스터 타격: 플레이어는 플래시만, 정지 없음(spec §4)
+        _vis.Flash(0.033f);
+        _anim.React("hurt"); // Visual reaction only: automatic attack/skill/cooldown timelines are not interrupted.
         CombatLog?.Invoke($"player hit -{real}");
         OnHpChanged?.Invoke(Hp, MaxHp);
         if (Hp <= 0) Die();

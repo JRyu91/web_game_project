@@ -48,6 +48,8 @@ public class FrameAnimator : MonoBehaviour {
     float _freeze;                        // 히트스톱 남은 시간(이 애니만 정지, timeScale 무관)
     System.Action _onDone;
 
+    Sprite[] _reactionFrames; ClipDef _reactionDef; float _reactionElapsed;
+    public bool Reacting => _reactionFrames != null;
     public bool Done => _done;
     public bool Frozen => _freeze > 0;
     public string Clip => _clip;
@@ -61,7 +63,7 @@ public class FrameAnimator : MonoBehaviour {
     public void SetSource(string resourceRoot) {
         _resourceRoot = resourceRoot;
         _cache.Clear();
-        _clip = null;
+        _clip = null; _reactionFrames = null;
     }
 
     public string SourceKey => _resourceRoot == null ? "" : _resourceRoot.Substring(_resourceRoot.LastIndexOf('/') + 1);
@@ -81,6 +83,7 @@ public class FrameAnimator : MonoBehaviour {
     // 정의 테이블(SourceKey/clip)이 있으면 그걸, 없으면 균등 fps. fps>0 이면 균등 재생 속도 덮어씀.
     // impactFrac>=0 이면 (정의 없는 클립) 그 비율 지점 프레임을 impact 로.
     public void Play(string clip, bool loop = true, System.Action onDone = null, float fps = 0, float impactFrac = -1) {
+        if (clip == "dead") _reactionFrames = null;
         if (_clip == clip && !_done && _still < 0) return;
         var frames = LoadClip(clip);
         if (frames.Length == 0) {
@@ -124,8 +127,34 @@ public class FrameAnimator : MonoBehaviour {
 
     public float Length { get { float t = 0; if (_dur != null) foreach (var d in _dur) t += d; return t; } }
 
+    // A hit reaction changes only the displayed sprite; attack frames, impact and cooldowns keep running.
+    public void React(string clip) {
+        var frames = LoadClip(clip); if (frames.Length == 0) return;
+        _reactionFrames = frames; _reactionDef = ClipTable.Get($"{SourceKey}/{clip}"); _reactionElapsed = 0;
+        ShowVisual();
+    }
+
+    void ShowVisual() {
+        if (_src == null || _idx == null) return;
+        Sprite reaction = null;
+        if (_reactionFrames != null) {
+            float t = _reactionElapsed;
+            if (_reactionDef != null) {
+                for (int i = 0; i < _reactionDef.ms.Length; i++) {
+                    if (t < _reactionDef.ms[i] / 1000f) { reaction = _reactionFrames[Mathf.Min(_reactionDef.frames[i], _reactionFrames.Length - 1)]; break; }
+                    t -= _reactionDef.ms[i] / 1000f;
+                }
+            } else {
+                int i = Mathf.FloorToInt(t * Fps);
+                if (i < _reactionFrames.Length) reaction = _reactionFrames[i];
+            }
+            if (reaction == null) _reactionFrames = null;
+        }
+        Renderer.sprite = reaction != null ? reaction : _src[Mathf.Min(_idx[_frame], _src.Length - 1)];
+    }
+
     void Show() {
-        Renderer.sprite = _src[Mathf.Min(_idx[_frame], _src.Length - 1)];
+        ShowVisual();
         if (_frame == _impactPos) OnImpact?.Invoke();
     }
 
@@ -133,6 +162,7 @@ public class FrameAnimator : MonoBehaviour {
 
     // 누적 시간 방식: 한 번에 여러 프레임을 건너뛸 수 있다. 캡처 툴이 직접 호출하기도 함.
     public void Tick(float dt) {
+        if (_reactionFrames != null) { _reactionElapsed += dt; ShowVisual(); }
         if (_clip == null || _done) return;
         if (_freeze > 0) {
             float used = Mathf.Min(_freeze, dt);

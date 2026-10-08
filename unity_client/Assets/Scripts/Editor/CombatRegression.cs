@@ -19,6 +19,8 @@ public static class CombatRegression {
 
     public static void Run() {
         CheckAdaptiveCamera();
+        CheckSkyGroundCoverage();
+        CheckGhostRoster();
         var root = new GameObject("CombatRegression");
         try {
             var spawner = root.AddComponent<MonsterSpawner>();
@@ -86,6 +88,59 @@ public static class CombatRegression {
             UnityEngine.Object.DestroyImmediate(root);
         }
         RunAnimation();
+    }
+
+    static void CheckSkyGroundCoverage() {
+        var root = new GameObject("CoverageRegression");
+        float oldGround = WorldConfig.GroundY;
+        var texture = new RenderTexture(1280, 1240, 24);
+        try {
+            var cameraGo = new GameObject("Camera"); cameraGo.transform.SetParent(root.transform);
+            var cam = cameraGo.AddComponent<Camera>(); cam.orthographic = true; cam.orthographicSize = 15.5f; cam.aspect = 1280f / 1240;
+            cam.targetTexture = texture;
+            var zoneGo = new GameObject("Zone"); zoneGo.transform.SetParent(root.transform);
+            var zone = zoneGo.AddComponent<ZoneController>(); zone.Cam = cam;
+            foreach (Zone map in Enum.GetValues(typeof(Zone))) {
+                zone.SetZone(map, Tod.Day); zone.Layout(10);
+                float top = cam.transform.position.y + cam.orthographicSize, bottom = cam.transform.position.y - cam.orthographicSize;
+                var background = zone.GetComponentsInChildren<SpriteRenderer>().Where(sr => map == Zone.C ? sr.name.StartsWith("back_wall_") : sr.name == "sky").ToArray();
+                Check(background.Length > 0 && background.All(sr => sr.bounds.min.y <= bottom + 0.001f && sr.bounds.max.y >= top - 0.001f), $"{map} tall background does not cover viewport");
+                var fills = root.GetComponentsInChildren<SpriteRenderer>().Where(sr => sr.name == "GroundExtension").ToArray();
+                Check(fills.Length == 2 && fills.All(sr => sr.enabled && sr.bounds.min.y <= bottom + 0.001f), $"{map} tall ground has a bottom gap");
+                Check(fills.All(sr => sr.drawMode == SpriteDrawMode.Tiled && sr.transform.localScale == Vector3.one && sr.sprite.rect.height == 32), "ground extension stretches a pixel row instead of tiling the original texture");
+                var ground = root.GetComponentsInChildren<SpriteRenderer>().Where(sr => sr.name.StartsWith("ground_")).ToArray();
+                Check(ground.All(sr => sr.transform.localScale == Vector3.one), "original ground art was stretched");
+            }
+            Debug.Log("[CombatRegression] coverage PASS: A/B/C 1280x1240 sky and bottom-ground coverage, original ground scale unchanged");
+        } finally { WorldConfig.GroundY = oldGround; UnityEngine.Object.DestroyImmediate(root); UnityEngine.Object.DestroyImmediate(texture); }
+    }
+
+    static void CheckGhostRoster() {
+        var root = new GameObject("GhostRegression");
+        try {
+            var manager = root.AddComponent<GameManager>();
+            var entry = new RosterEntry { id = "remote_qa", name = "원격검사", gender = "female", equip = new EquipMsg { weapon = new EquipWeaponMsg { kind = "staff", tier = 0 } } };
+            Call(manager, "UpdateRoster", (object)new[] { entry, entry, new RosterEntry { id = "" } });
+            Call(manager, "UpdateGhost", entry.id, 10f, 1);
+            var ghosts = (Dictionary<string, GameObject>)Field(manager, "_ghosts").GetValue(manager);
+            Check(ghosts.Count == 1, "duplicate / empty roster ids created extra ghosts");
+            var ghost = ghosts[entry.id]; var anim = ghost.GetComponent<FrameAnimator>();
+            Check(anim.SourceKey == "main_f" && anim.Clip == "idle", "remote gender / first-position idle mismatch");
+            Check(ghost.GetComponentInChildren<TextMesh>().text.Contains(entry.name), "remote identity label missing");
+            Check(ghost.GetComponentsInChildren<SpriteRenderer>().Any(sr => sr.name == "Weapon" && sr.sprite != null), "roster equipment not attached");
+            Call(manager, "UpdateGhost", entry.id, 11f, -1);
+            Check(anim.Clip == "walk" && ghost.GetComponent<SpriteRenderer>().flipX, "position movement / facing not reflected");
+            Call(manager, "UpdateGhost", entry.id, 11f, -1);
+            Check(anim.Clip == "idle", "stationary remote keeps walking");
+            Call(manager, "UpdateRoster", (object)Array.Empty<RosterEntry>());
+            Check(ghosts.Count == 0 && ghost == null, "departed remote object remains in scene");
+            Call(manager, "UpdateGhost", entry.id, 12f, 1);
+            Check(ghosts.Count == 0, "late position resurrected a departed remote");
+            Call(manager, "UpdateRoster", (object)new[] { entry }); Call(manager, "UpdateGhost", entry.id, 10f, 1);
+            Call(manager, "ClearGhosts");
+            Check(ghosts.Count == 0 && ((Dictionary<string, RosterEntry>)Field(manager, "_roster").GetValue(manager)).Count == 0, "channel reset retains remote metadata");
+            Debug.Log("[CombatRegression] ghost PASS: roster gender / gear / name, movement-only walk, departed cleanup, late pos rejection and channel reset");
+        } finally { UnityEngine.Object.DestroyImmediate(root); }
     }
 
     static void CheckAdaptiveCamera() {
@@ -159,8 +214,8 @@ public static class CombatRegression {
             player.Init(true, "male", () => spawner.Alive);
             GrantSkills(player, GameData.Skills.Where(skill => skill.weapon == "staff" && skill.lv <= player.Level).Select(skill => skill.key).ToArray());
             var animator = player.GetComponent<FrameAnimator>();
-            int impacts = 0, casts = 0;
-            animator.OnImpact += () => impacts++;
+            int impacts = 0, casts = 0; bool impactDuringReaction = false;
+            animator.OnImpact += () => { impacts++; impactDuringReaction |= animator.Reacting; };
             player.OnSkillCast += _ => casts++;
             const int seed = 456;
             Field(player, "_rng").SetValue(player, new System.Random(seed));
@@ -173,9 +228,20 @@ public static class CombatRegression {
                 expected += CombatMath.Mitigate(Mathf.Max(1, Mathf.RoundToInt(atk * skill.mult)), def.def);
             }
             const float dt = 1f / 60f;
+            // Real incoming damage overlays hurt frames without replacing the attack or its pending skills.
+            player.Step(dt);
+            string attackClip = animator.Clip;
+            float attackCd = player.GetSnapshot().attackCd;
+            int pendingCount = ((List<SkillDef>)Field(player, "_pendingSkills").GetValue(player)).Count;
+            player.TakeDamage(1);
+            Check(animator.Reacting && animator.Clip == attackClip && player.GetSnapshot().attackCd == attackCd, "hurt interrupted attack timeline / cooldown");
+            Check(((List<SkillDef>)Field(player, "_pendingSkills").GetValue(player)).Count == pendingCount, "hurt lost pending skills");
+            Check(player.GetComponent<SpriteRenderer>().sprite == Resources.LoadAll<Sprite>($"{ActorScale.PlayerRoot}/main_m/hurt").OrderBy(frame => frame.name).First(), "hurt frame was not displayed");
             // Player.Step이 자동 공격을 시작하고 Tick이 실제 impact 프레임 이벤트를 발생시킨다.
             for (int i = 0; i < 120 && impacts == 0; i++) { player.Step(dt); animator.Tick(dt); }
             Check(impacts == 1 && casts == 2 && target.Hp == def.hp - expected, "애니메이션 impact 기본 공격 + 자동 스킬 피해 불일치");
+            Check(impactDuringReaction, "attack impact did not survive active hurt reaction");
+            animator.Tick(0.24f); Check(!animator.Reacting, "hurt overlay did not return to normal animation");
             Field(target, "_hitCooldownTimer").SetValue(target, 0f);
             Check(target.TakeDamage(2000000) && target.IsDead, "애니메이션 검증 대상 정리 실패");
             UnityEngine.Object.DestroyImmediate(target.gameObject);
@@ -186,7 +252,7 @@ public static class CombatRegression {
             spawner.OnMonsterDied += _ => deaths++;
             for (int i = 0; i < 180 && deaths < 3; i++) { player.Step(dt); animator.Tick(dt); }
             Check(impacts == 2 && mobs.All(m => m.IsDead) && deaths == 3 && spawner.Alive.Count == 0, "실제 impact 이벤트 광역 동시 처치 실패");
-            Debug.Log("[CombatRegression] ANIMATION PASS: fixed-step editor Player.Step → FrameAnimator.OnImpact, basic+2skills, multi-kill");
+            Debug.Log("[CombatRegression] ANIMATION PASS: real incoming hurt overlay preserves attack impact, basic+2skills, cooldown, recovery and multi-kill");
         } finally {
             typeof(PlayerController).GetProperty("Local").SetValue(null, previousLocal);
             UnityEngine.Object.DestroyImmediate(root);

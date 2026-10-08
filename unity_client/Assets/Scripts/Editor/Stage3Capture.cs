@@ -376,19 +376,18 @@ public static class Stage3Capture {
             foreach (var a in ActorVisual.All) a.Refresh();
             Shot($"{S2}/idle_t{t}_before_after");
         }
-        // 3) 포털·스피너·NPC·보스 HP 바 (GameManager 배선 그대로)
+        // 3) 포털·스피너·보스 HP 바 (GameManager 배선 그대로)
         Setup("world", Zone.A, "m", "sword");
         var gm = new GameObject("GM").AddComponent<GameManager>();
-        gm.SetupWorld(_cam, PX + 9, PX + 5);
+        gm.SetupWorld(_cam, PX + 9);
         for (int i = 0; i < 4; i++) { gm.TickWorld(i * 0.13f, null); Shot($"{S2}/portal_spinner_{i}"); }
-        foreach (var ch in new[] { "1", "2", "3", "4" }) { gm.PickNpc(ch); gm.TickWorld(0, null); Shot($"{S2}/npc_ch{ch}"); }
-        Object.DestroyImmediate(gm.gameObject); foreach (var n in new[] { "Portal", "ShopNpc", "Spinner", "BossHpBar" }) { var o = GameObject.Find(n); if (o) Object.DestroyImmediate(o); }
+        Object.DestroyImmediate(gm.gameObject); foreach (var n in new[] { "Portal", "Spinner", "BossHpBar" }) { var o = GameObject.Find(n); if (o) Object.DestroyImmediate(o); }
         Setup("bosshp", Zone.C, "m", "sword");
-        gm = new GameObject("GM").AddComponent<GameManager>(); gm.SetupWorld(_cam, -100, -100); gm.Loading = false;
+        gm = new GameObject("GM").AddComponent<GameManager>(); gm.SetupWorld(_cam, -100); gm.Loading = false;
         var boss = Mob(20, PX + 6, 99999); boss.Hp = boss.MaxHp * 6 / 10;
         foreach (var a in ActorVisual.All) a.Refresh(); boss.RefreshAura();
         gm.TickWorld(0, boss); Shot($"{S2}/boss_hp_full");
-        Object.DestroyImmediate(gm.gameObject); foreach (var n in new[] { "Portal", "ShopNpc", "Spinner", "BossHpBar" }) { var o = GameObject.Find(n); if (o) Object.DestroyImmediate(o); }
+        Object.DestroyImmediate(gm.gameObject); foreach (var n in new[] { "Portal", "Spinner", "BossHpBar" }) { var o = GameObject.Find(n); if (o) Object.DestroyImmediate(o); }
         // 4) 지팡이 시스 재캡처
         foreach (var g in new[] { "m", "f" })
             foreach (var w in new[] { "드래곤스태프", "공허지팡이" }) {

@@ -22,6 +22,7 @@ public class GameManager : MonoBehaviour {
     public MonsterSpawner Spawner;
     PlayerController _player;
     readonly Dictionary<string, GameObject> _ghosts = new Dictionary<string, GameObject>();
+    readonly Dictionary<string, RosterEntry> _roster = new Dictionary<string, RosterEntry>();
     readonly List<string> _chatLog = new List<string>();
     sealed class SpawnRegistration { public MonsterController monster; public int tier; public string receipt; public bool dead; public int killSeq; public float retryAt; }
     int _monsterId;
@@ -56,15 +57,14 @@ public class GameManager : MonoBehaviour {
         net.Connect(ServerUrl, AccountId, PlayerName, _player.Level, Gender, () => _player.GetSnapshot());
 
         new GameObject("GameUI").AddComponent<GameUI>().Init(Camera.main, _player, Spawner, net, () => StartCoroutine(PostSave())); // F안: 서버 inv → 인벤·강화·상점·소환
-        SetupWorld(Camera.main, WorldConfig.MapWidth - WorldConfig.MapMargin - 2f, 6f);
-        PickNpc("0");
+        SetupWorld(Camera.main, WorldConfig.MapWidth - WorldConfig.MapMargin - 2f);
         StartCoroutine(SaveLoop());
     }
 
     void BindNetwork(NetworkClient net) {
         net.OnSpawn += SpawnRegistered;
-        net.OnConnecting += () => { _spawns.Clear(); _player.PendingKillRewards = false; _resumeState = null; SetGameplayReady(false); Loading = true; _systemMsg = "서버 접속 중 — 플레이 일시정지"; };
-        net.OnWelcome += m => { SetGameplayReady(false); Loading = true; _systemMsg = $"채널 {net.Channel} 접속 — 저장 상태 확인 중"; PickNpc(net.Channel); };
+        net.OnConnecting += () => { ClearGhosts(); _spawns.Clear(); _player.PendingKillRewards = false; _resumeState = null; SetGameplayReady(false); Loading = true; _systemMsg = "서버 접속 중 — 플레이 일시정지"; };
+        net.OnWelcome += m => { SetGameplayReady(false); Loading = true; _systemMsg = $"채널 {net.Channel} 접속 — 저장 상태 확인 중"; };
         net.OnInv += m => {
             if (m.req == "kill") ResolveKill(m);
             if (m.state != null && Enum.TryParse<Game.Rendering.Zone>(m.state.zone, out var zone)) {
@@ -86,12 +86,12 @@ public class GameManager : MonoBehaviour {
         };
         net.OnSystem += t => _systemMsg = t;
         net.OnChat += (who, text) => { _chatLog.Add($"{who}: {text}"); if (_chatLog.Count > 8) _chatLog.RemoveAt(0); };
-        net.OnRoster += r => { }; // 이름/레벨 로스터는 HUD 쪽에서 필요해지면 확장
+        net.OnRoster += UpdateRoster;
         net.OnPos += (id, x, face) => UpdateGhost(id, x, face);
         net.OnTransfer += m => StartCoroutine(Transfer(m));
         net.OnResume += s => _resumeState = s;
         net.OnFull += () => _systemMsg = "채널이 가득 찼습니다. 새로고침 후 다른 채널을 선택하세요";
-        net.OnDisconnected += () => { SetGameplayReady(false); _systemMsg = "서버 연결 끊김 — 플레이 일시정지"; Loading = false; };
+        net.OnDisconnected += () => { ClearGhosts(); SetGameplayReady(false); _systemMsg = "서버 연결 끊김 — 플레이 일시정지"; Loading = false; };
     }
 
     void RegisterMonster(MonsterController monster) {
@@ -158,13 +158,13 @@ public class GameManager : MonoBehaviour {
         NetworkClient.Instance.Connect(ServerUrl, AccountId, PlayerName, _player.Level, Gender, _player.GetSnapshot, true);
     }
 
-    // ── E안 2단계: 포털·로딩 스피너·보스 HP 바·상점 NPC (SpriteRenderer, 카메라 자식 HUD — 캡처에도 찍힘) ──
+    // ── E안 2단계: 포털·로딩 스피너·보스 HP 바 (SpriteRenderer, 카메라 자식 HUD — 캡처에도 찍힘) ──
     // Resources.Load 키(에셋 MANIFEST §3) — 바뀌면 여기만
-    const string KeyPortal = "Sprites/FX/e_anim/portal", KeySpinner = "Sprites/FX/e_anim/spinner", KeyHpFrame = "Sprites/UI/ui_boss_hp_frame", KeyNpc = "Sprites/Props/npc/npc_s";
+    const string KeyPortal = "Sprites/FX/e_anim/portal", KeySpinner = "Sprites/FX/e_anim/spinner", KeyHpFrame = "Sprites/UI/ui_boss_hp_frame";
     const int HudOrder = 100, HudScale = 2; // HP 바 정수 2배
     public bool Loading = true;             // 권위 inv.join 상태 수신 전 스피너
     Sprite[] _portalF, _spinF;
-    SpriteRenderer _portal, _spinner, _hpFrame, _hpFill, _npc;
+    SpriteRenderer _portal, _spinner, _hpFrame, _hpFill;
 
     // 텍스처 통째로 1장 = 1프레임. 임포터가 Multiple(자동 슬라이스)로 잡아도 조각 대신 전체가 나오게(스피너 프레임 0·3 소실 원인)
     static Sprite[] Frames(string dir) => Resources.LoadAll<Texture2D>(dir).OrderBy(x => x.name)
@@ -176,10 +176,9 @@ public class GameManager : MonoBehaviour {
     }
     static void Ground(SpriteRenderer sr, float x) => sr.transform.position = new Vector3(x, WorldConfig.GroundY - sr.sprite.bounds.min.y, 0); // 피벗 무관 하단=지면
 
-    public void SetupWorld(Camera cam, float portalX, float npcX) {
+    public void SetupWorld(Camera cam, float portalX) {
         _portalF = Frames(KeyPortal); _spinF = Frames(KeySpinner);
         if (_portalF.Length > 0) { _portal = Sr("Portal", null, 3); _portal.sprite = _portalF[0]; Ground(_portal, portalX); }
-        _npc = Sr("ShopNpc", null, 3); _npcX = npcX;
         if (cam == null) return;
         if (_spinF.Length > 0) { _spinner = Sr("Spinner", cam.transform, HudOrder); _spinner.sprite = _spinF[0]; _spinner.transform.localPosition = new Vector3(cam.orthographicSize * cam.aspect - 1f, -cam.orthographicSize + 1f, 10); }
         var frame = Resources.Load<Sprite>(KeyHpFrame);
@@ -195,19 +194,6 @@ public class GameManager : MonoBehaviour {
             _hpFrame.gameObject.SetActive(false);
         }
     }
-    float _npcX;
-
-    // 상점 NPC: 채널별 랜덤 S1/S2 = System.Random(channelId ^ dailySeed). channelId = 채널 문자열 숫자(없으면 해시), dailySeed = UTC 일 수.
-    public void PickNpc(string channel) {
-        if (_npc == null) return;
-        int ch = int.TryParse(new string((channel ?? "0").Where(char.IsDigit).ToArray()), out var n) ? n : (channel ?? "").GetHashCode();
-        int day = (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalDays;
-        int pick = new System.Random(ch ^ day).Next(1, 3);
-        _npc.sprite = Resources.Load<Sprite>(KeyNpc + pick);
-        if (_npc.sprite != null) Ground(_npc, _npcX);
-        Debug.Log($"[npc] channel={channel} day={day} -> s{pick}");
-    }
-
     // t = 애니 시각(런타임 Time.time, 캡처는 고정값). boss = 살아있는 보스(없으면 HP 바 숨김).
     public void TickWorld(float t, MonsterController boss) {
         if (_portal != null) {
@@ -284,21 +270,59 @@ public class GameManager : MonoBehaviour {
 
     static string ToHttp(string wsUrl) => wsUrl.Replace("wss://", "https://").Replace("ws://", "http://");
 
-    void UpdateGhost(string id, float x, int face) {
-        if (id == NetworkClient.Instance?.Me) return; // 나 자신은 유령 안 그림
-        if (!_ghosts.TryGetValue(id, out var go)) {
-            go = new GameObject($"Ghost_{id}");
-            var sr = go.AddComponent<SpriteRenderer>();
-            sr.sortingOrder = 4;
-            var anim = go.AddComponent<Game.Rendering.FrameAnimator>();
-            anim.Renderer = sr;
-            anim.SetSource($"{Game.Rendering.ActorScale.PlayerRoot}/main_m");
-            anim.Play("walk");
-            go.AddComponent<Game.Rendering.ActorVisual>().Init(sr, Game.Rendering.ActorScale.Player, false);
-            _ghosts[id] = go;
+    void ClearGhosts() {
+        foreach (var go in _ghosts.Values) RemoveGhostObject(go);
+        _ghosts.Clear(); _roster.Clear();
+    }
+
+    static void RemoveGhostObject(GameObject go) { if (Application.isPlaying) Destroy(go); else DestroyImmediate(go); }
+
+    void UpdateRoster(RosterEntry[] roster) {
+        var present = new Dictionary<string, RosterEntry>();
+        foreach (var entry in roster ?? Array.Empty<RosterEntry>())
+            if (entry != null && !string.IsNullOrEmpty(entry.id) && entry.id != NetworkClient.Instance?.Me) present[entry.id] = entry;
+        foreach (var id in _ghosts.Keys.Where(id => !present.ContainsKey(id)).ToArray()) { RemoveGhostObject(_ghosts[id]); _ghosts.Remove(id); }
+        _roster.Clear();
+        foreach (var pair in present) {
+            _roster[pair.Key] = pair.Value;
+            if (_ghosts.TryGetValue(pair.Key, out var go)) RefreshGhost(go, pair.Value);
         }
-        go.transform.position = new Vector3(x, go.transform.position.y, 0); // 서버 좌표계(px) -> 유니티 유닛 대략 환산, y는 지면 정렬값 유지
-        go.GetComponent<SpriteRenderer>().flipX = face < 0; // 배율(localScale) 덮어쓰지 않게
+    }
+
+    void RefreshGhost(GameObject go, RosterEntry entry) {
+        var anim = go.GetComponent<Game.Rendering.FrameAnimator>();
+        string body = entry.gender == "female" ? "main_f" : "main_m";
+        if (anim.SourceKey != body) { anim.SetSource($"{Game.Rendering.ActorScale.PlayerRoot}/{body}"); anim.Play("idle"); }
+        var weapon = entry.equip?.weapon;
+        var defs = weapon?.kind == "staff" ? GameData.Staves : GameData.Swords;
+        string name = weapon != null && (weapon.kind == "staff" || weapon.kind == "sword") && weapon.tier >= 0 && weapon.tier < defs.Length ? System.IO.Path.GetFileName(defs[weapon.tier].spritePath) : null;
+        go.GetComponent<Game.Rendering.GearAttachment>().SetWeapon(name);
+        var label = go.GetComponentInChildren<TextMesh>();
+        label.text = (entry.name ?? entry.id) + " · 다른 플레이어";
+        label.transform.localPosition = new Vector3(0, go.GetComponent<SpriteRenderer>().sprite.bounds.max.y + 0.2f, 0);
+    }
+
+    void UpdateGhost(string id, float x, int face) {
+        if (string.IsNullOrEmpty(id) || id == NetworkClient.Instance?.Me || !_roster.TryGetValue(id, out var entry) || float.IsNaN(x) || float.IsInfinity(x)) return;
+        bool existed = _ghosts.TryGetValue(id, out var go);
+        if (!existed) {
+            go = new GameObject($"Ghost_{id}"); go.transform.SetParent(transform, false);
+            var sr = go.AddComponent<SpriteRenderer>(); sr.sortingOrder = 4;
+            var anim = go.AddComponent<Game.Rendering.FrameAnimator>(); anim.Renderer = sr;
+            anim.SetSource($"{Game.Rendering.ActorScale.PlayerRoot}/{(entry.gender == "female" ? "main_f" : "main_m")}"); anim.Play("idle");
+            var gear = go.AddComponent<Game.Rendering.GearAttachment>(); gear.Init(sr, anim);
+            go.AddComponent<Game.Rendering.ActorVisual>().Init(sr, Game.Rendering.ActorScale.Player, false);
+            var label = new GameObject("RemoteName").AddComponent<TextMesh>(); label.transform.SetParent(go.transform, false);
+            label.anchor = TextAnchor.LowerCenter; label.fontSize = 32; label.characterSize = 0.3f; label.color = new Color(0.72f, 0.85f, 1);
+            var font = Resources.Load<Font>("Fonts/Galmuri11");
+            if (font != null) { label.font = font; label.GetComponent<MeshRenderer>().sharedMaterial = font.material; }
+            label.GetComponent<MeshRenderer>().sortingOrder = 10;
+            _ghosts[id] = go; RefreshGhost(go, entry);
+        }
+        bool moving = existed && Mathf.Abs(x - go.transform.position.x) > 0.01f;
+        go.GetComponent<Game.Rendering.FrameAnimator>().Play(moving ? "walk" : "idle");
+        go.transform.position = new Vector3(Mathf.Clamp(x, WorldConfig.MapMargin, WorldConfig.MapWidth - WorldConfig.MapMargin), go.transform.position.y, 0);
+        go.GetComponent<Game.Rendering.GearAttachment>().SetFace(face);
     }
 
     // fps 측정(기획 기준 10): 5초 평균을 로그로

@@ -38,6 +38,7 @@ public class ZoneController : MonoBehaviour {
         public Transform[] copies;                    // 3200px 랩 레이어(2장)
         public Transform single;                      // 해/달 같은 단일 스프라이트
         public Vector2 mapPos;                        // single: 맵 px 좌상단
+        public SpriteRenderer[] groundFill; public Sprite groundStrip;
         public bool skyFixed;                         // 카메라 고정 + 화면폭으로 늘림
         public Tod[] tods;                            // null = 항상
     }
@@ -77,6 +78,7 @@ public class ZoneController : MonoBehaviour {
         Current = this;
         if (Cam == null) Cam = Camera.main;
         Zone = zone;
+        foreach (var old in _layers) if (old.groundStrip != null) Kill(old.groundStrip);
         for (int i = transform.childCount - 1; i >= 0; i--) Kill(transform.GetChild(i).gameObject);
         _layers.Clear(); _falls.Clear(); _embers.Clear();
         WorldConfig.GroundY = (360 - FootPx[(int)zone] - 1) / 40f; // 발 최하단 불투명 픽셀 행 = 발라인 y (spec 1-11 #4)
@@ -110,6 +112,18 @@ public class ZoneController : MonoBehaviour {
                     L.copies[k] = sr.transform;
                     if (key == "lavafalls") AddFalls(sr.transform, order + 1);
                     if (key == "embers") AddEmbers(sr.transform, order, k);
+                }
+                if (key == "ground" && spr != null) {
+                    var r = spr.rect;
+                    L.groundStrip = Sprite.Create(spr.texture, new Rect(r.x, r.y, r.width, Mathf.Min(32, r.height)), new Vector2(0.5f, 1), 40, 0, SpriteMeshType.FullRect);
+                    L.groundFill = new SpriteRenderer[2];
+                    for (int k = 0; k < 2; k++) {
+                        var fill = MakeSr("GroundExtension", L.groundStrip, order);
+                        fill.drawMode = SpriteDrawMode.Tiled; fill.tileMode = SpriteTileMode.Continuous;
+                        fill.transform.SetParent(L.copies[k], false);
+                        fill.transform.localPosition = new Vector3(0, spr.bounds.min.y, 0);
+                        L.groundFill[k] = fill;
+                    }
                 }
             }
             _layers.Add(L);
@@ -150,6 +164,7 @@ public class ZoneController : MonoBehaviour {
     IEnumerable<SpriteRenderer> Renderers(Layer L) {
         if (L.single != null) yield return L.single.GetComponent<SpriteRenderer>();
         if (L.copies != null) foreach (var t in L.copies) yield return t.GetComponent<SpriteRenderer>();
+        if (L.groundFill != null) foreach (var sr in L.groundFill) yield return sr;
     }
 
     // ── 시간대 그레이딩 (USER 결정 b): compose grade 와 같은 식을 셰이더로. 값 = Config/tod_grade.json
@@ -239,8 +254,9 @@ public class ZoneController : MonoBehaviour {
                 var sr = L.single.GetComponent<SpriteRenderer>();
                 if (sr.sprite == null) continue;
                 var r = sr.sprite.rect;
-                L.single.localScale = new Vector3(halfView * 80f / r.width, 1, 1);
-                L.single.position = new Vector3(CamX, Snap(cameraY) + halfHeight - r.height / 80f, 0);
+                float skyHeight = Mathf.Max(r.height / 40f, halfHeight * 2);
+                L.single.localScale = new Vector3(halfView * 80f / r.width, skyHeight * 40f / r.height, 1);
+                L.single.position = new Vector3(CamX, Snap(cameraY) + halfHeight - skyHeight / 2f, 0);
             } else if (L.single != null) {
                 var r = L.single.GetComponent<SpriteRenderer>().sprite.rect;
                 float cx = off + (L.mapPos.x + r.width / 2f) / 40f;
@@ -248,8 +264,22 @@ public class ZoneController : MonoBehaviour {
                 if (L.name == "sun" && L.single.gameObject.activeSelf) SunWorldX = cx;
             } else {
                 float n = Mathf.Floor((CamX - halfView - off) / WorldConfig.MapWidth);
-                for (int k = 0; k < 2; k++)
-                    L.copies[k].position = new Vector3(off + WorldConfig.MapWidth * (n + k) + 40f, 0, 0);
+                for (int k = 0; k < 2; k++) {
+                    float backgroundY = 0;
+                    if (Zone == Zone.C && L.name == "back_wall") {
+                        float height = L.copies[k].GetComponent<SpriteRenderer>().sprite.bounds.size.y;
+                        bool tall = halfHeight * 2 > height;
+                        L.copies[k].localScale = new Vector3(1, tall ? halfHeight * 2 / height : 1, 1);
+                        backgroundY = tall ? Snap(cameraY) : 0;
+                    }
+                    L.copies[k].position = new Vector3(off + WorldConfig.MapWidth * (n + k) + 40f, backgroundY, 0);
+                    if (L.groundFill != null) {
+                        var fill = L.groundFill[k];
+                        float gap = Mathf.Max(0, fill.transform.position.y - (Snap(cameraY) - halfHeight));
+                        // ponytail: repeat the existing bottom 32px; dedicated lower-ground art if tile seams matter.
+                        fill.size = new Vector2(L.groundStrip.rect.width / 40f, gap); fill.enabled = gap > 0;
+                    }
+                }
             }
         }
         AnimateFx();
@@ -319,6 +349,8 @@ public class ZoneController : MonoBehaviour {
         return sr;
     }
 
-    static void Kill(GameObject go) { if (Application.isPlaying) Destroy(go); else DestroyImmediate(go); }
+    void OnDestroy() { foreach (var layer in _layers) if (layer.groundStrip != null) Kill(layer.groundStrip); }
+
+    static void Kill(UnityEngine.Object go) { if (Application.isPlaying) Destroy(go); else DestroyImmediate(go); }
 }
 }

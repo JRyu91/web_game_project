@@ -27,6 +27,36 @@ public static class Stage1Capture {
         { Zone.C, new[] { 13, 14, 15, 16, 17, 18 } },           // C: t19-t21 스폰 제외(추후 지시)
     };
 
+    public static void RunAdaptive() {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        _cam = new GameObject("AdaptiveCaptureCamera").AddComponent<Camera>();
+        _cam.orthographic = true; _cam.backgroundColor = Color.black;
+        _cam.clearFlags = CameraClearFlags.SolidColor;
+        var pixel = _cam.gameObject.AddComponent<UnityEngine.Rendering.Universal.PixelPerfectCamera>();
+        pixel.assetsPPU = 40; pixel.refResolutionX = 1280; pixel.refResolutionY = 720;
+        _zc = new GameObject("AdaptiveCaptureZone").AddComponent<ZoneController>();
+        _zc.Cam = _cam; ZoneController.AnimTime = 0;
+        foreach (var size in new[] { new Vector2Int(1280, 1240), new Vector2Int(852, 329) }) {
+            _rt = new RenderTexture(size.x, size.y, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            _tex = new Texture2D(size.x, size.y, TextureFormat.RGBA32, false);
+            _cam.targetTexture = _rt; _cam.aspect = (float)size.x / size.y;
+            foreach (var zone in new[] { Zone.A, Zone.B, Zone.C }) {
+                foreach (var tod in new[] { Tod.Day, Tod.Night }) {
+                    ClearActors(); _zc.SetZone(zone, tod); Cam(36); LineupActors(zone, "idle", 0);
+                    foreach (var actor in ActorVisual.All.ToArray()) if (actor != null) actor.Refresh();
+                    _cam.Render(); _cam.Render();
+                    RenderTexture.active = _rt;
+                    _tex.ReadPixels(new Rect(0, 0, size.x, size.y), 0, 0); _tex.Apply();
+                    RenderTexture.active = null;
+                    File.WriteAllBytes($"Logs/adaptive-{zone}-{tod}-{size.x}x{size.y}.png", _tex.EncodeToPNG());
+                }
+            }
+            _cam.targetTexture = null; _rt.Release(); Object.DestroyImmediate(_rt); Object.DestroyImmediate(_tex);
+        }
+        ClearActors(); ZoneController.AnimTime = -1;
+        Debug.Log("[Stage1Capture] adaptive screenshots complete: A/B/C, day/night, tall/landscape; visual review required");
+    }
+
     public static void Run() {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         Directory.CreateDirectory(OUT);

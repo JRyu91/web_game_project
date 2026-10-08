@@ -111,6 +111,7 @@ public class GearAttachment : MonoBehaviour {
     // 현재 몸 프레임 → 손 위치/방향/앞뒤. 테이블에 없는 프레임은 숨김(허공 무기 방지).
     public void Apply() {
         if (_weaponSr == null) return;
+        if (_anim != null && _anim.Reacting) { _weaponSr.enabled = false; _fxSr.enabled = false; return; }
         if (_hands == null) LoadHands();
         bool show = false, sheath = false; float x = 0, y = 0; int dir = 0; bool back = false;
         if (_dirs != null && _anim != null && _anim.Clip != null) {
