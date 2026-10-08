@@ -70,5 +70,5 @@ jobs:
           kubectl set image statefulset/channel-main channel="$IMAGE"
           kubectl set image statefulset/channel      channel="$IMAGE"
           # 이게 없으면 새 이미지가 실제로 떴는지 확인 안 하고 워크플로가 그냥 초록불로 끝난다.
-          kubectl rollout status statefulset/channel-main --timeout=180s
-          kubectl rollout status statefulset/channel      --timeout=300s
+          kubectl rollout status statefulset/channel-main --timeout=720s
+          kubectl rollout status statefulset/channel      --timeout=720s

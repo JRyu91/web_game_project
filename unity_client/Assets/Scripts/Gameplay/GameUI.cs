@@ -20,7 +20,7 @@ public class GameUI : MonoBehaviour {
         KeyHudFrame = "Sprites/UI/ui_hud_bar_frame", KeyHudHp = "Sprites/UI/ui_hud_bar_fill_hp", KeyHudExp = "Sprites/UI/ui_hud_bar_fill_exp", KeyIcon = "Sprites/UI/ui_hud_icon_";
     const int BtnH = 30, FontSize = 12, PageSize = 10;   // Galmuri11 = 12px 그리드   // 버튼 최소 26px(MANIFEST 스크럼1) → 30
 
-    PlayerController _pl; MonsterSpawner _sp; NetworkClient _net;
+    PlayerController _pl; MonsterSpawner _sp; NetworkClient _net; Camera _cam;
     Font _font, _fontB; Sprite _panel, _btn, _btnDown, _btnOff;
     RectTransform _root;
     readonly Dictionary<string, GameObject> _panels = new Dictionary<string, GameObject>();
@@ -53,7 +53,7 @@ public class GameUI : MonoBehaviour {
     bool _mobile;
 
     public void Init(Camera cam, PlayerController pl, MonsterSpawner sp, NetworkClient net, Action savePreferences = null) {
-        _pl = pl; _sp = sp; _net = net; _savePreferences = savePreferences;
+        _cam = cam; _pl = pl; _sp = sp; _net = net; _savePreferences = savePreferences;
         if (net != null) { net.OnInv += OnInv; net.OnChat += AddChat; net.OnSpawn += OnSummonSpawn; }
         // 한글 픽셀 폰트 Galmuri11(OFL, Resources/Fonts/OFL.txt). 없으면 OS 폰트
         _font = Resources.Load<Font>(KeyFont) ?? Font.CreateDynamicFontFromOSFont(new[] { "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Arial" }, FontSize);
@@ -79,6 +79,7 @@ public class GameUI : MonoBehaviour {
         }
         BuildHud();
         _channel = Label(_root, "", new Vector2(-10 - menu.Length * 78, -10), new Vector2(120, BtnH), TextAnchor.MiddleRight, new Vector2(1, 1), true); // 채널: 메뉴 왼쪽
+        Label(_root, $"v{Application.version}", new Vector2(-10, 10), new Vector2(100, 20), TextAnchor.MiddleRight, new Vector2(1, 0), true);
         _toast = Label(_root, "", new Vector2(0, -64), new Vector2(600, 24), TextAnchor.MiddleCenter, new Vector2(0.5f, 1), true); // 상단 중앙, 보스 HP 바(위 8px + 48px) 아래
 
         // 인벤토리·장비
@@ -383,7 +384,7 @@ public class GameUI : MonoBehaviour {
     void Update() => Tick(Time.deltaTime);
     // 캡처 툴이 고정 dt 로 호출
     public void Tick(float dt) {
-        if (_screenWidth != Screen.width || _screenHeight != Screen.height) ResponsiveLayout();
+        if (_screenWidth != (_cam != null ? _cam.pixelWidth : Screen.width) || _screenHeight != (_cam != null ? _cam.pixelHeight : Screen.height)) ResponsiveLayout();
         if (_wasOnline != Online) { _wasOnline = Online; if (!Online) { _pendingSummon = 0; _summonMonsterId = 0; _summonAck = false; _summonRetry = 0; } Redraw(); }
         if (_summonAck && _summonRetry > 0 && (_summonRetry -= dt) <= 0) {
             if (Online) _summonAckSeq = Send(new InvReq { type = "summon_ack", tier = _pendingSummon, token = _summonToken, spawned = _summonSpawned });
@@ -448,11 +449,14 @@ public class GameUI : MonoBehaviour {
             _desktop[rect] = (rect.parent, rect.anchorMin, rect.anchorMax, rect.pivot, rect.anchoredPosition, rect.sizeDelta);
     }
     void ResponsiveLayout() {
-        _screenWidth = Screen.width; _screenHeight = Screen.height;
-        _mobile = Application.isMobilePlatform || Screen.width < 1000;
+        _screenWidth = _cam != null ? _cam.pixelWidth : Screen.width;
+        _screenHeight = _cam != null ? _cam.pixelHeight : Screen.height;
+        int zoom = Game.Rendering.ZoneController.PixelZoom(_cam);
+        float width = (float)_screenWidth / zoom, height = (float)_screenHeight / zoom;
+        _mobile = Application.isMobilePlatform || width < 1000 || height < 640;
         var scaler = GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = _mobile ? CanvasScaler.ScaleMode.ConstantPixelSize : CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.scaleFactor = 1;
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+        scaler.scaleFactor = zoom;
         foreach (var pair in _desktop) {
             if (pair.Key == null) continue;
             var d = pair.Value; pair.Key.SetParent(d.parent, false);
@@ -462,22 +466,22 @@ public class GameUI : MonoBehaviour {
         foreach (var scroll in _mobileScroll.Values) scroll.gameObject.SetActive(false);
         foreach (var text in GetComponentsInChildren<Text>(true)) text.fontSize = _mobile && text.rectTransform.sizeDelta.y >= 20 ? 16 : FontSize;
         if (!_mobile) return;
-        int columns = Mathf.Max(1, Mathf.Min(_menus.Count, (Screen.width - 20) / 120));
-        float width = (Screen.width - 20f) / columns;
+        int columns = Mathf.Max(1, Mathf.Min(_menus.Count, Mathf.FloorToInt((width - 20) / 120)));
+        float menuWidth = (width - 20f) / columns;
         for (int i = 0; i < _menus.Count; i++) {
             var rect = (RectTransform)_menus[i].transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
-            rect.anchoredPosition = new Vector2(10 + i % columns * width, -94 - i / columns * 48);
-            rect.sizeDelta = new Vector2(width - 4, 44);
-            ResizeButtonText(_menus[i], width - 4, 44);
+            rect.anchoredPosition = new Vector2(10 + i % columns * menuWidth, -94 - i / columns * 48);
+            rect.sizeDelta = new Vector2(menuWidth - 4, 44);
+            ResizeButtonText(_menus[i], menuWidth - 4, 44);
         }
         _channel.rectTransform.anchoredPosition = new Vector2(-10, -10);
         _toast.rectTransform.anchoredPosition = new Vector2(0, -98 - Mathf.CeilToInt((float)_menus.Count / columns) * 48);
-        _toast.rectTransform.sizeDelta = new Vector2(Screen.width - 20, 52);
+        _toast.rectTransform.sizeDelta = new Vector2(width - 20, 52);
         _toast.horizontalOverflow = HorizontalWrapMode.Wrap;
         foreach (var panel in _panels) {
             var rect = (RectTransform)panel.Value.transform;
-            rect.sizeDelta = new Vector2(Mathf.Min(Screen.width - 20, 620), Mathf.Min(Screen.height - 20, 620));
+            rect.sizeDelta = new Vector2(Mathf.Min(width - 20, 620), Mathf.Min(height - 20, 620));
             if (!_mobileScroll.TryGetValue(panel.Key, out var scroll)) {
                 var viewport = new GameObject("MobileScroll", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
                 viewport.transform.SetParent(rect, false);

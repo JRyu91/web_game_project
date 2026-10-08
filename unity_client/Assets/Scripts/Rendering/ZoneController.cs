@@ -209,13 +209,18 @@ public class ZoneController : MonoBehaviour {
 
     // ── 카메라 + 패럴랙스 배치 ─────────────────────────────
     // follow: 플레이어 x. 플레이어를 화면 좌측 1/3 에 두고 맵 [0,80] 안으로 클램프.
+    public static int PixelZoom(Camera cam) {
+        var pixel = cam != null ? cam.GetComponent<UnityEngine.Rendering.Universal.PixelPerfectCamera>() : null;
+        return pixel != null && pixel.enabled ? Mathf.Max(1, Mathf.Min(cam.pixelWidth / pixel.refResolutionX, cam.pixelHeight / pixel.refResolutionY)) : 1;
+    }
+
     public void Layout(float? followX) {
         float halfHeight = Cam != null ? Cam.orthographicSize : 9f;
         if (Cam != null) {
             var pixel = Cam.GetComponent<UnityEngine.Rendering.Universal.PixelPerfectCamera>();
             if (pixel != null && pixel.enabled && pixel.cropFrame == UnityEngine.Rendering.Universal.PixelPerfectCamera.CropFrame.None && pixel.gridSnapping != UnityEngine.Rendering.Universal.PixelPerfectCamera.GridSnapping.UpscaleRenderTexture) {
                 // URP updates this projection during rendering, after LateUpdate; predict its current viewport size.
-                int zoom = Mathf.Max(1, Mathf.Min(Cam.pixelWidth / pixel.refResolutionX, Cam.pixelHeight / pixel.refResolutionY));
+                int zoom = PixelZoom(Cam);
                 halfHeight = Cam.pixelHeight / (2f * zoom * pixel.assetsPPU);
                 Cam.orthographicSize = halfHeight;
             }

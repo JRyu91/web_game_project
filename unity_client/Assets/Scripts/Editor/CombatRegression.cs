@@ -97,7 +97,11 @@ public static class CombatRegression {
             var pixel = cameraGo.AddComponent<UnityEngine.Rendering.Universal.PixelPerfectCamera>();
             pixel.assetsPPU = 40; pixel.refResolutionX = 1280; pixel.refResolutionY = 720;
             var zone = root.AddComponent<ZoneController>(); zone.Cam = cam;
-            foreach (var size in new[] { new Vector2Int(1280, 720), new Vector2Int(393, 720), new Vector2Int(852, 329) }) {
+            var playerGo = new GameObject("LayoutPlayer"); playerGo.transform.SetParent(root.transform);
+            var player = playerGo.AddComponent<PlayerController>(); player.Init(false, "male", () => Array.Empty<MonsterController>());
+            var uiGo = new GameObject("LayoutUI"); uiGo.transform.SetParent(root.transform);
+            var ui = uiGo.AddComponent<GameUI>(); ui.Init(cam, player, null, null);
+            foreach (var size in new[] { new Vector2Int(1280, 720), new Vector2Int(1280, 638), new Vector2Int(1920, 1018), new Vector2Int(393, 788), new Vector2Int(852, 329), new Vector2Int(2560, 1440) }) {
                 var texture = new RenderTexture(size.x, size.y, 24);
                 cam.targetTexture = texture; cam.aspect = (float)size.x / size.y;
                 foreach (float ground in new[] { -6.475f, -5.925f, -5.875f }) {
@@ -107,9 +111,22 @@ public static class CombatRegression {
                     Check(Mathf.Abs(feet.y - expected) < 0.003f && feet.y > 0.1f, $"adaptive footline clipped: {size}, y={feet.y}");
                     Check(ground + 3.7f < cam.transform.position.y + cam.orthographicSize, "148px player body clipped above viewport");
                 }
+                ui.Tick(0);
+                float uiZoom = ui.GetComponent<UnityEngine.UI.CanvasScaler>().scaleFactor;
+                float worldZoom = size.y / (2f * cam.orthographicSize * pixel.assetsPPU);
+                Check(Mathf.Abs(uiZoom - worldZoom) < 0.001f, $"HUD / world scale mismatch: {size}, UI={uiZoom}, world={worldZoom}");
+                bool compact = size.x / uiZoom < 1000 || size.y / uiZoom < 640;
+                var scrolls = ui.GetComponentsInChildren<UnityEngine.UI.ScrollRect>(true);
+                Check(scrolls.Any(scroll => scroll.gameObject.activeSelf) == compact, $"compact scroll mismatch: {size}");
+                if (compact) {
+                    var menus = (List<UnityEngine.UI.Button>)Field(ui, "_menus").GetValue(ui);
+                    Check(menus.All(button => ((RectTransform)button.transform).sizeDelta.y * uiZoom >= 44), "compact menu touch target below 44 pixels");
+                    var panels = (Dictionary<string, GameObject>)Field(ui, "_panels").GetValue(ui);
+                    Check(panels.Values.All(panel => ((RectTransform)panel.transform).sizeDelta.y * uiZoom <= size.y - 19), "compact panel exceeds short viewport");
+                }
                 cam.targetTexture = null; UnityEngine.Object.DestroyImmediate(texture);
             }
-            Debug.Log("[CombatRegression] adaptive camera PASS: PC / portrait / short landscape footline and body bounds across A/B/C");
+            Debug.Log("[CombatRegression] adaptive camera PASS: six viewport sizes, A/B/C footline/body bounds, HUD/world integer zoom, compact scroll and 44px touch");
         } finally { WorldConfig.GroundY = oldGround; UnityEngine.Object.DestroyImmediate(root); }
     }
 

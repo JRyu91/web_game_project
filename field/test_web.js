@@ -50,7 +50,7 @@ async function evaluate(expression) {
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.1');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);

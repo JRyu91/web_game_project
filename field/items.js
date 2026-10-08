@@ -80,17 +80,25 @@ function normalize(s) {
     if (!valid) throw new Error('invalid saved inventory');
     return sync(s);
   }
-  s.level = Math.min(LEVEL_MAX, Math.max(1, Number(s.level) || 1));
-  s.exp = Math.max(0, Number(s.exp) || 0);
-  s.gold = Math.max(0, Number(s.gold) || 0);
-  s.potions = Math.max(0, Number(s.potionCount ?? 3) || 0);
+  // Legacy saves can contain fractional XP; migrate once into the integer server schema.
+  // Reject non-finite/unsafe values instead of overwriting unrecoverable progression.
+  const legacyInt = (v, fallback = 0) => {
+    const n = v === undefined || v === null ? fallback : Number(v);
+    if (!Number.isFinite(n) || Math.abs(n) > Number.MAX_SAFE_INTEGER) throw new Error('invalid legacy number');
+    return Math.max(0, Math.floor(n));
+  };
+  s.level = Math.min(LEVEL_MAX, Math.max(1, legacyInt(s.level, 1)));
+  s.exp = legacyInt(s.exp);
+  s.gold = legacyInt(s.gold);
+  s.potions = legacyInt(s.potionCount, 3);
   s.stones = 0;
   s.inv = []; s.nextUid = 1; s.equip = { weapon: 0, helmet: 0, armor: 0 };
-  const clamp = (v, n) => Math.min(n - 1, Math.max(0, Number(v) || 0));
+  const clamp = (v, n) => Math.min(n - 1, legacyInt(v));
   const w = addItem(s, 'weapon', s.weaponKind === 'staff' ? 'staff' : 'sword', clamp(s.weaponTier, 21));
   w.enh = clamp(s.weaponEnh, ENH_MAX + 1); s.equip.weapon = w.uid;
   for (const slot of ['helmet', 'armor']) {
-    const t = Number(s[slot + 'Tier']);
+    const rawTier = s[slot + 'Tier'];
+    const t = rawTier === undefined || rawTier === null || Number(rawTier) < 0 ? -1 : legacyInt(rawTier);
     if (t >= 0 && t < table(slot).length) {
       const it = addItem(s, slot, '', t); it.enh = clamp(s[slot + 'Enh'], ENH_MAX + 1); s.equip[slot] = it.uid;
     }

@@ -61,6 +61,14 @@ const oversized=fresh();for(let n=1;n<=60;n++)oversized.inv.push({uid:oversized.
 assert.throws(()=>I.normalize(oversized),/saved inventory/);
 console.log('PASS saved counter and capacity boundary validation');
 
+const fractionalLegacy = I.normalize({level:20.9, exp:123.75, gold:890.25, potionCount:3.9, weaponTier:2.9, weaponEnh:1.9, helmetTier:1.9, armorTier:-1});
+assert.equal(fractionalLegacy.level,20);assert.equal(fractionalLegacy.exp,123);assert.equal(fractionalLegacy.gold,890);
+assert.equal(fractionalLegacy.potions,3);assert.equal(fractionalLegacy.weaponTier,2);assert.equal(fractionalLegacy.weaponEnh,1);assert.equal(fractionalLegacy.helmetTier,1);
+assert.deepEqual(I.normalize(JSON.parse(JSON.stringify(fractionalLegacy))),fractionalLegacy);
+for(const bad of [Infinity,NaN,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>I.normalize({exp:bad}),/legacy number/);
+const badModern=JSON.parse(JSON.stringify(fractionalLegacy));badModern.exp=123.75;assert.throws(()=>I.normalize(badModern),/saved inventory/);
+console.log('PASS fractional legacy migration/reconnect, unsafe legacy rejection and strict modern save validation');
+
 // Real protocol check: issued encounter receipts are consumed only by a matching reward.
 async function receipts() {
   const {spawn}=require('child_process'),WebSocket=require('ws');

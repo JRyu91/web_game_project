@@ -21,7 +21,7 @@ spec:
         pool: core #core 노드에만. 스팟 toleration 을 안 줬으므로 스팟에는 애초에 못 올라간다
       containers:
         - name: channel
-          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v3.0.0
+          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v3.0.1
           ports:
             - containerPort: 8080
           env:
