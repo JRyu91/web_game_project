@@ -141,3 +141,40 @@ check('transfer clips invalid values and retains owned skill timers and death st
  assert.equal(s.zone,'C');assert.equal(I.transport(s,[]),null);
 });
 process.exitCode=failures?1:0;
+
+// Exercise the real deletion function with a SQL boundary mock, without credentials or a DB fixture.
+(async()=>{
+ const fs=require('node:fs'), vm=require('node:vm');
+ const source=fs.readFileSync(require.resolve('./server'),'utf8');
+ const fn=source.slice(source.indexOf('async function accountRemove(id) {'),source.indexOf('//채팅 1줄'));
+ async function check(found,failAt) {
+  const calls=[], expectedId='delete_qa', connection={
+   async query(sql,values){calls.push(sql);if(values)assert.deepEqual(Array.from(values),[expectedId]);if(sql===failAt)throw Error('injected SQL failure');return {rowCount:sql.startsWith('SELECT')?found:1};},
+   release(){calls.push('RELEASE');}
+  };
+  const context={db:{async connect(){return connection;}},console:{error(){}},memSaves:new Map(),localAccounts:new Map()};
+  vm.createContext(context);vm.runInContext(fn+';globalThis.remove=accountRemove;',context);
+  const ok=await context.remove(expectedId);return {ok,calls};
+ }
+ const success=await check(1);assert.equal(success.ok,true);
+ assert.deepEqual(success.calls,['BEGIN',"SELECT user_id FROM accounts WHERE user_id = $1 AND role <> 'admin' FOR UPDATE",'DELETE FROM chats WHERE user_id = $1','DELETE FROM saves WHERE user_id = $1','DELETE FROM accounts WHERE user_id = $1','COMMIT','RELEASE']);
+ const absent=await check(0);assert.equal(absent.ok,false);assert.deepEqual(absent.calls.slice(-2),['ROLLBACK','RELEASE']);assert.ok(!absent.calls.some(sql=>sql.startsWith('DELETE')));
+ for(const sql of ['DELETE FROM chats WHERE user_id = $1','DELETE FROM saves WHERE user_id = $1','DELETE FROM accounts WHERE user_id = $1','COMMIT']) {
+  const failure=await check(1,sql);assert.equal(failure.ok,false);assert.deepEqual(failure.calls.slice(-2),['ROLLBACK','RELEASE']);
+ }
+ console.log('PASS account removal locks only non-admin, explicitly deletes owned rows, rolls back failures and releases SQL connection');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
+(async()=>{
+ const fs=require('node:fs'),vm=require('node:vm'),queries=[];
+ const source=fs.readFileSync(require.resolve('./server'),'utf8');
+ const fn=source.slice(source.indexOf('async function initDb() {'),source.indexOf('/* ---------- 계정 (Cloud SQL) ---------- */'));
+ class Pool {on(){} async query(sql){queries.push(sql);return {rows:[],rowCount:0};}}
+ const context={Pool,DATABASE_URL:'mock-only',db:null,process:{env:{}},console:{log(){},error(){}}};vm.createContext(context);vm.runInContext(fn+';globalThis.init=initDb;',context);await context.init();
+ const migration=queries.find(sql=>sql.includes('DO $$'));assert.ok(migration);
+ assert.ok(queries[1].includes('CREATE TABLE IF NOT EXISTS saves') && queries[2]===migration);
+ assert.ok(migration.indexOf('LOCK TABLE saves IN SHARE ROW EXCLUSIVE MODE')<migration.indexOf('IF NOT EXISTS'));
+ for(const fragment of ["conrelid = 'saves'::regclass","confrelid = 'accounts'::regclass","confdeltype = 'c'",'AND conkey = ARRAY[','AND confkey = ARRAY[','ON DELETE CASCADE NOT VALID'])assert.ok(migration.includes(fragment));
+ assert.ok(!/DELETE FROM|VALIDATE CONSTRAINT/i.test(migration));
+ console.log('PASS legacy FK migration is after save creation, serializes pod checks, matches both FK columns, skips existing cascade FK and preserves old orphan rows');
+})().catch(e=>{console.error(e);process.exitCode=1;});

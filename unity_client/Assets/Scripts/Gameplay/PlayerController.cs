@@ -61,7 +61,7 @@ public class PlayerController : MonoBehaviour {
     // field/core.js 의 px 단위 상수를 그대로 옮기면 유니티 유닛(월드가 대략 -10~10) 기준으로 터무니없이 커진다
     // (몬스터가 화면을 한 프레임에 가로질러 "순간이동"처럼 보이던 버그의 원인). 1 unit = 40 "game px" 로 환산.
     const float PX_TO_UNIT = 1f / 40f;
-    public static float MovePx = 75f; // game px/s (캡처 비교용 static, 기본값 불변)
+    public static float MovePx = 78.75f; // game px/s, 기본 이속 +5%(캡처 비교용 static)
     static float MOVE_SPEED => MovePx * PX_TO_UNIT;
     float _regenAcc; // 비전투 리젠 소수 누적(프레임레이트 무관). 지연·비율 = CombatMath.RegenDelay/RegenRate (balance.json)
     const float RESPAWN_SEC = 3f;
@@ -285,6 +285,8 @@ public class PlayerController : MonoBehaviour {
     void DoAttack(MonsterController primaryTarget, MonsterController[] pool, Dictionary<MonsterController, List<int>> damage) {
         int dmg = GrowthDamage(CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng));
         if (!Penetrating) {
+            float targetX = primaryTarget.GetComponent<ActorVisual>()?.BodyX ?? primaryTarget.transform.position.x;
+            if (ActorVisual.Gap(primaryTarget.transform, transform) > Range || (targetX - _vis.BodyX) * Face < 0) return;
             AddDamage(damage, primaryTarget, dmg);
         } else {
             _gear.Apply();

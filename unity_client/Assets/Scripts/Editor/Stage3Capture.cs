@@ -52,6 +52,76 @@ public static class Stage3Capture {
         } finally { Object.DestroyImmediate(root); }
     }
 
+    public static void CombatGeometryCapture() {
+        Begin();
+        var material = new Material(Shader.Find("Sprites/Default"));
+        try {
+            foreach (var loadout in new[] { (kind: "sword", tier: 1), (kind: "sword", tier: 2), (kind: "staff", tier: 9), (kind: "staff", tier: 10) }) foreach (int face in new[] { 1, -1 }) {
+                Setup("geometry", Zone.B, "m", loadout.kind, 60, loadout.tier);
+                _pl.transform.position = new Vector3(36, _pl.transform.position.y, 0);
+                var gear = _pl.GetComponent<GearAttachment>(); var anim = _pl.GetComponent<FrameAnimator>();
+                bool impact = false; System.Action onImpact = () => impact = true; anim.OnImpact += onImpact;
+                anim.Play(loadout.kind == "staff" ? "attack2" : "attack", false);
+                for (int i = 0; i < 1000 && !impact; i++) anim.Tick(0.001f);
+                anim.OnImpact -= onImpact;
+                if (!impact) throw new System.Exception("Geometry capture failed to reach actual impact event");
+                gear.SetFace(face);
+                Debug.Log($"[geometry] {loadout.kind} tier{loadout.tier} face{face}: actual impact source {anim.SourceIndex}");
+                var pv = _pl.GetComponent<ActorVisual>(); pv.Refresh(); gear.Apply();
+                var giant = Mob(12, 36 + face * 3, 99999); var gv = giant.GetComponent<ActorVisual>();
+                float desired = pv.BodyX + face * (pv.HalfWidth + gv.HalfWidth + _pl.Range - 0.001f);
+                giant.transform.position += Vector3.right * (desired - gv.BodyX); gv.Body.flipX = face > 0; gv.Refresh();
+                desired = pv.BodyX + face * (pv.HalfWidth + gv.HalfWidth + _pl.Range - 0.001f);
+                giant.transform.position += Vector3.right * (desired - gv.BodyX);
+                var small = Mob(1, giant.transform.position.x + face * 0.8f, 99999);
+                foreach (var visual in ActorVisual.All) visual.Refresh();
+                if (loadout.kind == "staff") {
+                    // Mixed-size contact fixtures must fit the real muzzle-to-core 73px flight, independent of AI acquisition range.
+                    desired = gear.Muzzle.x + face * (0.5f + gv.HalfWidth);
+                    giant.transform.position += Vector3.right * (desired - gv.BodyX);
+                    var sv = small.GetComponent<ActorVisual>();
+                    small.transform.position += Vector3.right * (gear.Muzzle.x + face * 1.4f - sv.BodyX);
+                }
+                StaffProjectile bolt = loadout.kind == "staff" ? new StaffProjectile(gear.Muzzle, _pl.transform.position.x, face, loadout.tier, 1, 0) : null;
+                try {
+                    string key = $"combat_{loadout.kind}_{loadout.tier}_{(face > 0 ? "R" : "L")}";
+                    Shot("team_v6/f_round/code/final/" + key + "_impact_clean");
+                    bolt?.Step(0.07f, new[] { giant, small });
+                    if (bolt != null) {
+                        Debug.Log($"[geometry] first-flight t=70ms x={bolt.Visual.transform.position.x:0.000} y={bolt.Visual.transform.position.y:0.000} giantHP={giant.Hp} smallHP={small.Hp}");
+                        foreach (var visual in ActorVisual.All) { visual.TickFlash(0.04f); visual.Refresh(); }
+                        Shot("team_v6/f_round/code/final/" + key + "_flight_clean");
+                        bolt.Step(0.08f, new[] { giant, small });
+                        if (giant.Hp >= 99999 || small.Hp >= 99999) throw new System.Exception("Mixed-size capture failed to contact both visible targets within 150ms");
+                        foreach (var target in new[] { giant, small }) {
+                            var bounds = SpriteBBox.Get(target.GetComponent<SpriteRenderer>().sprite);
+                            float bottom = target.transform.TransformPoint(new Vector3(0, bounds.yMin, 0)).y, top = target.transform.TransformPoint(new Vector3(0, bounds.yMax, 0)).y;
+                            if (bolt.Visual.transform.position.y < bottom || bolt.Visual.transform.position.y > top) throw new System.Exception("Contact core height missed mixed-size silhouette");
+                        }
+                        Debug.Log($"[geometry] contact t=150ms x={bolt.Visual.transform.position.x:0.000} y={bolt.Visual.transform.position.y:0.000} giantHP={giant.Hp} smallHP={small.Hp}");
+                    }
+                    foreach (var visual in ActorVisual.All) { visual.TickFlash(0.04f); visual.Refresh(); }
+                    Shot("team_v6/f_round/code/final/" + key + "_clean");
+                    var overlay = new GameObject("CombatGeometryOverlay");
+                    void Line(Vector3[] points, Color color) {
+                        var line = new GameObject("Boundary").AddComponent<LineRenderer>(); line.transform.SetParent(overlay.transform);
+                        line.sharedMaterial = material; line.useWorldSpace = true; line.positionCount = points.Length; line.SetPositions(points);
+                        line.startWidth = line.endWidth = 2 / 40f; line.startColor = line.endColor = color; line.sortingOrder = 100;
+                    }
+                    foreach (var actor in new[] { pv, gv, small.GetComponent<ActorVisual>() }) {
+                        var col = actor.GetComponent<BoxCollider2D>(); var lo = actor.transform.TransformPoint(col.offset - col.size / 2); var hi = actor.transform.TransformPoint(col.offset + col.size / 2);
+                        Line(new[] { lo, new Vector3(hi.x, lo.y, 0), hi, new Vector3(lo.x, hi.y, 0), lo }, Color.cyan);
+                    }
+                    float edge = pv.BodyX + face * (pv.HalfWidth + _pl.Range);
+                    Line(new[] { new Vector3(edge, WorldConfig.GroundY, 0), new Vector3(edge, WorldConfig.GroundY + 3, 0) }, Color.yellow);
+                    if (bolt != null) Line(new[] { gear.Muzzle, gear.Muzzle + Vector3.right * face * StaffProjectile.Range }, Color.magenta);
+                    Shot("team_v6/f_round/code/final/" + key + "_geometry"); Object.DestroyImmediate(overlay);
+                } finally { bolt?.Dispose(); }
+            }
+            Debug.Log("PASS CombatGeometryCapture: sword tiers1/2 staff tiers9/10 both faces giant/multiple actors clean+geometry");
+        } finally { Object.DestroyImmediate(material); ZoneController.AnimTime = -1; }
+    }
+
     public static void MonkGroundRegression() {
         Begin(); Setup("monk_ground_B", Zone.B, "m", "sword", 60);
         var monster = Mob(12, PX + 2, 99999);

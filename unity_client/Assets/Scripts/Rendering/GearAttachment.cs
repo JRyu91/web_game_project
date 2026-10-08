@@ -34,6 +34,15 @@ public class GearAttachment : MonoBehaviour {
     Sprite[][] _fx; // [dir][frame]
     Sprite _sheath;
     string _weaponName;
+    int _weaponDir;
+    [System.Serializable] class TipEntry { public string key; public float x, y; }
+    [System.Serializable] class TipFile { public TipEntry[] tips; }
+    static Dictionary<string, Vector2> _tips;
+    static void LoadTips() {
+        _tips = new Dictionary<string, Vector2>();
+        var file = Resources.Load<TextAsset>("Config/weapon_tip");
+        if (file != null) foreach (var tip in JsonUtility.FromJson<TipFile>(file.text).tips) _tips[tip.key] = new Vector2(tip.x, tip.y);
+    }
     Fx _fxInfo; (Vector2 lt, string mode) _sheathCfgW;
     SpriteRenderer _fxSr;
     Material _mat, _fxMat;
@@ -110,9 +119,9 @@ public class GearAttachment : MonoBehaviour {
 
     public Vector3 Muzzle {
         get {
-            var bounds = SpriteBBox.Get(_weaponSr.sprite);
-            bool flip = _weaponSr.flipX;
-            return _weaponSr.transform.TransformPoint(new Vector3(flip ? -bounds.xMax : bounds.xMax, bounds.center.y, 0));
+            if (_tips == null) LoadTips();
+            if (!_tips.TryGetValue($"{_weaponName}/{_weaponDir}", out var tip)) return HandSlot.position;
+            return _weaponSr.transform.TransformPoint(new Vector3(_weaponSr.flipX ? -tip.x : tip.x, tip.y, 0));
         }
     }
     void LateUpdate() => Apply();
@@ -148,6 +157,7 @@ public class GearAttachment : MonoBehaviour {
         float lx = (x + 0.5f - body.pivot.x) / 40f, ly = (body.rect.height - y - 0.5f - body.pivot.y) / 40f;
         HandSlot.localPosition = new Vector3(flip ? -lx : lx, ly, 0);
         _weaponSr.sprite = sheath ? _sheath : _dirs[dir];
+        _weaponDir = dir;
         _weaponSr.flipX = flip;
         _weaponSr.sortingOrder = back ? 5 : 7; // 몸 6
         if (_mat != null) _mat.mainTexture = _weaponSr.sprite.texture;

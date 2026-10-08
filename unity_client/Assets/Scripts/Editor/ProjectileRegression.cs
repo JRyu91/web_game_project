@@ -14,15 +14,74 @@ public static class ProjectileRegression {
     const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     static void Check(bool ok, string message) { if (!ok) throw new Exception("[ProjectileRegression] " + message); }
     static object Call(object obj, string method, params object[] args) => obj.GetType().GetMethod(method, Private).Invoke(obj, args);
-    static MonsterController Spawn(MonsterSpawner spawner, float x) {
-        var def = GameData.Monsters[0]; def.hp = 100000; def.def = 0;
+    static MonsterController Spawn(MonsterSpawner spawner, float x, int tier = 1) {
+        var def = GameData.Monsters.First(m => m.tier == tier); def.hp = 100000; def.def = 0;
         return (MonsterController)Call(spawner, "Spawn", def, x);
     }
+    static void CheckVisualAnchors(GameObject root) {
+        var p = new GameObject("VisibleAnchorFixture").AddComponent<PlayerController>(); p.transform.SetParent(root.transform);
+        p.WeaponKind = "staff"; p.Init(false, "male", () => Array.Empty<MonsterController>());
+        try {
+            var gear = p.GetComponent<GearAttachment>(); var anim = p.GetComponent<FrameAnimator>();
+            foreach (int tier in new[] { 9, 10 }) foreach (int face in new[] { 1, -1 }) {
+                gear.SetWeapon(Path.GetFileName(GameData.Staves[tier].spritePath)); anim.Still("attack2", 9); gear.SetFace(face); gear.Apply();
+                var weapon = (SpriteRenderer)typeof(GearAttachment).GetField("_weaponSr", Private).GetValue(gear);
+                // Independent offline alpha fixtures: d1 projection-head pixels are (106,54)/(113.5,46.5), not canvas x=160.
+                float tip = tier == 9 ? 26 / 40f : 33.5f / 40f;
+                var expected = weapon.transform.TransformPoint(new Vector3(face * tip, tip, 0));
+                Check(Vector3.Distance(gear.Muzzle, expected) < 0.0001f, "muzzle ignored visible head pixel fixture");
+                var raw = Resources.LoadAll<Sprite>("Sprites/FX/" + (tier == 9 ? "obj_energybolt" : "obj_firebolt") + "/anim1").OrderBy(s => s.name).First();
+                var core = tier == 9 ? new Vector2(36, 24) : new Vector2(54, 36);
+                Check(Vector2.Distance(raw.rect.position + raw.pivot, core) > 10, "source canvas-origin-offset fixture changed; inspect revised art");
+                using (var bolt = new StaffProjectile(gear.Muzzle, p.transform.position.x, face, tier, 1, 0)) {
+                    foreach (float dt in new[] { 0f, 0.06f, 0.06f }) {
+                        if (dt > 0) bolt.Step(dt, Array.Empty<MonsterController>());
+                        var sprite = bolt.Visual.GetComponent<SpriteRenderer>().sprite;
+                        var offset = sprite.rect.position + sprite.pivot - core;
+                        Check(offset.magnitude < 0.0001f, "rendered core is displaced from swept travel origin");
+                    }
+                }
+            }
+            Debug.Log("[ProjectileRegression] PASS offline visible staff-tip fixtures, source canvas offset, rendered core travel origin both faces");
+        } finally { UnityEngine.Object.DestroyImmediate(p.gameObject); }
+    }
+
+    static void CheckVisualAim(MonsterSpawner spawner) {
+        foreach (int face in new[] { 1, -1 }) {
+            var giant = Spawn(spawner, face * 2, 12); var small = Spawn(spawner, face * 1.5f, 1);
+            var gv = giant.GetComponent<ActorVisual>();
+            giant.transform.position += Vector3.right * (face * (gv.HalfWidth + 0.4f) - gv.BodyX);
+            var behind = Spawn(spawner, -face * 2, 1); var outside = Spawn(spawner, face * 10, 1); var dead = Spawn(spawner, face, 1);
+            Call(dead, "Die");
+            foreach (var excluded in new[] { behind, outside, dead }) excluded.transform.position += Vector3.down * 10;
+            var muzzle = new Vector3(0, WorldConfig.GroundY + 3, 0);
+            using (var bolt = new StaffProjectile(muzzle, -face, face, 10, 1, 0)) {
+                bolt.Step(0.041f, new[] { giant, small, behind, outside, dead, null });
+                var expected = small.GetComponent<ActorVisual>().Body.transform.TransformPoint(new Vector3(0, SpriteBBox.Get(small.GetComponent<SpriteRenderer>().sprite).center.y, 0)).y;
+                Check(Mathf.Abs(bolt.Visual.transform.position.y - expected) < 0.001f, "visual aim selected dead/behind/outside instead of smallest body");
+                foreach (var target in new[] { giant, small }) {
+                    var body = target.GetComponent<SpriteRenderer>(); var bounds = SpriteBBox.Get(body.sprite);
+                    float bottom = body.transform.TransformPoint(new Vector3(0, bounds.yMin, 0)).y, top = body.transform.TransformPoint(new Vector3(0, bounds.yMax, 0)).y;
+                    Check(bolt.Visual.transform.position.y >= bottom && bolt.Visual.transform.position.y <= top, "core first-edge height missed a mixed-size visible bbox");
+                }
+                Check(Mathf.Abs(bolt.Visual.transform.position.x - face * StaffProjectile.Speed * 0.041f) < 0.001f, "visual aim changed horizontal speed");
+            }
+            using (var bolt = new StaffProjectile(muzzle, -face, face, 9, 1, 0)) {
+                bolt.Step(0.01f, null);
+                Check(Mathf.Abs(bolt.Visual.transform.position.y - muzzle.y) < 0.001f, "empty aim moved vertical launch point");
+            }
+            foreach (var monster in new[] { giant, small, behind, outside, dead }) UnityEngine.Object.DestroyImmediate(monster.gameObject);
+        }
+        Debug.Log("[ProjectileRegression] PASS mixed-size first-edge visual aim, exclusions/null, unchanged horizontal speed both faces");
+    }
+
     public static void Run() {
         var root = new GameObject("ProjectileRegression");
         StaffProjectile bolt = null;
         try {
             var spawner = root.AddComponent<MonsterSpawner>();
+            CheckVisualAnchors(root);
+            CheckVisualAim(spawner);
             var first = Spawn(spawner, 1.2f); var last = Spawn(spawner, 2.7f); var behind = Spawn(spawner, -1f); var outside = Spawn(spawner, 4f);
             var pool = new[] { first, last, behind, outside };
             int hp = first.Hp, damage = 100;
@@ -45,6 +104,18 @@ public static class ProjectileRegression {
             bolt = new StaffProjectile(new Vector3(1, 0, 0), 0, 1, 0, damage, 0.08f);
             moving.transform.position = new Vector3(5, 0, 0); bolt.Step(1f, new[] { moving });
             Check(moving.Hp == hp, "hit used launch-time target position"); bolt.Dispose(); bolt = null;
+            foreach (int direction in new[] { 1, -1 }) {
+                var giant = Spawn(spawner, direction * 3.6f, 12);
+                var gv = giant.GetComponent<ActorVisual>();
+                giant.transform.position += Vector3.right * (direction * (1 + StaffProjectile.Range + gv.HalfWidth - 0.01f) - gv.BodyX);
+                var distant = Spawn(spawner, direction * 8, 12);
+                int giantHp = giant.Hp;
+                bolt = new StaffProjectile(new Vector3(direction, 0, 0), 0, direction, 10, damage, 0);
+                bolt.Step(1, new[] { giant, distant });
+                Check(giant.Hp == giantHp - damage && distant.Hp == giantHp, "large body edge within swept range must hit, outside edge must miss");
+                bolt.Step(1, new[] { giant }); Check(giant.Hp == giantHp - damage, "large target hit twice");
+                bolt.Dispose(); bolt = null;
+            }
             var player = new GameObject("Owner").AddComponent<PlayerController>(); player.transform.SetParent(root.transform);
             player.WeaponKind = "staff"; player.Init(false, "male", () => pool);
             Call(player, "StartAttack", first); Call(player, "Impact");

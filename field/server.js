@@ -178,6 +178,24 @@ async function initDb() {
       data       jsonb       NOT NULL,
       updated_at timestamptz NOT NULL DEFAULT now()
     )`);
+  // Legacy tables may lack this FK. NOT VALID preserves existing orphan saves without scanning/deleting them.
+  // Serialize concurrent pod startups before checking/adding the same constraint.
+  await pool.query(`
+    DO $$
+    BEGIN
+      LOCK TABLE saves IN SHARE ROW EXCLUSIVE MODE;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE contype = 'f' AND conrelid = 'saves'::regclass AND confrelid = 'accounts'::regclass
+          AND confdeltype = 'c'
+          AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'saves'::regclass AND attname = 'user_id')]
+          AND confkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE attrelid = 'accounts'::regclass AND attname = 'user_id')]
+      ) THEN
+        ALTER TABLE saves ADD CONSTRAINT saves_account_cascade_fk
+          FOREIGN KEY (user_id) REFERENCES accounts(user_id) ON DELETE CASCADE NOT VALID;
+      END IF;
+    END $$;
+  `);
   await pool.query('CREATE INDEX IF NOT EXISTS saves_level_idx ON saves (level DESC)');
   //유저가 친 채팅만 남기는 로그. 시스템 메시지(입장/드레인 안내)는 안 들어온다.
   //한 유저가 채팅 여러 개 = 1:N 이라 자동증가 id 가 PK, user_id 는 saves 를 참조하는 FK.
@@ -310,13 +328,23 @@ async function accountRoster() {
 
 async function accountRemove(id) {
   if (!db) { memSaves.delete(id); return localAccounts.delete(id); }
+  let connection;
   try {
-    const r = await db.query(`DELETE FROM accounts WHERE user_id = $1 AND role <> 'admin'`, [id]); //관리 계정은 못 지운다
-    return r.rowCount > 0;
+    connection = await db.connect();
+    await connection.query('BEGIN');
+    const account = await connection.query("SELECT user_id FROM accounts WHERE user_id = $1 AND role <> 'admin' FOR UPDATE", [id]);
+    if (!account.rowCount) { await connection.query('ROLLBACK'); return false; }
+    // Older deployed saves tables have no FK; delete owned rows explicitly in one transaction.
+    await connection.query('DELETE FROM chats WHERE user_id = $1', [id]);
+    await connection.query('DELETE FROM saves WHERE user_id = $1', [id]);
+    await connection.query('DELETE FROM accounts WHERE user_id = $1', [id]);
+    await connection.query('COMMIT');
+    return true;
   } catch (e) {
+    if (connection) await connection.query('ROLLBACK').catch(() => {});
     console.error('[account remove]', e.message);
     return false;
-  }
+  } finally { if (connection) connection.release(); }
 }
 
 //채팅 1줄을 남긴다. 세이브 행이 아직 없으면(FK 위반) 조용히 버린다 — 접속 직후 몇 초의 채팅은 안 남을 수 있다.

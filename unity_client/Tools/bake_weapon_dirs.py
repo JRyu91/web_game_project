@@ -32,6 +32,28 @@ def bake(src, method='A'):
     im = Image.open(src).convert('RGBA'); gx, gy = grip(np.asarray(im), os.path.basename(src)); p = pad(im, gx, gy)
     f = factor(os.path.basename(src))  # 192*f 캔버스, 손잡이 = 96*f = 정중앙(단검 0.5833 → 112px, 56)
     return [down(rot(p, k), f) if method == 'A' else rot(down(p, f), k) for k in range(8)], (gx, gy)
+def write_staff_tips():
+    """Store actual head-tip pixels offline; weapons stay GPU-only at runtime."""
+    import re, math
+    data = open(f'{ROOT}/Assets/Scripts/Data/GameData.Generated.cs').read()
+    names = re.findall(r'kind="staff"[^\n]*spritePath="Weapons/([^"\n]+)"', data)
+    tips = []
+    for name in names:
+        for k in range(8):
+            im = Image.open(f'{RES}/Sprites/WeaponsDir/{folder(name)}/d{k}.png').convert('RGBA')
+            a = np.asarray(im); ys, xs = np.where(a[..., 3] >= 128)
+            assert len(xs), f'empty staff {name}/{k}'
+            dx, dy = math.sin(k * math.pi / 4), -math.cos(k * math.pi / 4)
+            projection = (xs + .5 - im.width / 2) * dx + (ys + .5 - im.height / 2) * dy
+            cap = projection >= projection.max() - .5
+            x, y = float(xs[cap].mean() + .5), float(ys[cap].mean() + .5)
+            assert abs((x - im.width / 2) * dx + (y - im.height / 2) * dy - projection.max()) <= .51
+            tips.append(dict(key=f'{name}/{k}', x=(x-im.width/2)/40, y=(im.height/2-y)/40))
+    assert len(names) == 21 and len(tips) == 168
+    with open(f'{RES}/Config/weapon_tip.json', 'w') as out:
+        json.dump(dict(tips=tips), out, ensure_ascii=False, separators=(',', ':'))
+    print('staff tips', len(tips))
+
 if __name__ == '__main__':
     srcs = sorted(glob.glob(f'{RES}/Sprites/Weapons/*.png')); grips = {}
     if '--compare' in sys.argv:
@@ -47,4 +69,5 @@ if __name__ == '__main__':
         d = f'{RES}/Sprites/WeaponsDir/{folder(name)}'; os.makedirs(d, exist_ok=True)
         for k, im in enumerate(ims): im.save(f'{d}/d{k}.png')
     json.dump({'_note': '원본 96 캔버스 손잡이 중심(x,y). 구운 스프라이트는 이 점이 캔버스 중심(피벗)', 'grip': grips}, open(f'{RES}/Config/weapon_grip.json', 'w'), ensure_ascii=False, indent=0)
+    write_staff_tips()
     print('baked', len(srcs), 'x 8')

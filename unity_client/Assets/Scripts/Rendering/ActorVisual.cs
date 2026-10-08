@@ -62,6 +62,7 @@ public class ActorVisual : MonoBehaviour {
     public bool IsMonster;
     public float Lift;                               // 점프 등 발라인 기준 상대 오프셋(유닛)
     public float HalfWidth { get; private set; }     // 월드 유닛, bbox 폭 × 배율 / 2
+    BoxCollider2D _collider;
     float _centerOff;                                // bbox 중심 - 피벗 (로컬 x × 배율, 반전 전)
     // 몸(불투명 bbox) 중심의 월드 x — 반전(flipX, scale.x 부호) 반영
     public float BodyX => transform.position.x + _centerOff * Mathf.Sign(transform.localScale.x) * (Body != null && Body.flipX ? -1 : 1);
@@ -83,7 +84,7 @@ public class ActorVisual : MonoBehaviour {
         _centerOff = bb.center.x * Scale;
         var col = GetComponent<BoxCollider2D>();
         if (col == null) col = gameObject.AddComponent<BoxCollider2D>(); // ?? 는 Unity fake-null 에 안 먹힘
-        col.isTrigger = true; col.size = bb.size; col.offset = bb.center; // 로컬(배율은 transform 이 반영)
+        _collider = col; col.isTrigger = true; col.size = bb.size; col.offset = bb.center; // 로컬(배율은 transform 이 반영)
 
         _tinted = GetComponentsInChildren<SpriteRenderer>(true);
         _shadow = new GameObject("Shadow").AddComponent<SpriteRenderer>();
@@ -107,6 +108,11 @@ public class ActorVisual : MonoBehaviour {
     public void Refresh() {
         if (Body == null || Body.sprite == null) return;
         var bb = SpriteBBox.Get(Body.sprite);
+        // Combat width stays at the initial pose; the debug collider mirrors that footprint and follows the current foot.
+        if (_collider != null) {
+            _collider.size = new Vector2(_collider.size.x, bb.height);
+            _collider.offset = new Vector2((Body.flipX ? -_centerOff : _centerOff) / Scale, bb.center.y);
+        }
         var p = transform.position;
         transform.position = new Vector3(p.x, WorldConfig.GroundY + Lift - bb.yMin * Scale, p.z);
 

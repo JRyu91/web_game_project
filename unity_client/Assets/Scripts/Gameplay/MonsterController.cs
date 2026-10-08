@@ -124,7 +124,8 @@ public class MonsterController : MonoBehaviour {
     void Impact() {
         if (_state != MobState.Attack || _anim.Clip != "attack") return;
         var player = PlayerController.Local;
-        if (player != null && !player.IsDead) player.TakeDamage(Def.atk);
+        if (player != null && !player.IsDead && ActorVisual.Gap(player.transform, transform) <= ATTACK_RANGE
+            && (player.transform.position.x - transform.position.x) * _face >= 0f) player.TakeDamage(Def.atk);
     }
 
     // 플레이어 impact 에서 호출: 이 몬스터 애니·이동만 정지 + 흰 플래시 1프레임 + 2px 넉백.

@@ -17,7 +17,51 @@ public static class CombatRegression {
     static object Call(object obj, string name, params object[] args) => obj.GetType().GetMethod(name, Private).Invoke(obj, args);
     static void Check(bool condition, string message) { if (!condition) throw new Exception("[CombatRegression] " + message); }
 
+    static void CheckRangeGeometry() {
+        var root = new GameObject("RangeGeometryRegression");
+        try {
+            var player = root.AddComponent<PlayerController>(); player.Init(true, "male", () => Array.Empty<MonsterController>());
+            var monster = new GameObject("BoundaryMonk").AddComponent<MonsterController>(); monster.transform.SetParent(root.transform);
+            var def = GameData.Monsters.First(m => m.tier == 12); def.atk = 1;
+            monster.Init(def, new Vector3(20, 0, 0), 0, 80);
+            var visual = monster.GetComponent<ActorVisual>(); var collider = monster.GetComponent<BoxCollider2D>();
+            foreach (bool flip in new[] { false, true }) foreach (string clip in new[] { "walk", "attack", "hurt" }) {
+                visual.Body.flipX = flip; monster.GetComponent<FrameAnimator>().Still(clip, 0); visual.Refresh();
+                float cx = monster.transform.TransformPoint(collider.offset).x;
+                float foot = monster.transform.TransformPoint(collider.offset - Vector2.up * collider.size.y / 2).y;
+                float top = monster.transform.TransformPoint(collider.offset + Vector2.up * collider.size.y / 2).y;
+                float visibleTop = monster.transform.TransformPoint(new Vector3(0, SpriteBBox.Get(visual.Body.sprite).yMax, 0)).y;
+                Check(Mathf.Abs(cx - visual.BodyX) < 0.001f && Mathf.Abs(foot - WorldConfig.GroundY) < 0.001f && Mathf.Abs(top - visibleTop) < 0.001f, "large-monster flipped collider/foot/top mismatch");
+            }
+            Field(monster, "_state").SetValue(monster, MobState.Attack);
+            Field(monster, "_face").SetValue(monster, -1);
+            monster.GetComponent<FrameAnimator>().Still("attack", 0);
+            int hp = player.Hp; Call(monster, "Impact");
+            Check(player.Hp == hp, "monster damaged player after leaving attack range");
+            monster.transform.position = new Vector3(player.transform.position.x + 0.1f, monster.transform.position.y, 0);
+            Field(monster, "_face").SetValue(monster, 1); Call(monster, "Impact");
+            Check(player.Hp == hp, "monster damaged behind its attack direction");
+            Field(monster, "_face").SetValue(monster, -1); Call(monster, "Impact");
+            Check(player.Hp < hp, "close facing monster failed to hit");
+            var pv = player.GetComponent<ActorVisual>();
+            foreach (int tier in new[] { 1, 2 }) foreach (int face in new[] { 1, -1 }) {
+                player.WeaponKind = "sword"; player.WeaponTierIdx = tier;
+                typeof(PlayerController).GetProperty("Face").SetValue(player, face);
+                player.GetComponent<GearAttachment>().SetFace(face); pv.Refresh();
+                foreach (var test in new[] { (gap: player.Range - 0.0001f, ahead: true, hit: true), (gap: player.Range + 0.01f, ahead: true, hit: false), (gap: player.Range - 0.0001f, ahead: false, hit: false) }) {
+                    float desired = pv.BodyX + face * (test.ahead ? 1 : -1) * (pv.HalfWidth + visual.HalfWidth + test.gap);
+                    monster.transform.position += Vector3.right * (desired - visual.BodyX);
+                    var damage = new Dictionary<MonsterController, List<int>>();
+                    Call(player, "DoAttack", monster, new[] { monster }, damage);
+                    Check(damage.ContainsKey(monster) == test.hit, $"sword tier{tier} face{face}: impact boundary/escaped/behind mismatch");
+                }
+            }
+            Debug.Log("[CombatRegression] PASS large-body flipped collider and floor; monster impact range/facing; sword tier1/2 both faces edge/escape/behind");
+        } finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
     public static void Run() {
+        CheckRangeGeometry();
         CheckGrowth();
         CheckAdaptiveCamera();
         CheckSkyGroundCoverage();
