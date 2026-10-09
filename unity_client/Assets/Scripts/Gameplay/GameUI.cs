@@ -249,6 +249,12 @@ public class GameUI : MonoBehaviour {
         _sumInfo = Label(sum, "", new Vector2(20, -50), new Vector2(280, 60), TextAnchor.UpperLeft, new Vector2(0, 1));
         _bS19 = Btn(sum, "드래곤 소환", new Vector2(20, -120), new Vector2(130, BtnH), () => Summon(19), new Vector2(0, 1));
         _bS20 = Btn(sum, "염제 소환", new Vector2(166, -120), new Vector2(130, BtnH), () => Summon(20), new Vector2(0, 1));
+        foreach (var (b, t) in new[] { (_bS19, 19), (_bS20, 20) }) { // 보스 얼굴 아이콘(ui_summon_t19/t20 64px)을 버튼 왼쪽에
+            var icon = Img(b.transform, Resources.Load<Sprite>("Sprites/UI/ui_summon_t" + t), Vector2.zero, new Vector2(26, 26)); icon.raycastTarget = false;
+            var iconRect = icon.rectTransform; iconRect.anchorMin = new Vector2(0, 0); iconRect.anchorMax = new Vector2(0, 1); iconRect.pivot = new Vector2(0, .5f); iconRect.offsetMin = new Vector2(4, 2); iconRect.offsetMax = new Vector2(30, -2);
+            var fit = icon.gameObject.AddComponent<AspectRatioFitter>(); fit.aspectMode = AspectRatioFitter.AspectMode.HeightControlsWidth; fit.aspectRatio = 1; // 버튼 높이(PC 30·모바일 48)에 맞춰 정사각
+            b.GetComponentInChildren<Text>(true).rectTransform.anchoredPosition += new Vector2(12, 0);
+        }
         Redraw();
         _toast.transform.SetAsLastSibling(); // 토스트는 패널 위(관리·상점 결과가 열린 패널에 가려지지 않게)
         CaptureLayout();

@@ -225,7 +225,7 @@ public static class InputRegression {
                 ui.OnInv(new InvMsg { req = "join", ok = true, state = state }); ui.Show("stats"); ui.Tick(.3f);
                 const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
                 var values = (System.Collections.Generic.Dictionary<string, Text>)typeof(GameUI).GetField("_statValues", flags).GetValue(ui);
-                if (values["class"].text != "전사" || values["gold"].text != "45,210 G" || values["exp"].text != "3,000 / 12,000 (25.0%)") throw new Exception("Stats authoritative state display mismatch");
+                if (values["class"].text != "전사" || values["gold"].text != "45,210 G" || values["exp"].text != "3,000 / 5,624 (53.3%)") throw new Exception("Stats authoritative state display mismatch");
                 int expectedDef = 10 + Game.Data.CombatMath.GearDefWithEnhance(Game.Data.GameData.Helmets[3], 2);
                 if (values["defense"].text != expectedDef.ToString("N0")) throw new Exception("Stats enhanced defense mismatch");
                 var hud = (System.Collections.Generic.Dictionary<string, Text>)typeof(GameUI).GetField("_cooldownHud", flags).GetValue(ui);

@@ -44,9 +44,10 @@ public static class CombatMath {
 
     public static float StatDamageMultiplier(int points, float perPoint = 0.02f) => 1f + Mathf.Max(0, points) * perPoint;
     public static float CritChance(int luck, float perPoint = 0.001f, float cap = 0.3f) => Mathf.Min(cap, Mathf.Max(0, luck) * perPoint);
-    public static int ApplyGrowthDamage(int damage, float multiplier, float critChance, float critDamage, System.Random rng) {
+    public static int ApplyGrowthDamage(int damage, float multiplier, float critChance, float critDamage, System.Random rng) => ApplyGrowthDamage(damage, multiplier, critChance, critDamage, rng, out _);
+    public static int ApplyGrowthDamage(int damage, float multiplier, float critChance, float critDamage, System.Random rng, out bool critical) {
         // Zero luck keeps the pre-growth RNG sequence and damage unchanged.
-        bool critical = critChance > 0f && rng.NextDouble() < critChance;
+        critical = critChance > 0f && rng.NextDouble() < critChance;
         return Mathf.Max(1, Mathf.RoundToInt(damage * multiplier * (critical ? critDamage : 1f)));
     }
 

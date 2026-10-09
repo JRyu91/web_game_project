@@ -97,7 +97,8 @@ public class PlayerController : MonoBehaviour {
     public float SkillBaseCooldown(SkillDef skill) => Combat.skillCooldowns[Mathf.Clamp(skill.lv / 20 - 1, 0, Combat.skillCooldowns.Length - 1)];
     // 직선 스킬 사거리. 지팡이는 기본 사거리가 ×3(218.4px) 돼서 그대로 씀(×3 이면 화면 밖까지 맞음). SkillFeedback 도 이걸 쓴다
     public float LineRange => WeaponKind == "staff" ? Range : Range * 3f;
-    int GrowthDamage(int damage) => CombatMath.ApplyGrowthDamage(damage, AttackMultiplier, CriticalChance, CriticalDamageMultiplier, _rng);
+    int GrowthDamage(int damage) => GrowthDamage(damage, out _);
+    int GrowthDamage(int damage, out bool critical) => CombatMath.ApplyGrowthDamage(damage, AttackMultiplier, CriticalChance, CriticalDamageMultiplier, _rng, out critical);
     public bool Penetrating => WeaponKind == "staff";
 
     public void Init(bool isLocal, string gender, Func<IEnumerable<MonsterController>> monsterProvider) {
@@ -268,7 +269,7 @@ public class PlayerController : MonoBehaviour {
         if (!CanCast(s)) return;
         _skillCd[s.key] = SkillBaseCooldown(s);
         int atk = CombatMath.PlayerFixedAtk(Level) + CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng);
-        int dmg = GrowthDamage(Mathf.Max(1, Mathf.RoundToInt(atk * s.mult)));
+        int dmg = GrowthDamage(Mathf.Max(1, Mathf.RoundToInt(atk * s.mult)), out bool crit);
         bool AheadOf(MonsterController m) => (m.transform.position.x - transform.position.x) * Face >= 0;
         foreach (var m in pool) {
             if (m == null || m.IsDead) continue;
@@ -280,20 +281,20 @@ public class PlayerController : MonoBehaviour {
                 "map" => true,
                 _ => false,
             };
-            if (hit) AddDamage(damage, m, dmg);
+            if (hit) { if (crit) m.MarkCritical(); AddDamage(damage, m, dmg); }
         }
         OnSkillCast?.Invoke(s);
     }
 
     void DoAttack(MonsterController primaryTarget, MonsterController[] pool, Dictionary<MonsterController, List<int>> damage) {
-        int dmg = GrowthDamage(CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng));
+        int dmg = GrowthDamage(CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng), out bool crit);
         if (!Penetrating) {
             float targetX = primaryTarget.GetComponent<ActorVisual>()?.BodyX ?? primaryTarget.transform.position.x;
             if (ActorVisual.Gap(primaryTarget.transform, transform) > Range || (targetX - _vis.BodyX) * Face < 0) return;
-            AddDamage(damage, primaryTarget, dmg);
+            if (crit) primaryTarget.MarkCritical(); AddDamage(damage, primaryTarget, dmg);
         } else {
             _gear.Apply();
-            _projectiles.Add(new StaffProjectile(_gear.Muzzle, transform.position.x, Face, WeaponTierIdx, dmg, HitStopSec));
+            _projectiles.Add(new StaffProjectile(_gear.Muzzle, transform.position.x, Face, WeaponTierIdx, dmg, HitStopSec) { Critical = crit });
         }
     }
 
@@ -436,6 +437,7 @@ public class PlayerController : MonoBehaviour {
         _respawnTimer -= dt;
         if (_respawnTimer <= 0f) {
             Hp = MaxHp; _state = PlayerState.Idle; _anim.Play("idle");
+            Game.Rendering.HitFx.Play("e_anim/revive", new Vector3(_vis.BodyX, WorldConfig.GroundY + 1.2f, 0), 10f, 1f, false, 12, transform); // 부활 빛기둥(48x96)
             OnHpChanged?.Invoke(Hp, MaxHp);
         }
     }

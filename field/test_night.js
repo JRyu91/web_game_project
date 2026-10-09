@@ -27,7 +27,7 @@ assert.equal(I.equip(s,'helmet',helmet.uid).code,'class');
 assert.equal(I.disassemble(s,staff.uid).code,'equipped');
 const stones=s.stones,gold=s.gold;
 const r=I.disassemble(s,undefined,[helmet.uid,helmet.uid,staff.uid]);
-assert.deepEqual(r.disassemble.removed,[helmet.uid]);assert.equal(s.stones-stones,5);assert.equal(s.gold,gold);
+assert.deepEqual(r.disassemble.removed,[helmet.uid]);assert.equal(s.stones-stones,I.disassembleYield({slot:"helmet",tier:helmet.tier},s));assert.equal(s.gold,gold); // Lv100 분해량 = ceil(5*0.8*0.84/XM(100)=.36) (261009 레벨당 강화석 보정)
 assert.equal(I.disassemble(s,helmet.uid).code,'no_item');
 const persisted=I.normalize(JSON.parse(JSON.stringify(s)));assert.deepEqual(I.view(persisted),I.view(s));
 const tampered=JSON.parse(JSON.stringify(s));tampered.skills=['fake'];assert.throws(()=>I.normalize(tampered));
@@ -85,22 +85,22 @@ console.log('PASS fractional legacy migration/reconnect, unsafe legacy rejection
  I.autoSell(a,true,100); I.autoDisassemble(a,true,100);
  assert.equal(a.autoSell,false); assert.equal(JSON.stringify(a.inv),original);
  const before=a.stones, k=I.kill(a,1,()=>0);
- assert.equal(k.drop.disassembled,1); assert.equal(k.drop.sold,0);
- assert.equal(a.stones,before+k.drop.stones+1); assert.equal(JSON.stringify(a.inv),original);
+ const y=k.drop.disassembled; assert.equal(y,I.disassembleYield({slot:'weapon',tier:0},a)); assert.equal(k.drop.sold,0); // 레벨당 강화석 보정(261009)
+ assert.equal(a.stones,before+k.drop.stones+y); assert.equal(JSON.stringify(a.inv),original);
  assert.equal(I.disassemble(a,a.equip.weapon).code,'equipped');
  I.autoSell(a,true,100); assert.equal(a.autoDisassemble,false);
  assert.equal(I.view(a).autoDisassembleLevel,100);
  assert.ok(I.OWNED.includes('autoDisassemble') && I.OWNED.includes('autoDisassembleLevel'));
  const b=fresh(); for(let n=1;n<60;n++) b.inv.push({uid:b.nextUid++,slot:'weapon',kind:'sword',tier:0,enh:0});
  I.kill(b,21,()=>0); assert.ok(b.pendingDrop);
- const snapshot=JSON.stringify(b), gained=I.disassembleYield(b.pendingDrop);
+ const snapshot=JSON.stringify(b), gained=I.disassembleYield(b.pendingDrop,b);
  const draft=JSON.parse(snapshot), result=I.autoDisassemble(draft,true,100);
  assert.equal(result.drop.disassembled,gained); assert.equal(draft.pendingDrop,null); assert.equal(draft.inv.length,60);
  // Same clone/discard transaction as the server's save_failed rollback.
  assert.equal(JSON.stringify(b),snapshot);
  const retry=I.autoDisassemble(b,true,100); assert.equal(retry.drop.disassembled,gained);
  const after=b.stones; assert.equal(I.autoDisassemble(b,true,100).drop,undefined); assert.equal(b.stones,after);
- const fullBefore=b.inv.length, fullDrop=I.kill(b,21,()=>0);assert.equal(fullDrop.ok,true);assert.equal(fullDrop.drop.disassembled,17);assert.equal(b.inv.length,fullBefore);assert.equal(b.pendingDrop,null);
+ const fullBefore=b.inv.length, fullDrop=I.kill(b,21,()=>0);assert.equal(fullDrop.ok,true);assert.equal(fullDrop.drop.disassembled,I.disassembleYield({slot:"weapon",tier:20},b));assert.equal(b.inv.length,fullBefore);assert.equal(b.pendingDrop,null);
  const excluded=fresh();I.autoDisassemble(excluded,true,0);const high=I.kill(excluded,21,()=>0);assert.equal(high.drop.disassembled,0);assert.ok(excluded.inv.some(i=>i.uid===high.drop.item.uid));
  assert.deepEqual(I.view(I.normalize(JSON.parse(JSON.stringify(b)))),I.view(b));
  const bad=JSON.parse(JSON.stringify(b)); bad.autoSell=true; assert.throws(()=>I.normalize(bad),/saved settings/);

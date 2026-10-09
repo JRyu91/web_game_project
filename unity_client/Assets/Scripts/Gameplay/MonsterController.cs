@@ -71,9 +71,12 @@ public class MonsterController : MonoBehaviour {
     static readonly int[] MidIdleTiers = { 7, 8, 9, 13, 14, 17 };
     int IdleFrame => System.Array.IndexOf(MidIdleTiers, Def.tier) >= 0 ? _anim.FrameCount("walk") / 2 : 0;
     const string AuraKey = "Sprites/FX/fx_boss_aura";
-    // 보스 브레스(원거리): 근접 46px 밖 ~ 240px 안이면 4초마다 공격 모션 impact 에서 불덩이 발사, 도착 시 근접과 같은 피해.
+    // 보스 특수 공격: 240px 안이면(근접 포함) 4초마다 공격 모션 impact 에서 불덩이 발사, 도착 시 근접과 같은 피해.
     // 근접만 있으면 지팡이(218px)에게 보스가 손도 못 댐(261009 형 신고 "드래곤이 불을 안 뿜음")
-    const float BREATH_RANGE = 240f * PX_TO_UNIT, BREATH_CD = 4f, BREATH_SPEED = 220f * PX_TO_UNIT, BREATH_FPS = 10f;
+    const float BREATH_RANGE = 240f * PX_TO_UNIT, BREATH_CD = 4f, BREATH_SPEED = 160f * PX_TO_UNIT, BREATH_FPS = 10f; // 220→160: 날아가는 게 보이게
+    // 염제(20)·수령동지(21): 브레스 대신 플레이어 발밑 불기둥(obj_firepillar 128px), 불이 커지는 0.35초 뒤 아직 그 자리면 피해
+    const float PILLAR_DELAY = 0.35f, PILLAR_HALF = 24f * PX_TO_UNIT;
+    float _pillarT = -1, _pillarX, _trailT;
     public static string BreathKey = "Sprites/FX/obj_firebreath/anim1";
     bool IsBoss => Def.rank == "boss" || Def.rank == "midboss" || Def.rank == "hidden";
     float _breathCd = 1.5f; bool _breathing;
@@ -82,6 +85,7 @@ public class MonsterController : MonoBehaviour {
     void SpawnBreath() {
         var player = PlayerController.Local;
         if (player == null || player.IsDead) return;
+        if (Def.tier >= 20) { _pillarX = player.Visual.BodyX; _pillarT = 0; HitFx.Play("obj_firepillar", new Vector3(_pillarX, WorldConfig.GroundY + 1.6f, 0), 12f, 1f, false, 10); return; }
         _breathFrames ??= HitFx.Frames(BreathKey);
         _breathVis = new GameObject("BossBreath").AddComponent<SpriteRenderer>(); _breathVis.sortingOrder = 9; _breathVis.flipX = _face < 0;
         var b = _sr.bounds; // 입 = 몸 앞쪽 위
@@ -91,9 +95,14 @@ public class MonsterController : MonoBehaviour {
         if (_breathFrames.Length > 0) _breathVis.sprite = _breathFrames[0];
     }
     void StepBreath(float dt) {
+        if (_pillarT >= 0 && (_pillarT += dt) >= PILLAR_DELAY) {
+            var target = PlayerController.Local; _pillarT = -1;
+            if (_state != MobState.Dead && target != null && !target.IsDead && Mathf.Abs(target.Visual.BodyX - _pillarX) <= PILLAR_HALF + 0.3f) target.TakeDamage(Def.atk);
+        }
         if (_breathVis == null) return;
         var player = PlayerController.Local;
         if (_state == MobState.Dead || player == null) { KillBreath(); return; }
+        if ((_trailT -= dt) <= 0f) { _trailT = 0.06f; HitFx.Play("obj_firebolt", _breathVis.transform.position, 24f, 0.6f, _breathVis.flipX, 8); } // 불꼬리: 궤적 가독성
         _breathT += dt;
         if (_breathFrames.Length > 0) _breathVis.sprite = _breathFrames[(int)(_breathT * BREATH_FPS) % _breathFrames.Length];
         _breathTargetX = player.transform.position.x; // 유도(자동전투라 회피 개념 없음)
@@ -140,7 +149,7 @@ public class MonsterController : MonoBehaviour {
         float dx = player.transform.position.x - transform.position.x;
         float dist = ActorVisual.Gap(player.transform, transform); // 몸 반폭 합 제외(spec 2-4)
         if (IsBoss) _breathCd = Mathf.Max(0f, _breathCd - dt); // 음수로 쌓이면 사거리 진입 즉시 연사
-        if (IsBoss && _breathCd <= 0f && dist > ATTACK_RANGE && dist <= BREATH_RANGE) {
+        if (IsBoss && _breathCd <= 0f && dist <= BREATH_RANGE) { // 붙어 있어도 4초마다 특수 공격(근접만이면 보스전이 밋밋함)
             _breathCd = BREATH_CD; _breathing = true;
             _face = dx >= 0 ? 1 : -1; _sr.flipX = _face < 0; _state = MobState.Attack;
             _anim.Play("attack", loop: false, onDone: () => { if (_state == MobState.Attack) _anim.Still("walk", IdleFrame); }, fps: ATTACK_FPS, impactFrac: ATTACK_IMPACT);
@@ -216,15 +225,19 @@ public class MonsterController : MonoBehaviour {
 
     public bool TakeProjectileDamage(int damage) => ApplyDamage(CombatMath.Mitigate(damage, Def.def), true);
 
+    bool _critNext;
+    public void MarkCritical() => _critNext = true; // 다음 ApplyDamage 1회를 치명타 연출로
     bool ApplyDamage(int real, bool projectile = false) {
+        bool crit = _critNext; _critNext = false;
         if (_state == MobState.Dead) return false;
         if (!projectile && _hitCooldownTimer > 0f) return false;
         _hitCooldownTimer = HIT_COOLDOWN;
         Hp -= real;
         PlayerController.CombatLog?.Invoke($"damage t{Def.tier} -{real} hp={Mathf.Max(0, Hp)}");
         var b = _sr.bounds; // 타격감: 몸 중앙 스파크 + 머리 위 숫자
-        HitFx.Play("obj_hitspark", new Vector3(b.center.x + Random.Range(-0.1f, 0.1f), b.center.y + Random.Range(-0.1f, 0.15f), 0), 20f);
-        HitFx.Number(real, new Vector3(b.center.x, b.max.y + 0.1f, 0));
+        HitFx.Play("obj_hitspark", new Vector3(b.center.x + Random.Range(-0.1f, 0.1f), b.center.y + Random.Range(-0.1f, 0.15f), 0), crit ? 14f : 20f, crit ? 1.8f : 1f);
+        HitFx.Number(real, new Vector3(b.center.x, b.max.y + 0.1f, 0), crit ? "crit" : "normal", crit ? 0.7f : 1f); // crit 폰트는 원본 2배(32x36) → 0.7배로 1.4배 크기
+        if (crit) HitFx.Shake(1, 0.08f);
         if (Hp <= 0) { Die(); return true; }
         if (IsBoss) return true; // 보스 슈퍼아머: 연속 피격(지팡이 탄)마다 hurt 로 경직되면 이동·공격·브레스를 영영 못 함(261009 "드래곤이 불을 안 뿜음" 실원인)
         _anim.Play("hurt", loop: false, onDone: () => { if (_state != MobState.Dead) { _state = MobState.Walk; _anim.Play("walk"); } }, fps: Mathf.Max(8f, _anim.FrameCount("hurt") / HURT_MAX));

@@ -10,7 +10,8 @@ const HELMET = [[0,"해진천","common",3],[5,"무명","common",4],[10,"가죽",
 const ARMOR = [[0,"해진천","common",4],[5,"무명","common",5],[10,"가죽","common",7],[15,"무두질가죽","common",10],[20,"리벳가죽","common",13],[25,"은","warrior",17],[30,"뿔","warrior",22],[35,"미스릴","warrior",29],[40,"용린","warrior",39],[45,"화염","warrior",52],[50,"뇌명","warrior",69],[55,"서리","warrior",92],[60,"명왕","warrior",123],[65,"파사","warrior",163],[70,"뇌신","warrior",217],[75,"광휘","warrior",289],[80,"파멸","warrior",384],[85,"절멸","warrior",510],[90,"종언","warrior",678],[95,"근원","warrior",902],[100,"오메가","warrior",1200],[25,"수정","mage",17],[30,"자수정","mage",22],[35,"은빛","mage",29],[40,"얼음","mage",39],[45,"화염","mage",52],[50,"폭풍","mage",69],[55,"서리","mage",92],[60,"심연","mage",123],[65,"몽환","mage",163],[70,"천공","mage",217],[75,"성좌","mage",289],[80,"창세","mage",384],[85,"공허","mage",510],[90,"창조","mage",678],[95,"드래곤","mage",902],[100,"적룡","mage",1200]];
 //[tier, rank, minLv, exp, gold] — exp·gold 는 r5 표. 일반(1~18) exp 표에는 ×0.77 이 이미 들어있어서 확정 보정 ×0.69 로 다시 맞춘다(final.md).
 const MONS = [[1,"basic",1,3,9],[2,"basic",5,5,12],[3,"basic",10,8,18],[4,"basic",14,8,24],[5,"basic",19,12,36],[6,"basic",24,28,48],[7,"rare",29,54,69],[8,"rare",33,79,96],[9,"rare",38,114,132],[10,"rare",43,186,186],[11,"rare",48,263,261],[12,"rare",52,366,363],[13,"unique",57,621,510],[14,"unique",62,922,714],[15,"unique",67,1199,999],[16,"unique",71,1517,1401],[17,"unique",76,1882,1959],[18,"unique",81,2450,2745],[19,"midboss",60,33000,13000],[20,"boss",85,94000,36000],[21,"hidden",95,500000,250000]];
-const monExp = t => t <= 18 ? Math.max(1, Math.round(MONS[t - 1][3] * 0.69 / 0.77)) : MONS[t - 1][3];
+const A_ZONE_BOOST = t => t >= 4 && t <= 6 ? 2.5 : 1; // 261009: Lv20~35 A존 정체(42h) 해소 — 경험치·골드 같이 ×2.5 라 레벨당 골드는 그대로
+const monExp = t => t <= 18 ? Math.max(1, Math.round(MONS[t - 1][3] * 0.69 / 0.77 * A_ZONE_BOOST(t))) : MONS[t - 1][3];
 
 const ENH_SUCC = [100,100,95,90,85,80,80,79,79,78,78,77,77,77,77,77,66,66,66,66,66,49,49,49,49,49]; //인덱스 = 목표 단계(+1~+25)
 const ENH_MAX = 25;
@@ -25,7 +26,7 @@ const SKILLS = ['qi', 'rain', 'volc', 'king', 'end'].flatMap((prefix, n) => ['sw
 const SKILL_PRICES = require('./skillbook_prices.json');
 const capacity = s => INV_CAP + s.bagExpansions;
 const expandCost = s => Math.round(200 * 1.04 ** s.bagExpansions);
-const disassembleYield = it => Math.ceil((itemLevel(it) / 5 + 1) * 0.8);
+const disassembleYield = (it, st) => Math.ceil((itemLevel(it) / 5 + 1) * 0.8 * (st ? STONES_PER_LEVEL / XM(st.level) : 1)); // st = 분해하는 플레이어(레벨당 강화석 보정)
 const LEVEL_MAX = 100;
 const MAP_LEVELS = {A:1,B:35,C:70};
 const COMBAT = Object.freeze({weaponDamageMultiplier:1, statDamagePerPoint:0.02, dexDefensePerPoint:1, luckCritPerPoint:0.001, critCap:0.3, critDamage:1.5, swordShortRange:26, swordRange:44, staffRange:218.4, skillCooldowns:[10,20,30,60,120], naturalStoneChances:[STONE_DROP.basic,STONE_DROP.rare,STONE_DROP.unique]});
@@ -39,7 +40,11 @@ function normalizeStats(s) {
   if (statPoints(s) < 0) throw new Error('invalid saved stats');
 }
 
-const xpToLevel = lv => Math.round(30 * lv * lv * (lv > 70 ? 1.05 ** (lv - 70) : 1));
+// 261009 만렙 24h 목표(보스 포함 시뮬 기준 ×1.09 보정): 레벨 구간별 필요 경험치 배율 XM(레벨, 로그 선형 보간). 처치당 골드·강화석은 /XM 으로 보정해 레벨당 골드 75%·강화석 80% 유지(unity_review/balance 수학 검토)
+const XM_K = [[1, 0.5232], [20, 0.4687], [35, 0.327], [50, 0.545], [70, 0.3924], [85, 0.6758], [100, 0.3924]];
+const XM = lv => { for (let i = 1; i < XM_K.length; i++) if (lv <= XM_K[i][0]) { const [a, x] = XM_K[i - 1], [b, y] = XM_K[i]; return Math.exp(Math.log(x) + (Math.log(y) - Math.log(x)) * (lv - a) / (b - a)); } return XM_K[XM_K.length - 1][1]; };
+const GOLD_PER_LEVEL = 0.75, STONES_PER_LEVEL = 0.82; // 강화석은 ceil 반올림 편향 보정 포함 → 실측 약 80%
+const xpToLevel = lv => Math.round(30 * lv * lv * (lv > 70 ? 1.05 ** (lv - 70) : 1) * XM(lv));
 const table = slot => slot === 'helmet' ? HELMET : ARMOR;
 const itemLevel = it => it.slot === 'weapon' ? it.tier * 5 : table(it.slot)[it.tier][0];
 const itemName = it => it.slot === 'weapon' ? (it.kind === 'staff' ? STAFF : SWORD)[it.tier] : table(it.slot)[it.tier][1];
@@ -184,7 +189,7 @@ function kill(s, tier, rng = Math.random) {
   if (!allowed.ok) return allowed;
   tier = Number(tier);
   const [, rank, minLv, , baseGold] = MONS[tier - 1];
-  const g = baseGold * GOLD_MULT;
+  const g = Math.round(baseGold * GOLD_MULT * A_ZONE_BOOST(tier) * GOLD_PER_LEVEL / (tier >= 19 ? 1 : XM(s.level))); // 정수 골드. 보스는 경험치가 XM 을 안 타니 골드도 ×0.75 만
   const boss = tier >= 19;
   const drop = { tier, gold: boss ? g : Math.floor(Math.round(g * 0.8) + rng() * (Math.round(g * 1.4) - Math.round(g * 0.8) + 1)), exp: monExp(tier), stones: 0, item: null, sold: 0, disassembled: 0, levelUp: 0 };
   s.gold += drop.gold;
@@ -192,7 +197,7 @@ function kill(s, tier, rng = Math.random) {
   if (tier >= 13 && tier <= 18) s.killCountT20 = (s.killCountT20 || 0) + 1; //C 만
   drop.levelUp = addExp(s, drop.exp);
   const dropLv = Math.floor(minLv / 5) * 5;
-  if (!boss && rng() < STONE_DROP[rank]) { drop.stones = Math.ceil(dropLv / 5 + 1); s.stones += drop.stones; }
+  if (!boss && rng() < STONE_DROP[rank] * STONES_PER_LEVEL / XM(s.level)) { drop.stones = Math.ceil(dropLv / 5 + 1); s.stones += drop.stones; }
   if (boss || rng() < GEAR_DROP[rank]) {
     const lv = boss ? BOSS_GEAR[tier][Math.floor(rng() * BOSS_GEAR[tier].length)] : dropLv;
     const r = Math.floor(rng() * 4); //0·1 무기 50%, 2 투구 25%, 3 갑옷 25%
@@ -371,7 +376,7 @@ function autoSell(s, enabled, level) {
 // Only newly acquired or retained overflow drops enter the automatic policy.
 function applyDropPolicy(s, it, drop) {
   if (s.autoDisassemble && itemLevel(it) <= s.autoDisassembleLevel) {
-    drop.disassembled = disassembleYield(it); s.stones += drop.disassembled; return true;
+    drop.disassembled = disassembleYield(it, s); s.stones += drop.disassembled; return true;
   }
   if (s.autoSell && itemLevel(it) <= s.autoSellLevel) {
     drop.sold = sellPrice(it); s.gold += drop.sold; return true;
@@ -408,7 +413,7 @@ function disassemble(s, uid, uids, level) {
     const it = s.inv.find(i => i.uid === id);
     const code = !it ? 'no_item' : Object.values(s.equip).includes(id) ? 'equipped' : '';
     if (code) { if (!many) return fail(code); r.skipped.push({uid:id, code}); continue; }
-    s.inv.splice(s.inv.indexOf(it), 1); r.removed.push(id); r.stones += disassembleYield(it);
+    s.inv.splice(s.inv.indexOf(it), 1); r.removed.push(id); r.stones += disassembleYield(it, s);
   }
   s.stones += r.stones; sync(s);
   return { ok: r.removed.length > 0, code: r.removed.length ? '' : 'none_removed', disassemble: r };

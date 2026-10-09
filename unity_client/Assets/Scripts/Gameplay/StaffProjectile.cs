@@ -10,6 +10,7 @@ public sealed class StaffProjectile : IDisposable {
     public const float Range = 219f / 40f, Speed = 400f / 40f;
     public readonly GameObject Visual;
     public readonly string Effect;
+    public bool Critical; // 발사 시점 치명타 → 명중 시 몬스터 치명타 연출
     readonly HashSet<MonsterController> _hit = new HashSet<MonsterController>();
     readonly int _face, _damage;
     readonly float _ownerX, _hitStop;
@@ -77,6 +78,7 @@ public sealed class StaffProjectile : IDisposable {
             float radius = body != null ? body.HalfWidth : 0f;
             if ((x - _ownerX) * _face < 0f || x + radius < lo || x - radius > hi) continue;
             _hit.Add(monster);
+            if (Critical) monster.MarkCritical();
             if (monster.TakeProjectileDamage(_damage)) monster.HitStop(_hitStop, _face);
         }
         _previousX = p.x; _remaining -= distance;

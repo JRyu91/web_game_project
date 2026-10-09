@@ -31,6 +31,55 @@ public static class BalancePlaytest {
             Debug.Log("[BalancePlaytest] PASS: twenty-eight 30-minute actual-controller simulations, fixed progression, seeds and economy exclusions\n" + rows);
         } finally { PlayerController.MovePx = oldSpeed; WorldConfig.GroundY = oldGround; }
     }
+    // 보스 1:1(보스 특수공격·슈퍼아머 반영): 소환 보스를 플레이어 앞 160px에 세우고 최대 10분. 일반 몹 없음.
+    public static void RunBosses() {
+        CombatMath.EnsureBalance();
+        var rows = new StringBuilder("boss,level,weapon,skills,kill_s,deaths,potions,damage_taken,specials,player_max_hp\n");
+        float oldGround = WorldConfig.GroundY;
+        try {
+            foreach (var (tier, level) in new[] { (19, 60), (19, 70), (20, 85), (20, 95), (21, 100) })
+                foreach (string weapon in new[] { "sword", "staff" }) { rows.Append(BossTrial(tier, level, weapon, true)); rows.Append(BossTrial(tier, level, weapon, false)); }
+            File.WriteAllText("Logs/balance-boss.csv", rows.ToString());
+            Debug.Log("[BalancePlaytest] boss PASS\n" + rows);
+        } finally { WorldConfig.GroundY = oldGround; }
+    }
+    static string BossTrial(int tier, int level, string weapon, bool skills) {
+        var root = new GameObject("BossPlaytest");
+        try {
+            var zone = root.AddComponent<ZoneController>(); zone.SetZone(tier == 19 ? Zone.B : Zone.C, Tod.Day);
+            var spawner = root.AddComponent<MonsterSpawner>(); spawner.SetPopulation(1);
+            var playerGo = new GameObject("Player"); playerGo.transform.SetParent(root.transform);
+            playerGo.transform.position = new Vector3(40, WorldConfig.GroundY, 0);
+            var player = playerGo.AddComponent<PlayerController>(); player.Level = level;
+            player.Init(true, "male", () => spawner.Alive);
+            var weapons = weapon == "sword" ? GameData.Swords : GameData.Staves;
+            int wi = Array.FindLastIndex(weapons, w => w.level <= level); string cls = weapon == "sword" ? "warrior" : "mage";
+            int hi = Array.FindLastIndex(GameData.Helmets, g => g.level <= level && (g.cls == cls || g.cls == "common"));
+            int ai = Array.FindLastIndex(GameData.Armors, g => g.level <= level && (g.cls == cls || g.cls == "common"));
+            int points = 5 * (level - 1), main = points * 7 / 10;
+            player.ApplyState(new InvState { level = level, potions = 9999, dex = points - main, str = weapon == "sword" ? main : 0, intelligence = weapon == "staff" ? main : 0,
+                skills = skills ? GameData.Skills.Where(sk => sk.weapon == weapon && sk.lv <= level).Select(sk => sk.key).ToArray() : new string[0],
+                equip = new InvEquip { weapon = 1, helmet = hi >= 0 ? 2 : 0, armor = ai >= 0 ? 3 : 0 },
+                inv = new[] { new InvItem { uid = 1, slot = "weapon", kind = weapon, tier = wi }, new InvItem { uid = 2, slot = "helmet", tier = hi }, new InvItem { uid = 3, slot = "armor", tier = ai } } });
+            typeof(PlayerController).GetField("_rng", Private).SetValue(player, new System.Random(211));
+            int deaths = 0, loss = 0, specials = 0, prev = player.Hp; bool wasDead = false;
+            player.OnHpChanged += (hp, max) => { if (hp < prev) loss += prev - Math.Max(0, hp); prev = hp; };
+            typeof(MonsterSpawner).GetMethod("SpawnBossAt", Private).Invoke(spawner, new object[] { tier, (float?)(40 + 4f) });
+            var boss = spawner.Boss; typeof(MonsterController).GetField("_rng", Private).SetValue(boss, new System.Random(331));
+            var pa = player.GetComponent<FrameAnimator>(); var ba = boss.GetComponent<FrameAnimator>();
+            var inFlight = typeof(MonsterController).GetField("_breathVis", Private); var pillar = typeof(MonsterController).GetField("_pillarT", Private);
+            var log = new List<string>(); Action<string> hook = m => { if (log.Count < 6 && m.StartsWith("damage")) log.Add(m); }; PlayerController.CombatLog += hook;
+            const float dt = 1f / 60; float t = 0; bool flying = false;
+            for (; t < 600 && boss != null && !boss.IsDead; t += dt) {
+                player.Step(dt); boss.Step(dt); pa.Tick(dt); ba.Tick(dt);
+                player.GetComponent<ActorVisual>().Refresh(); boss.GetComponent<ActorVisual>().Refresh();
+                bool f = inFlight.GetValue(boss) != null || (float)pillar.GetValue(boss) >= 0; if (f && !flying) specials++; flying = f;
+                if (player.IsDead && !wasDead) deaths++; wasDead = player.IsDead;
+            }
+            string row = $"{tier},{level},{weapon},{(skills ? "all" : "none")},{(boss == null || boss.IsDead ? t.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "timeout")},{deaths},{9999 - player.PotionCount},{loss},{specials},{player.MaxHp}\n";
+            PlayerController.CombatLog -= hook; Debug.Log("[BalancePlaytest] " + row.Trim() + " | " + string.Join(" / ", log)); return row;
+        } finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
     static string Trial(int level, string weapon, float speed, bool allocated = true, bool undergeared = false) {
         var root = new GameObject("BalancePlaytest");
         try {

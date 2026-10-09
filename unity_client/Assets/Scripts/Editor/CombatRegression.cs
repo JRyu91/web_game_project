@@ -271,6 +271,7 @@ public static class CombatRegression {
     }
 
     static void CheckGrowth() {
+        Check(GameData.XpToLevel(1) == 16 && GameData.XpToLevel(30) == 9955 && GameData.XpToLevel(80) == 176326 && GameData.XpToLevel(99) == 492436, "client xp curve != server items.js xpToLevel"); // 261009 XM 곡선 서버 값
         Check(CombatMath.StatDamageMultiplier(0) == 1f && Mathf.Abs(CombatMath.StatDamageMultiplier(100) - 3f) < 0.00001f, "STR/INT scaling");
         Check(Mathf.Abs(CombatMath.CritChance(100) - 0.1f) < 0.00001f && CombatMath.CritChance(495) == 0.3f, "LUK critical chance/cap");
         var rng = new System.Random(10); var baseline = new System.Random(10);

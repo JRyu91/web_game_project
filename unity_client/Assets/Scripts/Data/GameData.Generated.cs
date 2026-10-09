@@ -9,7 +9,10 @@ public static class GameData {
   public const int LEVEL_MAX = 100;
   public const int CHANNEL_CAP = 10;
   // xpToLevel(lv) = round(30 * lv^2 * (lv<=70 ? 1 : 1.05^(lv-70)))
-  public static long XpToLevel(int lv) { double v = 30.0 * lv * lv; if (lv > 70) v *= System.Math.Pow(1.05, lv - 70); return (long)System.Math.Round(v); }
+  // field/items.js xpToLevel 와 동일(261009 만렙 24h: 구간 배율 XM 로그 선형 보간). JS Math.round 와 맞추려고 Floor(x+0.5)
+  static readonly double[,] XM_K = { { 1, 0.5232 }, { 20, 0.4687 }, { 35, 0.327 }, { 50, 0.545 }, { 70, 0.3924 }, { 85, 0.6758 }, { 100, 0.3924 } };
+  static double XM(int lv) { for (int i = 1; i < 7; i++) if (lv <= XM_K[i, 0]) { double a = XM_K[i - 1, 0], x = XM_K[i - 1, 1], b = XM_K[i, 0], y = XM_K[i, 1]; return System.Math.Exp(System.Math.Log(x) + (System.Math.Log(y) - System.Math.Log(x)) * (lv - a) / (b - a)); } return XM_K[6, 1]; }
+  public static long XpToLevel(int lv) { double v = 30.0 * lv * lv; if (lv > 70) v *= System.Math.Pow(1.05, lv - 70); return (long)System.Math.Floor(v * XM(lv) + 0.5); }
   public static readonly WeaponDef[] Swords = new WeaponDef[] {
     new WeaponDef { level=0, name="낡은단검", kind="sword", dmgLo=4, dmgHi=6, spritePath="Weapons/L000_낡은단검" },
     new WeaponDef { level=5, name="청동단검", kind="sword", dmgLo=6, dmgHi=9, spritePath="Weapons/L005_청동단검" },

@@ -46,8 +46,8 @@ check('mass dismantle protects equipment and pays duplicates once', () => {
  const s=fresh(); s.inv.push({uid:s.nextUid++,slot:'weapon',kind:'staff',tier:3,enh:10});
  const item=s.inv.at(-1), stones=s.stones, gold=s.gold;
  assert.equal(I.disassemble(s,null,[item.uid,item.uid,s.equip.weapon]).ok,true);
- assert.equal(s.stones,stones+I.disassembleYield(item)); assert.equal(s.gold,gold); assert.equal(s.inv.length,1);
- assert.equal(I.disassemble(s,item.uid).ok,false); assert.equal(s.stones,stones+I.disassembleYield(item));
+ assert.equal(s.stones,stones+I.disassembleYield(item,s)); assert.equal(s.gold,gold); assert.equal(s.inv.length,1);
+ assert.equal(I.disassemble(s,item.uid).ok,false); assert.equal(s.stones,stones+I.disassembleYield(item,s));
 });
 check('dismantle rejects malformed batches without partial removal', () => {
  const s=fresh();s.inv.push({uid:s.nextUid++,slot:'weapon',kind:'staff',tier:3,enh:0});
