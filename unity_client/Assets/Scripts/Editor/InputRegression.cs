@@ -61,6 +61,7 @@ public static class InputRegression {
             cam.targetTexture = new RenderTexture(1280, 720, 24);
             var player = new GameObject("Player").AddComponent<PlayerController>();
             player.Init(false, "male", () => Array.Empty<MonsterController>());
+            CheckEffects();
             var net = new GameObject("Network").AddComponent<NetworkClient>();
             CheckDisposal(cam, player, net);
             var ui = new GameObject("GameUI").AddComponent<GameUI>();
@@ -89,6 +90,26 @@ public static class InputRegression {
             _nextFrame = Time.frameCount + 2;
             _started = true;
         } catch (Exception error) { Finish(false, error.ToString()); }
+    }
+
+    static void CheckEffects() {
+        foreach (var effect in new[] { (key: "obj_firepillar", frames: 9, fps: 12f, scale: 1f, order: 10), (key: "fx_boss_warning", frames: 8, fps: 10f, scale: 2f, order: 4) }) {
+            var frames = Game.Rendering.HitFx.Frames("Sprites/FX/" + effect.key + (effect.key == "obj_firepillar" ? "/anim1" : ""));
+            if (frames.Length != effect.frames) throw new Exception("FX frame count: " + effect.key);
+            var pos = new Vector3(40, Game.Data.WorldConfig.GroundY + (effect.key == "obj_firepillar" ? 1.6f : .6f), 0);
+            var go = Game.Rendering.HitFx.Play(effect.key, pos, effect.fps, effect.scale, false, effect.order);
+            if (go == null) throw new Exception("FX Play failed: " + effect.key);
+            var sr = go.GetComponent<SpriteRenderer>();
+            if (go.transform.position != pos || go.transform.localScale.x != effect.scale || sr.sortingOrder != effect.order)
+                throw new Exception("FX anchor/layer changed: " + effect.key);
+            for (int i = 0; i < frames.Length; i++) {
+                if (i > 0) go.GetComponent<Game.Rendering.HitFx>().Tick(1f / effect.fps + .00001f);
+                if (sr.sprite != frames[i] || sr.sprite.rect.width != 160 || sr.sprite.rect.height != 160 || sr.sprite.pixelsPerUnit != 40)
+                    throw new Exception("FX sequence/canvas/PPU: " + effect.key + " frame " + i);
+            }
+            go.GetComponent<Game.Rendering.HitFx>().Tick(1f / effect.fps + .00001f);
+        }
+        Debug.Log("[EffectsRegression] actual Play/Tick frames, anchors, scale, order, PPU PASS");
     }
 
     static void CheckDisposal(Camera cam, PlayerController player, NetworkClient net) {
@@ -185,7 +206,11 @@ public static class InputRegression {
         if (!_started || !EditorApplication.isPlaying || Time.frameCount < _nextFrame) return;
         try {
             switch (_step++) {
-                case 0: Queue(false); break;
+                case 0:
+                    if (GameObject.Find("Fx_obj_firepillar") != null || GameObject.Find("Fx_fx_boss_warning") != null)
+                        throw new Exception("FX did not disappear after its last frame");
+                    Debug.Log("[EffectsRegression] lifetime/destruction PASS");
+                    Queue(false); break;
                 case 1: Queue(true); break;
                 case 2: Queue(false); break;
                 case 3:

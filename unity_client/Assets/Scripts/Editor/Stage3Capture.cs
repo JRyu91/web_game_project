@@ -178,6 +178,64 @@ public static class Stage3Capture {
     static readonly StringBuilder _log = new StringBuilder();
     static int _f; static string _scene;
 
+    public static void EffectsCapture() {
+        Begin();
+        string tag = System.Environment.GetEnvironmentVariable("FX_REVIEW_TAG") ?? "after";
+        foreach (var effect in new[] { (key: "obj_firepillar/anim1", y: 1.6f, scale: 1f, order: 10), (key: "fx_boss_warning", y: .6f, scale: 2f, order: 4) }) {
+            Setup("effects", Zone.C, "m", "sword", 100);
+            _pl.GetComponent<ActorVisual>().Refresh();
+            var boss = Mob(20, PX + 3, 99999); boss.GetComponent<ActorVisual>().Refresh();
+            var sr = new GameObject("EffectReview").AddComponent<SpriteRenderer>();
+            sr.transform.position = new Vector3(PX, WorldConfig.GroundY + effect.y, 0);
+            sr.transform.localScale = Vector3.one * effect.scale; sr.sortingOrder = effect.order;
+            var frames = HitFx.Frames("Sprites/FX/" + effect.key);
+            if (frames.Length == 0) throw new System.Exception("Missing FX: " + effect.key);
+            for (int i = 0; i < frames.Length; i++) {
+                sr.sprite = frames[i];
+                Shot($"team_v6/f_round/code/final/fx_{tag}_{effect.key.Split('/')[0]}_{i:D2}");
+            }
+            Object.DestroyImmediate(sr.gameObject);
+        }
+        Clear();
+        Debug.Log("[EffectsCapture] PASS " + tag);
+    }
+
+    public static void WearPrototypeCapture() {
+        Begin();
+        string tag = System.Environment.GetEnvironmentVariable("WEAR_REVIEW_TAG") ?? "r2";
+        foreach (string g in new[] { "m", "f" }) foreach (var pose in new[] { (clip: "idle", frame: 0), (clip: "walk", frame: 3), (clip: "attack", frame: 5) }) foreach (bool flip in new[] { false, true }) {
+            Setup("wear", Zone.A, g, "sword");
+            int frame = g == "f" && pose.clip == "attack" ? 6 : pose.frame;
+            if (!ClipTable.Get($"main_{g}/{pose.clip}").frames.Contains(frame)) throw new System.Exception("Prototype must use a gameplay frame");
+            var anim = _pl.GetComponent<FrameAnimator>(); anim.Still(pose.clip, frame);
+            var body = _pl.GetComponent<SpriteRenderer>(); body.flipX = flip;
+            _pl.GetComponent<ActorVisual>().Refresh(); _pl.GetComponent<GearAttachment>().Apply();
+            // 장비와 몸의 동률 정렬을 제거하고 기존 무기 앞뒤(order 4~8)를 유지한다.
+            var wearRoot = new GameObject("WearLayers"); wearRoot.transform.SetParent(_pl.transform, false);
+            wearRoot.AddComponent<UnityEngine.Rendering.SortingGroup>().sortingOrder = 6;
+            var display = new GameObject("WearBody").AddComponent<SpriteRenderer>(); display.transform.SetParent(wearRoot.transform, false);
+            display.sprite = body.sprite; display.sharedMaterial = body.sharedMaterial; display.flipX = flip; display.sortingOrder = 0;
+            body.enabled = false;
+            foreach (int slots in new[] { 0, 1, 2, 3 }) {
+                var layers = new List<SpriteRenderer>();
+                foreach (var slot in new[] { (folder: "Helmets", bit: 1), (folder: "Armors", bit: 2) }) {
+                    if ((slots & slot.bit) == 0) continue;
+                    string key = $"Sprites/{slot.folder}/prototype_main_{g}_{pose.clip}_{frame:D2}";
+                    var texture = Resources.Load<Texture2D>(key);
+                    if (texture == null) throw new System.Exception("Missing prototype " + key);
+                    if (texture.width != body.sprite.rect.width || texture.height != body.sprite.rect.height) throw new System.Exception("Wear canvas mismatch " + key);
+                    var sr = new GameObject("WearPrototype").AddComponent<SpriteRenderer>(); sr.transform.SetParent(wearRoot.transform, false);
+                    sr.sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f), 40);
+                    sr.sharedMaterial = new Material(body.sharedMaterial); sr.sharedMaterial.mainTexture = texture;
+                    sr.sortingOrder = slot.bit == 1 ? 2 : 1; sr.flipX = flip; layers.Add(sr);
+                }
+                Shot($"team_v6/f_round/code/final/wear_{tag}_{g}_{pose.clip}_{frame:D2}_{(flip ? "L" : "R")}_{slots}");
+                foreach (var sr in layers) { Object.DestroyImmediate(sr.sharedMaterial); Object.DestroyImmediate(sr.sprite); Object.DestroyImmediate(sr.gameObject); }
+            }
+        }
+        Clear(); Debug.Log("[WearPrototypeCapture] PASS " + tag + " slots/canvas; visual quality requires review");
+    }
+
     public static void Run() { Begin(); RunAll(); }
 
     // E안 시스 런타임 검증: -executeMethod Game.EditorTools.Stage3Capture.Sheath → e_round/code/sheath_<g>_<무기>.png

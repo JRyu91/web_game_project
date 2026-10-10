@@ -1,9 +1,10 @@
 // Stage 3 무기 부착: 프레임별 손 테이블(Config/hand_table.json: 손 좌표 + 방향 인덱스 + 몸 앞/뒤) 조회, 보간 없음(프레임 바뀌면 즉시 스냅).
 // 무기 스프라이트 = WeaponsDir/<이름>/d0..d7 (8방향 사전 생성, 5/6 nearest, 손잡이 = 피벗). 런타임 회전/스케일 없음.
-// 투구·갑옷은 아이콘 전용(렌더 안 함). 반전은 몸 flipX 하나(무기는 좌표 x 반전 + flipX = 거울상 방향).
+// 착용 레이어는 원본 몸 프레임과 동기화한다. 원본 몸은 발 정렬·콜라이더 기준으로 유지한다.
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Game.Rendering {
 
@@ -46,6 +47,164 @@ public class GearAttachment : MonoBehaviour {
     Fx _fxInfo; (Vector2 lt, string mode) _sheathCfgW;
     SpriteRenderer _fxSr;
     Material _mat, _fxMat;
+    [System.Serializable] class WearPose { public string key, gender, clip; public int frame, x, y, width, height; }
+    [System.Serializable] class WearRect { public int x, y, width, height, cropX, cropY; }
+    [System.Serializable] class WearAtlas { public string path; public WearRect[] frames; }
+    [System.Serializable] class WearFile { public WearPose[] poses; public WearAtlas[] helmets, armors; }
+    [System.Serializable] class MaleWearFile { public WearPose[] poses; public WearAtlas defaultHead, defaultBody, staffDefaultBody, swordTrail; public WearAtlas[] helmets, armors; }
+    struct WearFrame { public Sprite sprite; public Vector2 offset; }
+    static WearFile _wearFile;
+    static MaleWearFile _maleWearFile;
+    static bool _maleWearLoaded;
+    static readonly Dictionary<Sprite, int> MalePoseIndex = new Dictionary<Sprite, int>();
+    static readonly Dictionary<Sprite, int> WearPoseIndex = new Dictionary<Sprite, int>();
+    static readonly Dictionary<string, WearFrame[]> WearSprites = new Dictionary<string, WearFrame[]>();
+    SpriteRenderer _displayBody, _armorSr, _helmetSr, _defaultHeadSr, _swordTrailSr;
+    Material _displayMat, _armorMat, _helmetMat, _defaultHeadMat, _swordTrailMat;
+    WearFrame[] _armorWear, _helmetWear;
+    WearFrame[] _maleArmor, _maleHelmet, _maleHead, _maleBody, _maleStaffBody, _maleSwordTrail;
+    int _helmetTier = -1, _armorTier = -1;
+    bool _bodyWasEnabled;
+    bool _staff;
+    static readonly Dictionary<Sprite, Sprite> StaffBodies = new Dictionary<Sprite, Sprite>();
+    static readonly HashSet<string> StaffBodySources = new HashSet<string>();
+
+    static void LoadStaffBody(string gender) {
+        if (!StaffBodySources.Add(gender)) return;
+        foreach (string clip in new[] { "attack", "attack1", "attack2" })
+        for (int i = 0; i < 11; i++) {
+            var original = Resources.Load<Sprite>($"{ActorScale.PlayerRoot}/{gender}/{clip}/frame_{i:00}");
+            var clean = Resources.Load<Sprite>($"{ActorScale.PlayerRoot}/{gender}/staff_{clip}/frame_{i:00}");
+            if (original != null && clean != null) StaffBodies[original] = clean;
+        }
+    }
+
+    static void LoadWear() {
+        if (_wearFile != null) return;
+        var file = Resources.Load<TextAsset>("Config/wearable_manifest");
+        if (file == null) return;
+        _wearFile = JsonUtility.FromJson<WearFile>(file.text);
+        for (int i = 0; i < _wearFile.poses.Length; i++) {
+            var p = _wearFile.poses[i];
+            var body = Resources.Load<Sprite>($"{ActorScale.PlayerRoot}/{p.gender}/{p.clip}/frame_{p.frame:00}");
+            if (body != null) WearPoseIndex[body] = i;
+        }
+    }
+
+    static WearFrame[] WearFrames(WearAtlas[] paths, int tier) {
+        if (paths == null || tier < 0 || tier >= paths.Length) return null;
+        return WearFrames(paths[tier], _wearFile.poses);
+    }
+
+    static WearFrame[] WearFrames(WearAtlas entry, WearPose[] poses) {
+        if (entry == null || string.IsNullOrEmpty(entry.path)) return null;
+        string path = entry.path;
+        if (WearSprites.TryGetValue(path, out var cached)) return cached;
+        var atlas = Resources.Load<Texture2D>(path);
+        if (atlas == null) { Debug.LogWarning($"[gear] no wearable atlas {path}"); return null; }
+        if (entry.frames == null || entry.frames.Length != poses.Length) { Debug.LogError($"[gear] invalid wearable frame count {path}"); return null; }
+        var frames = new WearFrame[poses.Length];
+        for (int i = 0; i < frames.Length; i++) {
+            var p = poses[i]; var r = entry.frames[i];
+            if (r.width <= 0 || r.height <= 0 || r.x < 0 || r.y < 0 || r.x + r.width > atlas.width || r.y + r.height > atlas.height || r.cropX < 0 || r.cropY < 0 || r.cropX + r.width > p.width || r.cropY + r.height > p.height) {
+                Debug.LogError($"[gear] invalid wearable rect {path}/{p.key}"); return null;
+            }
+            var sprite = Sprite.Create(atlas, new Rect(r.x, r.y, r.width, r.height), new Vector2(.5f, .5f), 40, 0, SpriteMeshType.FullRect);
+            sprite.name = p.key;
+            frames[i] = new WearFrame { sprite = sprite, offset = new Vector2((r.cropX + r.width * .5f - p.width * .5f) / 40f, (p.height * .5f - r.cropY - r.height * .5f) / 40f) };
+        }
+        return WearSprites[path] = frames;
+    }
+
+    public void SetWear(int helmetTier, int armorTier) {
+        LoadWear();
+        _helmetTier = helmetTier; _armorTier = armorTier;
+        if (!_maleWearLoaded) {
+            _maleWearLoaded = true;
+            var file = Resources.Load<TextAsset>("Config/male_wearable_manifest");
+            if (file != null) {
+                _maleWearFile = JsonUtility.FromJson<MaleWearFile>(file.text);
+                for (int i = 0; i < _maleWearFile.poses.Length; i++) {
+                    var p = _maleWearFile.poses[i];
+                    var body = Resources.Load<Sprite>($"{ActorScale.PlayerRoot}/{p.gender}/{p.clip}/frame_{p.frame:00}");
+                    if (body != null) MalePoseIndex[body] = i;
+                }
+            }
+        }
+        if (_anim != null && _anim.SourceKey == "main_m" && _maleWearFile != null) {
+            WearFrame[] Tier(WearAtlas[] entries, int tier) => entries != null && tier >= 0 && tier < entries.Length ? WearFrames(entries[tier], _maleWearFile.poses) : null;
+            _maleHelmet = Tier(_maleWearFile.helmets, helmetTier); _maleArmor = Tier(_maleWearFile.armors, armorTier);
+            _maleHead = WearFrames(_maleWearFile.defaultHead, _maleWearFile.poses);
+            _maleBody = WearFrames(_maleWearFile.defaultBody, _maleWearFile.poses);
+            _maleStaffBody = WearFrames(_maleWearFile.staffDefaultBody, _maleWearFile.poses);
+            _maleSwordTrail = WearFrames(_maleWearFile.swordTrail, _maleWearFile.poses);
+        }
+        bool maleReady = _anim != null && _anim.SourceKey == "main_m" && _maleHead != null && _maleBody != null && _maleStaffBody != null &&
+            (helmetTier < 0 || _maleHelmet != null) && (armorTier < 0 || _maleArmor != null);
+        // shortcut: 새 남자 착용은 ClipTable 선택 35프레임만 지원한다. ClipTable 변경 시 자산을 다시 베이크한다.
+        _helmetWear = maleReady || _wearFile == null ? null : WearFrames(_wearFile.helmets, helmetTier);
+        _armorWear = maleReady || _wearFile == null ? null : WearFrames(_wearFile.armors, armorTier);
+        ApplyWear();
+    }
+
+    void ApplyWear() {
+        if (_displayBody == null) return;
+        var body = _bodyRenderer.sprite;
+        _defaultHeadSr.enabled = false;
+        _swordTrailSr.enabled = false;
+        int malePose = -1;
+        bool maleReplacement = _bodyWasEnabled && _anim != null && _anim.SourceKey == "main_m" && body != null && MalePoseIndex.TryGetValue(body, out malePose) &&
+            (_helmetTier >= 0 || _armorTier >= 0) && _maleHead != null && (_staff ? _maleStaffBody : _maleBody) != null &&
+            (_helmetTier < 0 || _maleHelmet != null) && (_armorTier < 0 || _maleArmor != null);
+        if (maleReplacement) {
+            _bodyRenderer.enabled = false;
+            _displayBody.enabled = _armorTier < 0; _armorSr.enabled = _armorTier >= 0;
+            _defaultHeadSr.enabled = _helmetTier < 0; _helmetSr.enabled = _helmetTier >= 0;
+            _swordTrailSr.enabled = !_staff && _maleSwordTrail != null && _maleWearFile.poses[malePose].clip.StartsWith("attack");
+            void Part(SpriteRenderer sr, Material mat, WearFrame[] frames) {
+                if (!sr.enabled) return;
+                var frame = frames[malePose]; sr.sprite = frame.sprite; sr.flipX = _bodyRenderer.flipX; sr.color = _bodyRenderer.color;
+                sr.transform.localPosition = new Vector3(sr.flipX ? -frame.offset.x : frame.offset.x, frame.offset.y, 0);
+                if (mat != null) { mat.mainTexture = frame.sprite.texture; mat.SetFloat("_Flash", _bodyRenderer.sharedMaterial == null ? 0 : _bodyRenderer.sharedMaterial.GetFloat("_Flash")); }
+                else sr.sharedMaterial = _bodyRenderer.sharedMaterial;
+            }
+            Part(_displayBody, _displayMat, _staff ? _maleStaffBody : _maleBody); Part(_armorSr, _armorMat, _maleArmor);
+            Part(_defaultHeadSr, _defaultHeadMat, _maleHead); Part(_helmetSr, _helmetMat, _maleHelmet);
+            Part(_swordTrailSr, _swordTrailMat, _maleSwordTrail);
+            return;
+        }
+        Sprite display = body;
+        if (_staff && _anim != null) {
+            LoadStaffBody(_anim.SourceKey);
+            if (body != null && StaffBodies.TryGetValue(body, out var clean)) display = clean;
+        }
+        int pose = -1;
+        bool wearing = _bodyWasEnabled && body != null && WearPoseIndex.TryGetValue(body, out pose) && (_armorWear != null || _helmetWear != null);
+        bool showingBody = _bodyWasEnabled && (wearing || display != body);
+        _bodyRenderer.enabled = _bodyWasEnabled && !showingBody;
+        _displayBody.enabled = showingBody;
+        _armorSr.enabled = wearing && _armorWear != null;
+        _helmetSr.enabled = wearing && _helmetWear != null;
+        if (!showingBody) return;
+        _displayBody.sprite = display;
+        _displayBody.transform.localPosition = Vector3.zero;
+        if (_displayMat != null) _displayMat.mainTexture = display.texture;
+        else _displayBody.sharedMaterial = _bodyRenderer.sharedMaterial;
+        _displayBody.flipX = _armorSr.flipX = _helmetSr.flipX = _bodyRenderer.flipX;
+        _displayBody.color = _armorSr.color = _helmetSr.color = _bodyRenderer.color;
+        void Layer(SpriteRenderer sr, Material mat, WearFrame[] frames) {
+            if (!wearing || frames == null) return;
+            var frame = frames[pose]; sr.sprite = frame.sprite;
+            sr.transform.localPosition = new Vector3(_bodyRenderer.flipX ? -frame.offset.x : frame.offset.x, frame.offset.y, 0);
+            if (mat != null) mat.mainTexture = sr.sprite.texture;
+        }
+        Layer(_armorSr, _armorMat, _armorWear); Layer(_helmetSr, _helmetMat, _helmetWear);
+        var material = _bodyRenderer.sharedMaterial;
+        if (material != null) {
+            float flash = material.GetFloat("_Flash");
+            _displayMat?.SetFloat("_Flash", flash); _armorMat?.SetFloat("_Flash", flash); _helmetMat?.SetFloat("_Flash", flash);
+        }
+    }
 
     static void LoadHands() {
         _hands = new Dictionary<string, Hand>();
@@ -74,6 +233,7 @@ public class GearAttachment : MonoBehaviour {
 
     public void Init(SpriteRenderer bodyRenderer, FrameAnimator anim = null) {
         _bodyRenderer = bodyRenderer; _anim = anim;
+        _bodyWasEnabled = bodyRenderer.enabled;
         HandSlot = new GameObject("HandAnchor").transform;
         HandSlot.SetParent(transform, false);
         _weaponSr = new GameObject("Weapon").AddComponent<SpriteRenderer>();
@@ -83,6 +243,15 @@ public class GearAttachment : MonoBehaviour {
         _fxSr = new GameObject("WeaponFx").AddComponent<SpriteRenderer>(); // fx_layer_design §4: 같은 HandAnchor, localPosition 0
         _fxSr.transform.SetParent(HandSlot, false);
         if (sh != null) _fxSr.sharedMaterial = _fxMat = new Material(sh); // 텍스처가 달라 머티리얼은 따로(ActorVisual 배칭 주석 참고)
+        var wearRoot = new GameObject("BodyWear"); wearRoot.transform.SetParent(transform, false);
+        var group = wearRoot.AddComponent<SortingGroup>(); group.sortingOrder = bodyRenderer.sortingOrder; group.sortingLayerID = bodyRenderer.sortingLayerID;
+        SpriteRenderer Layer(string name, int order) {
+            var sr = new GameObject(name).AddComponent<SpriteRenderer>(); sr.transform.SetParent(wearRoot.transform, false); sr.sortingOrder = order; sr.enabled = false; return sr;
+        }
+        _displayBody = Layer("Body", 0); _armorSr = Layer("Armor", 1); _defaultHeadSr = Layer("Head", 2); _helmetSr = Layer("Helmet", 2);
+        _swordTrailSr = Layer("SwordTrail", 3);
+        if (sh != null) { _displayBody.sharedMaterial = _displayMat = new Material(sh); _armorSr.sharedMaterial = _armorMat = new Material(sh); _helmetSr.sharedMaterial = _helmetMat = new Material(sh); _defaultHeadSr.sharedMaterial = _defaultHeadMat = new Material(sh); }
+        if (sh != null) _swordTrailSr.sharedMaterial = _swordTrailMat = new Material(sh);
         SetFace(1);
     }
 
@@ -90,6 +259,7 @@ public class GearAttachment : MonoBehaviour {
     public void SetWeapon(string name) {
         if (_weaponName == name) { Apply(); return; }
         _weaponName = name;
+        _staff = !string.IsNullOrEmpty(name) && System.Array.Exists(Game.Data.GameData.Staves, w => System.IO.Path.GetFileName(w.spritePath) == name);
         _dirs = null; _fx = null; _sheath = null; _sheathFx = null;
         if (_fxCfg == null) LoadCfg();
         if (!string.IsNullOrEmpty(name)) {
@@ -125,10 +295,11 @@ public class GearAttachment : MonoBehaviour {
         }
     }
     void LateUpdate() => Apply();
-    void OnDestroy() { if (_mat != null) Destroy(_mat); if (_fxMat != null) Destroy(_fxMat); }
+    void OnDestroy() { if (_mat != null) Destroy(_mat); if (_fxMat != null) Destroy(_fxMat); if (_displayMat != null) Destroy(_displayMat); if (_armorMat != null) Destroy(_armorMat); if (_helmetMat != null) Destroy(_helmetMat); if (_defaultHeadMat != null) Destroy(_defaultHeadMat); if (_swordTrailMat != null) Destroy(_swordTrailMat); }
 
     // 현재 몸 프레임 → 손 위치/방향/앞뒤. 테이블에 없는 프레임은 숨김(허공 무기 방지).
     public void Apply() {
+        ApplyWear();
         if (_weaponSr == null) return;
         bool reacting = _anim != null && _anim.Reacting;
         if (_hands == null) LoadHands();
@@ -153,8 +324,8 @@ public class GearAttachment : MonoBehaviour {
         if (!show) return;
         var body = _bodyRenderer.sprite;
         bool flip = _bodyRenderer.flipX;
-        // 손 픽셀 중심(좌상 원점 캔버스) → 스프라이트 로컬(피벗 기준, y 위)
-        float lx = (x + 0.5f - body.pivot.x) / 40f, ly = (body.rect.height - y - 0.5f - body.pivot.y) / 40f;
+        // 구운 손잡이 픽셀 자체가 피벗에서 (+.5,-.5)px: 앵커에 다시 반 픽셀을 더하면 좌우 Point 샘플링이 달라진다.
+        float lx = Mathf.Round(x - body.pivot.x) / 40f, ly = Mathf.Round(body.rect.height - y - body.pivot.y) / 40f;
         HandSlot.localPosition = new Vector3(flip ? -lx : lx, ly, 0);
         _weaponSr.sprite = sheath ? _sheath : _dirs[dir];
         _weaponDir = dir;

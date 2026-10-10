@@ -1,7 +1,7 @@
 // 액터 스프라이트: 시간대 char 그레이딩(전역 _CharTint/_CharGrade) + 원본 텍셀 격자 1px 외곽선.
 // 외곽선 색은 전역 _ActorOutline (a=0 이면 끔) — ZoneController 가 존/시간대별로 설정.
 Shader "Game/ActorSprite" {
-    Properties { [PerRendererData] _MainTex ("Sprite", 2D) = "white" {} }
+    Properties { [PerRendererData] _MainTex ("Sprite", 2D) = "white" {} _Flash ("Hit Flash", Float) = 0 }
     SubShader {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
         Cull Off ZWrite Off Blend One OneMinusSrcAlpha

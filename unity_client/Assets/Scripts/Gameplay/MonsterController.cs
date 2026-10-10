@@ -74,7 +74,7 @@ public class MonsterController : MonoBehaviour {
     // 보스 특수 공격: 240px 안이면(근접 포함) 4초마다 공격 모션 impact 에서 불덩이 발사, 도착 시 근접과 같은 피해.
     // 근접만 있으면 지팡이(218px)에게 보스가 손도 못 댐(261009 형 신고 "드래곤이 불을 안 뿜음")
     const float BREATH_RANGE = 240f * PX_TO_UNIT, BREATH_CD = 4f, BREATH_SPEED = 160f * PX_TO_UNIT, BREATH_FPS = 10f; // 220→160: 날아가는 게 보이게
-    // 염제(20)·수령동지(21): 브레스 대신 플레이어 발밑 불기둥(obj_firepillar 128px), 불이 커지는 0.35초 뒤 아직 그 자리면 피해
+    // 염제(20)·수령동지(21): 브레스 대신 플레이어 발밑 불기둥(160px 여백 포함), 불이 커지는 0.35초 뒤 아직 그 자리면 피해
     const float PILLAR_DELAY = 0.35f, PILLAR_HALF = 24f * PX_TO_UNIT;
     float _pillarT = -1, _pillarX, _trailT;
     public static string BreathKey = "Sprites/FX/obj_firebreath/anim1";

@@ -241,7 +241,7 @@ public static class CombatRegression {
             var player = playerGo.AddComponent<PlayerController>(); player.Init(false, "male", () => Array.Empty<MonsterController>());
             var uiGo = new GameObject("LayoutUI"); uiGo.transform.SetParent(root.transform);
             var ui = uiGo.AddComponent<GameUI>(); ui.Init(cam, player, null, null);
-            foreach (var size in new[] { new Vector2Int(1280, 720), new Vector2Int(1280, 638), new Vector2Int(1920, 1018), new Vector2Int(393, 788), new Vector2Int(852, 329), new Vector2Int(2560, 1440) }) {
+            foreach (var size in new[] { new Vector2Int(1280, 720), new Vector2Int(1280, 638), new Vector2Int(1920, 1018), new Vector2Int(393, 788), new Vector2Int(852, 329), new Vector2Int(720, 329), new Vector2Int(2560, 1440) }) {
                 var texture = new RenderTexture(size.x, size.y, 24);
                 cam.targetTexture = texture; cam.aspect = (float)size.x / size.y;
                 foreach (float ground in new[] { -6.475f, -5.925f, -5.875f }) {
@@ -261,12 +261,15 @@ public static class CombatRegression {
                 if (compact) {
                     var menus = (List<UnityEngine.UI.Button>)Field(ui, "_menus").GetValue(ui);
                     Check(menus.All(button => ((RectTransform)button.transform).sizeDelta.y * uiZoom >= 44), "compact menu touch target below 44 pixels");
+                    if(size.x / uiZoom >= 720 && size.y / uiZoom < 480) {
+                        Check(menus.All(button => {var r=(RectTransform)button.transform;return r.anchoredPosition.x>=220&&-r.anchoredPosition.y+r.sizeDelta.y<=54;}), "short landscape menu leaves reserved top HUD row");
+                    }
                     var panels = (Dictionary<string, GameObject>)Field(ui, "_panels").GetValue(ui);
                     Check(panels.Values.All(panel => ((RectTransform)panel.transform).sizeDelta.y * uiZoom <= size.y - 19), "compact panel exceeds short viewport");
                 }
                 cam.targetTexture = null; UnityEngine.Object.DestroyImmediate(texture);
             }
-            Debug.Log("[CombatRegression] adaptive camera PASS: six viewport sizes, A/B/C footline/body bounds, HUD/world integer zoom, compact scroll and 44px touch");
+            Debug.Log("[CombatRegression] adaptive camera PASS: seven viewport sizes, A/B/C footline/body bounds, HUD/world integer zoom, compact scroll and 44px touch");
         } finally { WorldConfig.GroundY = oldGround; UnityEngine.Object.DestroyImmediate(root); }
     }
 

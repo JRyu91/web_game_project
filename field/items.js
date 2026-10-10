@@ -301,17 +301,24 @@ function sell(s, uid, uids) {
   return r.sold.length ? { ok: true, sell: r } : { ok: false, code: 'none_sold', sell: r };
 }
 
+function appearance(s) {
+  const get = slot => s.inv.find(i => i.uid === s.equip[slot]);
+  const weapon = get('weapon'), helmet = get('helmet'), armor = get('armor');
+  const wear = item => item ? { tier: item.tier, enh: item.enh } : null;
+  return { weapon: weapon ? { kind: weapon.kind, tier: weapon.tier, enh: weapon.enh } : null,
+    helmet: wear(helmet), armor: wear(armor) };
+}
+
 // 이관은 화면 상태만 받는다. 성장/장비/존은 세이브 권위값으로 다시 채운다.
 function transport(s, raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const finite = (v, min, max, fallback = min) => typeof v === 'number' && Number.isFinite(v) ? Math.min(max,Math.max(min,v)) : fallback;
   const maxHp = 60 + s.level * 16;
-  const weapon = s.inv.find(i=>i.uid===s.equip.weapon);
   const timers = Array.isArray(raw.skillTimers) ? raw.skillTimers : [];
   return {
     x:finite(raw.x,1.5,78.5,40), face:raw.face === -1 ? -1 : 1,
     hp:Math.floor(finite(raw.hp,raw.dead === true ? 0 : 1,maxHp,maxHp)), maxHp, level:s.level, exp:s.exp,
-    equip:{weapon:{kind:weapon.kind,tier:weapon.tier,enh:weapon.enh}},
+    equip:appearance(s),
     dead:raw.dead === true,
     skillTimers:s.skills.map(key=>({key,remaining:finite(timers.find(t=>t && t.key===key)?.remaining,0,COMBAT.skillCooldowns[Math.floor(SKILLS.findIndex(x=>x.key===key)/2)])})),
     potionCd:finite(raw.potionCd,0,5),attackCd:finite(raw.attackCd,0,2/3),hitDelay:finite(raw.hitDelay,0,2),
@@ -477,4 +484,4 @@ function admin(s, msg) {
 const OWNED = ['str', 'dex', 'intelligence', 'luk', 'statPoints', 'combat', 'zone', 'level', 'exp', 'gold', 'stones', 'potions', 'inv', 'nextUid', 'equip', 'skills', 'bagExpansions', 'autoSell', 'autoSellLevel', 'autoDisassemble', 'autoDisassembleLevel', 'pendingDrop', 'pendingSummon', 'summonSerial',
   'weaponKind', 'weaponTier', 'weaponEnh', 'helmetTier', 'helmetEnh', 'armorTier', 'armorEnh', 'gearClass', 'potionCount', 'killCountT19', 'killCountT20'];
 
-module.exports = { admin, addExp, allocateStat, allocateAuto, resetStats, STAT_RESET_COST, statPoints, COMBAT, spawnAllowed, transport, map, summonAck, learn, expand, autoSell, autoDisassemble, disassemble, disassembleYield, normalize, view, kill, equip, enhance, buy, sell, usePotion, summon, OWNED, ENH_SUCC, DESTROY_FROM, DESTROY_P, enhCost, potionPrice, sellPrice, xpToLevel, monExp };
+module.exports = { admin, addExp, allocateStat, allocateAuto, resetStats, STAT_RESET_COST, statPoints, COMBAT, spawnAllowed, appearance, transport, map, summonAck, learn, expand, autoSell, autoDisassemble, disassemble, disassembleYield, normalize, view, kill, equip, enhance, buy, sell, usePotion, summon, OWNED, ENH_SUCC, DESTROY_FROM, DESTROY_P, enhCost, potionPrice, sellPrice, xpToLevel, monExp };

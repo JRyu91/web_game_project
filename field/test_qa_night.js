@@ -4,6 +4,27 @@ const I = require('./items');
 let failures = 0;
 function check(name, run) { try { run(); console.log('PASS '+name); } catch(e) { failures++; console.error('FAIL '+name+': '+e.message); } }
 const fresh = () => I.normalize({});
+check('wear appearance follows saved inventory, rejects forged snapshot and clears unequipped slots', () => {
+ const s=fresh();
+ for (const slot of ['helmet','armor']) {
+  const item={uid:s.nextUid++,slot,kind:'',tier:0,enh:3}; s.inv.push(item); s.equip[slot]=item.uid;
+ }
+ const expected={weapon:{kind:'sword',tier:0,enh:0},helmet:{tier:0,enh:3},armor:{tier:0,enh:3}};
+ assert.deepEqual(I.appearance(s),expected);
+ assert.deepEqual(I.transport(s,{equip:{helmet:{tier:36},armor:{tier:36}}}).equip,expected);
+ const restored=I.normalize(JSON.parse(JSON.stringify(s)));
+ assert.deepEqual(I.appearance(restored),expected);
+ assert.equal(I.equip(s,'helmet',0).ok,true); assert.equal(I.appearance(s).helmet,null);
+ assert.equal(I.equip(s,'armor',0).ok,true); assert.equal(I.appearance(s).armor,null);
+});
+check('class-changing weapon clears incompatible worn appearance immediately', () => {
+ const s=I.normalize({level:100,helmetTier:20,armorTier:20});
+ const staff={uid:s.nextUid++,slot:'weapon',kind:'staff',tier:20,enh:0};s.inv.push(staff);
+ assert.equal(I.equip(s,'weapon',staff.uid).ok,true);
+ assert.equal(I.appearance(s).helmet,null);assert.equal(I.appearance(s).armor,null);
+ const helmet=s.inv.find(i=>i.slot==='helmet');assert.equal(I.equip(s,'helmet',helmet.uid).code,'class');
+ assert.deepEqual(I.appearance(I.normalize(JSON.parse(JSON.stringify(s)))),I.appearance(s));
+});
 check('selling equipped weapon leaves state intact', () => {
  const s=fresh(), before=JSON.stringify(s);
  assert.equal(I.sell(s,s.equip.weapon).code,'equipped'); assert.equal(JSON.stringify(s),before);

@@ -58,7 +58,7 @@ const roster = () =>
   [...livePlayers(), ...bots.values()].map(p => ({
     id: p.id, name: p.name, level: p.level, zone: p.save?.zone || '', bot: !p.save,
     gender: p.gender || 'male', x: p.x ?? p.snapshot?.x ?? 40, face: p.face ?? p.snapshot?.face ?? 1,
-    equip: (p.snapshot && p.snapshot.equip) || null,
+    equip: p.save ? I.appearance(p.save) : null,
   }));
 
 function send(ws, msg) {
@@ -766,6 +766,7 @@ wss.on('connection', (ws, req) => {
       if (r.ok && msg.type === 'kill') me.monsters.delete(msg.receipt);
       if (r.ok && msg.type === 'map') { me.monsters.clear(); broadcast({ type:'roster', roster:roster() }); }
       if (r.ok && msg.type !== 'inv') {
+        if (['equip', 'enhance', 'disassemble', 'sell'].includes(msg.type)) broadcast({ type: 'roster', roster: roster() });
         if (me.level !== me.save.level) { me.level = me.save.level; broadcast({ type: 'roster', roster: roster() }); }
       }
       });

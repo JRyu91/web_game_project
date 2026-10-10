@@ -5,7 +5,8 @@ using System;
 namespace Game.Network {
 
 [Serializable] public class EquipWeaponMsg { public string kind; public int tier; public int enh; }
-[Serializable] public class EquipMsg { public EquipWeaponMsg weapon; }
+[Serializable] public class EquipWearMsg { public int tier = -1; public int enh; }
+[Serializable] public class EquipMsg { public EquipWeaponMsg weapon; public EquipWearMsg helmet, armor; }
 [Serializable] public class RosterEntry { public float x = 40; public int face = 1; public string zone; public bool bot; public string id; public string name; public int level; public string gender; public EquipMsg equip; }
 
 [Serializable] public class TypeOnly { public string type; }

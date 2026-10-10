@@ -10,9 +10,9 @@ RES = b.RES
 FXSRC = os.path.join(b.ROOT, '..', 'unity_review/stage3/team_v6/d_round/dev/weapons_v2')
 ANCHOR = {'m': (70, 80), 'f': (70, 74)}          # hip 폼멜
 BACK = {'m': (68, 42), 'f': (68, 40)}            # back 폼멜(어깨 위)
-GROUND = {}  # idle 4프레임 몸 bbox 최하단 행
+GROUND = {}  # 보관 포즈는 이동 프레임의 가장 높은 발라인도 넘지 않는다.
 for s in 'mf':
-    GROUND[s] = min(Image.open(p).getbbox()[3] - 1 for p in glob.glob(f'{RES}/Sprites/CharactersBaked/main_{s}/idle/frame_*.png'))
+    GROUND[s] = min(Image.open(p).getbbox()[3] - 1 for clip in ('idle', 'walk') for p in glob.glob(f'{RES}/Sprites/CharactersBaked/main_{s}/{clip}/frame_*.png'))
 
 
 def pommel(a):
@@ -48,6 +48,11 @@ if __name__ == '__main__':
         fxs = [(os.path.basename(fp)[2:-4], Image.open(fp).convert('RGBA')) for fp in sorted(glob.glob(f'{fxd}/fx[0-9].png'))]
         def bk(ang): sp = bake(im, pm, ang, f); return sp, max(depth(q) for q in [sp] + [bake(x, pm, ang, f) for _, x in fxs])
         sp, dp = bk(210); mode, ang, hid = 'hip', 210, None
+        if '단검' in name:
+            for a_ in range(210, 231, 5):
+                sp_, dp_ = bk(a_)
+                if all(ANCHOR[s][1] + dp_ <= GROUND[s] for s in 'mf'):
+                    ang, sp, dp = a_, sp_, dp_; break
         if not all(ANCHOR[s][1] + dp <= GROUND[s] for s in 'mf'):
             mode, best = 'back', None
             for a_ in range(200, 216, 5):   # 지면 통과 + 몸 뒤 숨김 비율 최대
@@ -58,6 +63,7 @@ if __name__ == '__main__':
             if best is None: print('PENETRATE', name); mode, ang = 'FAIL', 210
             else: hid, ang, sp, dp = best
         A = BACK if mode == 'back' else ANCHOR
+        assert all(A[s][1] + dp <= GROUND[s] for s in 'mf'), f'ground penetration: {name}'
         out['weapons'][name] = {'mode': mode, 'angle': ang, 'pommel': pm, 'depth': dp, 'hidden': hid, 'clear_m': GROUND['m'] - A['m'][1] - dp, 'clear_f': GROUND['f'] - A['f'][1] - dp}
         print(name, ang, dp, out['weapons'][name]['clear_m'], out['weapons'][name]['clear_f'])
         if check: continue

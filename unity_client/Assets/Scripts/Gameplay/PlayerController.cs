@@ -171,7 +171,7 @@ public class PlayerController : MonoBehaviour {
     void RefreshGearVisual() {
         var w = CurrentWeapon;
         _gear.SetWeapon(System.IO.Path.GetFileName(w.spritePath)); // WeaponsDir 8방향(5/6)
-        // 투구·갑옷은 아이콘 전용(Stage 3 §3-5) — 몸 위에 렌더하지 않는다.
+        _gear.SetWear(HelmetTierIdx, ArmorTierIdx);
     }
 
     void Update() => Step(Time.deltaTime);
@@ -475,7 +475,9 @@ public class PlayerController : MonoBehaviour {
             dead = IsDead, respawnRemaining = _respawnTimer,
             hp = Hp, maxHp = MaxHp, level = Level, exp = Exp,
             equip = new Game.Network.EquipMsg {
-                weapon = new Game.Network.EquipWeaponMsg { kind = WeaponKind, tier = WeaponTierIdx, enh = WeaponEnhance }
+                weapon = new Game.Network.EquipWeaponMsg { kind = WeaponKind, tier = WeaponTierIdx, enh = WeaponEnhance },
+                helmet = HelmetTierIdx >= 0 ? new Game.Network.EquipWearMsg { tier = HelmetTierIdx, enh = HelmetEnhance } : null,
+                armor = ArmorTierIdx >= 0 ? new Game.Network.EquipWearMsg { tier = ArmorTierIdx, enh = ArmorEnhance } : null
             },
         };
     }

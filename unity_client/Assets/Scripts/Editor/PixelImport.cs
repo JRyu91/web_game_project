@@ -21,7 +21,9 @@ public class PixelImport : AssetPostprocessor {
         ti.wrapMode = TextureWrapMode.Clamp;
         ti.alphaIsTransparency = true;
         bool actor = assetPath.Contains("/Sprites/Monsters") || assetPath.Contains("/Sprites/Characters"); // *Baked / Characters_100 포함
-        if (actor || assetPath.Contains("/Sprites/Zones/") || assetPath.Contains("/Sprites/WeaponsDir/")) { // 무기 방향 스프라이트: 손잡이 = 캔버스 중심 피벗
+        bool effectFrame = assetPath.Contains("/Sprites/FX/obj_firepillar/") || assetPath.Contains("/Sprites/FX/fx_boss_warning/");
+        bool wearable = assetPath.Contains("/Sprites/Wearables/");
+        if (actor || effectFrame || wearable || assetPath.Contains("/Sprites/Zones/") || assetPath.Contains("/Sprites/WeaponsDir/")) { // 무기 방향 스프라이트: 손잡이 = 캔버스 중심 피벗
             ti.spriteImportMode = SpriteImportMode.Single;
             var s = new TextureImporterSettings();
             ti.ReadTextureSettings(s);

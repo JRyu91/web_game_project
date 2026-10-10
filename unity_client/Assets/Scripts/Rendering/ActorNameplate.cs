@@ -5,11 +5,13 @@ public class ActorNameplate : MonoBehaviour {
     TextMesh _label;
     TextMesh[] _outline;
     SpriteRenderer _body;
+    SpriteRenderer _helmet;
     MeshRenderer _mesh;
     static readonly System.Collections.Generic.List<ActorNameplate> All = new System.Collections.Generic.List<ActorNameplate>();
 
     public void Init(string text, Color color) {
         _body = GetComponent<SpriteRenderer>();
+        _helmet = transform.Find("BodyWear/Helmet")?.GetComponent<SpriteRenderer>();
         _label = new GameObject("Nameplate").AddComponent<TextMesh>();
         _label.transform.SetParent(transform, false);
         _label.richText = false;
@@ -32,7 +34,10 @@ public class ActorNameplate : MonoBehaviour {
     void LateUpdate() {
         if (_label == null || _body == null || _body.sprite == null) return;
         var bounds = SpriteBBox.Get(_body.sprite);
-        _label.transform.localPosition = new Vector3(_body.flipX ? -bounds.center.x : bounds.center.x, bounds.yMax + 0.2f, 0);
+        float top = bounds.yMax;
+        if (_helmet != null && _helmet.enabled && _helmet.sprite != null)
+            top = Mathf.Max(top, _helmet.transform.localPosition.y + _helmet.sprite.bounds.max.y);
+        _label.transform.localPosition = new Vector3(_body.flipX ? -bounds.center.x : bounds.center.x, top + 0.2f, 0);
         // 같은 자리에 선 캐릭터끼리 이름표가 겹치면 먼저 생긴 이름표 위로 한 줄씩 쌓는다(목록 순서 = 생성 순서)
         for (int i = 0, guard = 0, idx = All.IndexOf(this); i < idx && guard < 8; i++) {
             var other = All[i];

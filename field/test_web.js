@@ -7,16 +7,18 @@ const WebSocket = require('ws');
 const base = process.argv.slice(2).find(x=>!x.startsWith('--')) || 'http://localhost:18080';
 const mobile=process.argv.includes('--mobile');
 const checkPeer=process.argv.includes('--peer');
+const checkEquipment=process.argv.includes('--equipment');
+assert(!checkEquipment || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'equipment fixture is local-only');
 const checkSystems=process.argv.includes('--systems'),systemResponses=new Map();
 const checkChat=process.argv.includes('--chat'),chats=[],invReqs=[];
 assert(!checkSystems || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'systems fixture is local-only');
 assert(!checkPeer || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'peer fixture is local-only');
 const stage=new URL(base).host.replace(/[^a-zA-Z0-9_-]/g,'_');
-const captureName=`web-${stage}-${mobile?(process.argv.includes('--short')?'mobile-short':'mobile'):'desktop'}`;
+const captureName=`web-${stage}-${process.argv.includes('--female')?'female-':''}${mobile?(process.argv.includes('--short')?'mobile-short':'mobile'):'desktop'}`;
 const out = path.resolve(__dirname, '../unity_client/Logs');
 const account = 'webqa_' + crypto.randomBytes(6).toString('hex');
 const password = crypto.randomBytes(16).toString('hex');
-let rewardCapture, ws, peer, peerPresent=false, seq = 0, kills = 0, joined = 0, latest, cookie;
+let rewardCapture, ws, peer, peerPresent=false, peerRow, peerInv, seq = 0, kills = 0, joined = 0, latest, cookie;
 const peerId='peer_'+crypto.randomBytes(6).toString('hex');
 const pending = new Map(), errors = [], notes = [];
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -47,11 +49,12 @@ async function evaluate(expression) {
       if(/Exception|\[net\]|\[save\]|\[fps\]|\[fx\]/.test(text)) notes.push(text);
     }
     if(e.method==='Network.webSocketFrameReceived') {
-      try {const m=JSON.parse(e.params.response.payloadData);if(m.type==='chat')chats.push(m.text);if(m.type==='inv')invReqs.push(m.req+(m.ok?'':':'+m.code));if(m.roster)peerPresent=m.roster.some(p=>p.id===peerId);if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
+      try {const m=JSON.parse(e.params.response.payloadData);if(m.type==='chat')chats.push(m.text);if(m.type==='inv')invReqs.push(m.req+(m.ok?'':':'+m.code));if(m.roster){peerRow=m.roster.find(p=>p.id===peerId);peerPresent=!!peerRow;}if(m.type==='inv') {if(m.seq>=900001)systemResponses.set(m.seq,m);if(m.req==='join'&&m.ok)joined++;if(m.req==='kill'&&m.ok){kills++;if(!rewardCapture)rewardCapture=pause(200).then(()=>call('Page.captureScreenshot',{format:'png'})).then(r=>{fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,captureName+'-drop.png'),Buffer.from(r.data,'base64'));});}if(m.state)latest=m.state;}} catch {}
     }
   });
   await new Promise(resolve=>ws.once('open',resolve));
   await call('Runtime.enable');await call('Network.enable');await call('Page.enable');
+  if(checkEquipment&&!mobile) await call('Emulation.setDeviceMetricsOverride',{width:1600,height:1000,deviceScaleFactor:1,mobile:false});
   if(process.argv.includes('--stats')&&!mobile) await call('Emulation.setDeviceMetricsOverride',{width:1280,height:1304,deviceScaleFactor:1,mobile:false});
   const short=process.argv.includes('--short'); // 짧은 가로 모바일
   if(mobile){await call('Emulation.setDeviceMetricsOverride',{width:short?852:393,height:short?393:852,deviceScaleFactor:1,mobile:true});await call('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});}
@@ -63,7 +66,7 @@ async function evaluate(expression) {
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   const adminPw=process.argv.includes('--admin')&&process.env.ADMIN_PASSWORD; // 로컬 관리자(메모리 서버 시드)
   if(adminPw) await evaluate(`const f=document.getElementById('auth');f.elements.id.value='admin';f.elements.pw.value=${JSON.stringify(adminPw)};f.requestSubmit();`);
-  else await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.requestSubmit();`);
+  else await evaluate(`document.getElementById('mode').click();const f=document.getElementById('auth');f.elements.id.value=${JSON.stringify(account)};f.elements.pw.value=${JSON.stringify(password)};f.elements.name.value='웹검증${account.slice(-4)}';f.elements.gender.value=${JSON.stringify(process.argv.includes('--female')?'female':'male')};f.requestSubmit();`);
   await until(()=>evaluate("!document.getElementById('ready').hidden"),'signup and login');
   assert.equal(await evaluate("document.cookie.includes('game_session')"),false,'session must be HttpOnly');
   await evaluate("document.getElementById('play').click()");
@@ -132,6 +135,50 @@ async function evaluate(expression) {
     const selling=await request(900004,{type:'auto_sell',enabled:true,level:0});assert(selling.ok&&selling.state.autoSell&&!selling.state.autoDisassemble);
     console.log('PASS real WebGL natural level-up -> allocation/rejection and exclusive automatic policies');
   }
+  let restoredWear;
+  if(checkEquipment) {
+    assert(latest.level===100&&latest.inv.length>=116&&latest.invCap===200&&!latest.pendingDrop,'run against disposable equipment fixture with drop space');
+    let equipmentSeq=910000;
+    async function equip(slot,uid) {
+      const seq=++equipmentSeq;
+      await evaluate(`window.gameSocket.send(${JSON.stringify(JSON.stringify({type:'equip',slot,uid,seq}))})`);
+      await until(()=>systemResponses.has(seq),'equipment ACK');
+      const r=systemResponses.get(seq);assert.equal(r.ok,true,r.code);assert.equal(r.state.equip[slot],uid);
+    }
+    async function shot(tag,settle=400){if(settle)await pause(settle);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-equipment-'+tag+'.png'),Buffer.from(r.data,'base64'));}
+    const owned=latest.inv.slice(), weapon=(kind,tier)=>owned.find(i=>i.slot==='weapon'&&i.kind===kind&&i.tier===tier);
+    await shot('before');
+    if(!mobile) {
+      await evaluate("gameInstance.SendMessage('GameUI','Show','inv')");await pause(600);
+      const b=await evaluate("(()=>{const c=document.getElementById('unity-canvas'),r=c.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,rw:c.width,rh:c.height};})()");
+      const z=Math.max(1,Math.min(Math.floor(b.rw/1280),Math.floor(b.rh/720))),w=b.rw/z,h=b.rh/z;
+      assert(w>=1000&&h>=640,'desktop inventory layout');
+      async function click(x,y){const p={x:b.x+x*z*b.w/b.rw,y:b.y+y*z*b.h/b.rh};await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...p});await pause(100);await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...p});await pause(300);}
+      const left=w/2-300,top=h/2-310,helmet=latest.equip.helmet;
+      await click(left+160,top+96); // second equipped row is helmet
+      await click(left+356,top+274);
+      await until(()=>latest.equip.helmet===0,'actual inventory mouse unequip');await shot('ui-unequip');
+      await click(left+356,top+274);
+      await until(()=>latest.equip.helmet===helmet,'actual inventory mouse re-equip');await shot('ui-equip');
+      await evaluate("gameInstance.SendMessage('GameUI','Show','')");
+      console.log('PASS actual Unity inventory mouse selection -> unequip/re-equip server ACK');
+    }
+    await equip('helmet',0);await equip('armor',0);await shot('bare');
+    for(const item of owned.filter(i=>i.slot==='weapon'))await equip('weapon',item.uid);
+    for(const slot of ['helmet','armor'])for(const item of owned.filter(i=>i.slot===slot)) {
+      await equip('weapon',weapon(item.tier>=21?'staff':'sword',20).uid);await equip(slot,item.uid);
+    }
+    await equip('weapon',weapon('sword',20).uid);
+    for(const slot of ['helmet','armor'])await equip(slot,owned.find(i=>i.slot===slot&&i.tier===20).uid);
+    await shot('warrior');
+    if(process.argv.includes('--shots'))for(let n=0;n<24;n++){await pause(40);await shot('warrior-motion'+n,0);}
+    await equip('weapon',weapon('staff',20).uid);assert.equal(latest.equip.helmet,0);assert.equal(latest.equip.armor,0);
+    for(const slot of ['helmet','armor'])await equip(slot,owned.find(i=>i.slot===slot&&i.tier===36).uid);
+    await shot('mage');
+    if(process.argv.includes('--shots'))for(let n=0;n<24;n++){await pause(40);await shot('mage-motion'+n,0);}
+    restoredWear={...latest.equip};
+    console.log('PASS real WebGL all 116 equipment items ACK, slot unequip, warrior/mage incompatibility clear, low/high rendered captures');
+  }
   const before={gold:latest.gold,level:latest.level};
   // Pausing transport freezes gameplay; reload must restore persisted server progression.
   await evaluate("window.gameSocket.close()");
@@ -141,14 +188,25 @@ async function evaluate(expression) {
   await evaluate("document.getElementById('play').click()");
   await until(()=>joined>=2,'rejoin',180000);
   assert(latest.gold>=before.gold&&latest.level>=before.level,'progress retained after reload');
+  if(checkEquipment){assert.deepEqual(latest.equip,restoredWear,'equipment restored after actual browser reload');console.log('PASS WebGL equipment reload persistence');}
   if(checkSystems)assert(latest.str>=1&&latest.autoSell&&!latest.autoDisassemble,'allocated stats and automatic policy retained after reload');
   fs.mkdirSync(out,{recursive:true});
   if(checkPeer){
     peer=new WebSocket(base.replace(/^http/,'ws'));
-    await new Promise((resolve,reject)=>{peer.once('error',reject);peer.once('open',()=>peer.send(JSON.stringify({type:'join',id:peerId,name:'퇴장검증',gender:'female'})));peer.on('message',data=>{const m=JSON.parse(data);if(m.type==='inv'&&m.req==='join'&&m.ok)resolve();});});
+    await new Promise((resolve,reject)=>{peer.once('error',reject);peer.once('open',()=>peer.send(JSON.stringify({type:'join',id:peerId,name:'퇴장검증',gender:'male'})));peer.on('message',data=>{const m=JSON.parse(data);if(m.type==='inv'&&m.req==='join'&&m.ok){peerInv=m.state;resolve();}});});
     await until(()=>peerPresent,'remote roster arrival');
     peer.send(JSON.stringify({type:'pos',x:12,face:-1}));await pause(1200);
     const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-peer.png'),Buffer.from(shot.data,'base64'));
+    if(checkEquipment) {
+      assert.equal(peerRow.equip.helmet.tier,20);assert.equal(peerRow.equip.armor.tier,20);
+      for(const slot of ['helmet','armor'])peer.send(JSON.stringify({type:'equip',slot,uid:0}));
+      await until(()=>peerRow&&!peerRow.equip.helmet&&!peerRow.equip.armor,'real remote wear unequip');await pause(500);
+      let r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-peer-bare.png'),Buffer.from(r.data,'base64'));
+      for(const slot of ['helmet','armor'])peer.send(JSON.stringify({type:'equip',slot,uid:peerInv.equip[slot]}));
+      await until(()=>peerRow?.equip.helmet?.tier===20&&peerRow?.equip.armor?.tier===20,'real remote wear restore');await pause(500);
+      r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-peer-wear.png'),Buffer.from(r.data,'base64'));
+      console.log('PASS real remote initial wear -> immediate unequip/restore roster and rendered captures');
+    }
     peer.close();await until(()=>!peerPresent,'remote roster removal');await pause(500);
     console.log('PASS real peer join/position/leave; peer screenshot and final screenshot require visual review');
   }
@@ -165,8 +223,9 @@ async function evaluate(expression) {
       else{await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...p});await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...p});}
       await pause(500);
     }
-    const columns=Math.max(1,Math.min(6,Math.floor((width-20)/120)));
-    await click(compact?point(10+(4%columns+.5)*(width-20)/columns,116+Math.floor(4/columns)*48):point(width-125,25));
+    const landscape=width>=720&&height<480,left=landscape?220:10,top=landscape?32:116;
+    const columns=Math.max(1,Math.min(adminPw?7:6,Math.floor((width-left-10)/(landscape?80:120))));
+    await click(compact?point(left+(4%columns+.5)*(width-left-10)/columns,top+Math.floor(4/columns)*48):point(width-125,25));
     const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-stats.png'),Buffer.from(shot.data,'base64'));
     if(mobile){
       const start=point(width/2,height/2+100);
@@ -198,8 +257,9 @@ async function evaluate(expression) {
     assert(Math.abs(bounds.renderWidth/bounds.renderHeight-bounds.width/bounds.height)<0.03,'Unity render aspect must track display aspect');
     assert(bounds.width>=300&&bounds.height>(short?200:300),'usable mobile render surface');
     const point=(x,y)=>({x:bounds.x+x*bounds.width/bounds.renderWidth,y:bounds.y+y*bounds.height/bounds.renderHeight});
-    const columns=Math.max(1,Math.min(7,Math.floor((bounds.renderWidth-20)/120)));
-    const touch=point(10+(bounds.renderWidth-20)/columns/2,116);
+    const landscapeMenu=bounds.renderWidth>=720&&bounds.renderHeight<480,left=landscapeMenu?220:10,top=landscapeMenu?32:116;
+    const columns=Math.max(1,Math.min(adminPw?7:6,Math.floor((bounds.renderWidth-left-10)/(landscapeMenu?80:120))));
+    const touch=point(left+(bounds.renderWidth-left-10)/columns/2,top);
     await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[touch]});await pause(100);
     await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await pause(1000);
     const menu=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-touch-menu.png'),Buffer.from(menu.data,'base64'));
@@ -219,6 +279,12 @@ async function evaluate(expression) {
     assert(Math.abs(landscape.renderWidth/landscape.renderHeight-landscape.width/landscape.height)<0.03,'orientation updates Unity render aspect');
     assert(landscape.x>=-1&&landscape.right<=landscape.viewportWidth+1&&landscape.y>=landscape.toolbarBottom-1&&landscape.bottom<=landscape.viewportHeight+1,'landscape canvas fits toolbar and viewport');
     const rotated=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-landscape.png'),Buffer.from(rotated.data,'base64'));
+    if(checkEquipment){
+      await call('Emulation.setDeviceMetricsOverride',{width:720,height:393,deviceScaleFactor:1,mobile:true});await pause(1500);
+      const fitted=await evaluate("(()=>{const r=document.getElementById('unity-canvas').getBoundingClientRect();return r.x>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1})()");
+      assert(fitted,'720px landscape canvas fits viewport');
+      const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-landscape720.png'),Buffer.from(r.data,'base64'));
+    }
     console.log('Mobile menu tap, scroll and close injected; screenshots require visual review. Chromium emulation is not Safari.');
   }
   assert.equal(errors.length,0,errors.join('\n'));

@@ -656,18 +656,20 @@ public class GameUI : MonoBehaviour {
             foreach (var text in card.GetComponentsInChildren<Text>(true)) text.fontSize = 14;
         ToastBg(); // 재배치(SetParent)로 형제 순서가 바뀌므로 토스트·배경을 다시 맨 위로
         if (!_mobile) return;
-        int columns = Mathf.Max(1, Mathf.Min(_menus.Count, Mathf.FloorToInt((width - 20) / 120)));
-        float menuWidth = (width - 20f) / columns;
+        bool shortLandscape = width >= 720 && height < 480;
+        float menuLeft = shortLandscape ? 220 : 10, menuTop = shortLandscape ? 10 : 94;
+        int columns = Mathf.Max(1, Mathf.Min(_menus.Count, Mathf.FloorToInt((width - menuLeft - 10) / (shortLandscape ? 80 : 120))));
+        float menuWidth = (width - menuLeft - 10) / columns;
         for (int i = 0; i < _menus.Count; i++) {
             var rect = (RectTransform)_menus[i].transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
-            rect.anchoredPosition = new Vector2(10 + i % columns * menuWidth, -94 - i / columns * 48);
+            rect.anchoredPosition = new Vector2(menuLeft + i % columns * menuWidth, -menuTop - i / columns * 48);
             rect.sizeDelta = new Vector2(menuWidth - 4, 44);
             ResizeButtonText(_menus[i], menuWidth - 4, 44);
         }
-        _channel.rectTransform.anchoredPosition = new Vector2(-10, -10);
-        _versionLabel.rectTransform.anchorMin = _versionLabel.rectTransform.anchorMax = _versionLabel.rectTransform.pivot = new Vector2(1, 1); _versionLabel.rectTransform.anchoredPosition = new Vector2(-10, -40); // 모바일: 하단 스킬 카드와 안 겹치게 채널 아래
-        _toast.rectTransform.anchoredPosition = new Vector2(0, -98 - Mathf.CeilToInt((float)_menus.Count / columns) * 48);
+        _channel.rectTransform.anchoredPosition = new Vector2(-10, shortLandscape ? -58 : -10);
+        _versionLabel.rectTransform.anchorMin = _versionLabel.rectTransform.anchorMax = _versionLabel.rectTransform.pivot = new Vector2(1, 1); _versionLabel.rectTransform.anchoredPosition = new Vector2(-10, shortLandscape ? -86 : -40); // 모바일: 하단 스킬 카드와 안 겹치게 채널 아래
+        _toast.rectTransform.anchoredPosition = new Vector2(0, -menuTop - 4 - Mathf.CeilToInt((float)_menus.Count / columns) * 48);
         _toast.rectTransform.sizeDelta = new Vector2(width - 20, 52);
         _toast.horizontalOverflow = HorizontalWrapMode.Wrap;
         foreach (var panel in _panels) {
