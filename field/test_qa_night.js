@@ -4,6 +4,31 @@ const I = require('./items');
 let failures = 0;
 function check(name, run) { try { run(); console.log('PASS '+name); } catch(e) { failures++; console.error('FAIL '+name+': '+e.message); } }
 const fresh = () => I.normalize({});
+check('all equipment names identify their type without changing stored identity', () => {
+ const s=fresh();
+ s.inv=[];s.bagExpansions=56;
+ for(const slot of ['weapon','helmet','armor']) {
+  for(const kind of slot==='weapon'?['sword','staff']:['']) {
+   for(let tier=0;tier<(slot==='weapon'?21:37);tier++)s.inv.push({uid:s.nextUid++,slot,kind,tier,enh:0});
+  }
+ }
+ s.equip={weapon:s.inv[0].uid,helmet:0,armor:0};
+ s.pendingDrop={uid:s.nextUid++,slot:'helmet',kind:'',tier:36,enh:0};
+ const before=JSON.stringify(s),state=I.view(s);
+ assert.equal(state.inv.length,116);
+ for(const item of state.inv) {
+  const suffix=item.slot==='helmet'?' 투구':item.slot==='armor'?' 갑옷':item.kind==='staff'?'지팡이':null;
+  if(suffix)assert.ok(item.name.endsWith(suffix),item.name);
+  assert.ok(!/(투구 투구|갑옷 갑옷|지팡이.*지팡이)/.test(item.name),item.name);
+ }
+ const name=(slot,kind,tier)=>state.inv.find(i=>i.slot===slot&&i.kind===kind&&i.tier===tier).name;
+ assert.equal(name('helmet','',36),'적룡 투구');assert.equal(name('armor','',36),'적룡 갑옷');
+ assert.equal(name('weapon','staff',20),'적룡 지팡이');assert.equal(name('weapon','sword',20),'오메가 검');
+ assert.equal(name('weapon','sword',18),'종말의낫');assert.equal(name('weapon','staff',0),'나무지팡이');
+ assert.equal(state.pendingDrop.name,'적룡 투구');assert.equal(JSON.stringify(s),before);
+ assert.deepEqual(I.view(I.normalize(JSON.parse(before))),state);
+ assert.equal(I.autoSell(s,true,100).drop.item.name,'적룡 투구');
+});
 check('wear appearance follows saved inventory, rejects forged snapshot and clears unequipped slots', () => {
  const s=fresh();
  for (const slot of ['helmet','armor']) {

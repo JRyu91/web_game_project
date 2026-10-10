@@ -61,7 +61,7 @@ async function evaluate(expression) {
   await call('Network.clearBrowserCookies');
   await call('Page.navigate',{url:base});
   await until(()=>evaluate("!!document.getElementById('auth')"),'login form');
-  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.10');
+  assert.equal(await evaluate('document.title'), '시간 낭비의 숲 · v3.0.11');
   assert.equal((await fetch(base+'/server.js')).status,404,'server source must not be public');
   assert([403,404].includes((await fetch(base+'/web/%2e%2e/server.js')).status),'encoded path traversal');
   const adminPw=process.argv.includes('--admin')&&process.env.ADMIN_PASSWORD; // 로컬 관리자(메모리 서버 시드)

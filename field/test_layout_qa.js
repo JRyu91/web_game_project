@@ -10,15 +10,16 @@ async function evaluate(expression){const r=await call('Runtime.evaluate',{expre
  const page=await(await fetch('http://localhost:9223/json/new?about:blank',{method:'PUT'})).json();socket=new WebSocket(page.webSocketDebuggerUrl);
  socket.on('message',data=>{const r=JSON.parse(data);if(r.method==='Runtime.exceptionThrown')errors.push(r.params.exceptionDetails.text);if(r.method==='Page.javascriptDialogOpening'){errors.push(r.params.message);call('Page.handleJavaScriptDialog',{accept:true}).catch(()=>{});}if(r.id){const p=pending.get(r.id);if(!p)return;pending.delete(r.id);r.error?p.reject(Error(r.error.message)):p.resolve(r.result);}});
  await new Promise(r=>socket.once('open',r));await call('Page.enable');await call('Runtime.enable');
- for(const [width,height,mobile] of [[1280,800,false],[1280,1304,false],[1920,1400,false],[1280,500,false],[393,852,true],[852,393,true]]){
+ for(const [width,height,mobile] of [[1280,800,false],[1280,1304,false],[1920,1400,false],[1280,500,false],[393,852,true],[402,874,true],[402,700,true],[402,420,true],[852,393,true],[874,402,true]]){
   await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile});
   await call('Page.navigate',{url:base});
   for(let n=0;n<100;n++){if(await evaluate("document.readyState==='complete' && !!document.getElementById('game') && document.styleSheets.length>0"))break;await new Promise(r=>setTimeout(r,50));}
-  await evaluate("document.getElementById('entry').hidden=true;document.getElementById('game').hidden=false;document.body.classList.add('playing');document.getElementById('loading').textContent='';");
+  await evaluate("document.getElementById('entry').hidden=true;document.getElementById('game').hidden=false;document.body.classList.add('playing');document.getElementById('loading').textContent='';document.getElementById('chat').hidden=false;");
   for(const expanded of [false,true]){
    await evaluate(`document.getElementById('game').classList.toggle('expanded',${expanded});`);
-   const dimensions=await evaluate(`(()=>{const rect=id=>{const r=document.getElementById(id).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom,right:r.right};};return {canvas:rect('unity-canvas'),toolbar:rect('toolbar'),game:rect('game'),touch:getComputedStyle(document.getElementById('unity-canvas')).touchAction,width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};})()`);
-   assert.equal(dimensions.touch,'none');assert.equal(dimensions.overflow,false,'horizontal page overflow');
+   await new Promise(r=>setTimeout(r,50));
+   const dimensions=await evaluate(`(()=>{const rect=id=>{const r=document.getElementById(id).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom,right:r.right};};return {canvas:rect('unity-canvas'),toolbar:rect('toolbar'),game:rect('game'),chat:rect('chat'),touch:getComputedStyle(document.getElementById('unity-canvas')).touchAction,width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};})()`);
+   assert(Math.abs(dimensions.game.height-dimensions.height)<1,'game must use visible viewport');assert(Math.abs(dimensions.game.y)<1,'game visible viewport origin');assert(dimensions.chat.bottom<=dimensions.height+1,'chat must stay above browser controls');assert(dimensions.chat.y>=dimensions.canvas.bottom-1,'chat overlaps canvas');assert.equal(dimensions.touch,'none');assert.equal(dimensions.overflow,false,'horizontal page overflow');
    assert(dimensions.canvas.height>100,'usable render height');
    assert(dimensions.canvas.x>=-1&&dimensions.canvas.right<=dimensions.width+1,'canvas horizontal fit');
    assert(dimensions.canvas.y>=dimensions.toolbar.bottom-1,'toolbar overlaps canvas');

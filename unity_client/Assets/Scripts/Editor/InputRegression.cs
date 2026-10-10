@@ -163,6 +163,9 @@ public static class InputRegression {
                 new InvItem { uid = 4, slot = "armor", tier = 0, name = "미장착갑옷" }
             } };
         ui.OnInv(new InvMsg { req = "join", ok = true, state = state }); ui.SelectUid(4);
+        var player = (PlayerController)typeof(GameUI).GetField("_pl", flags).GetValue(ui);
+        var helmet = player.GetComponentsInChildren<SpriteRenderer>(true).First(sr => sr.name == "Helmet");
+        if (!helmet.enabled || helmet.sprite == null || helmet.sprite.texture == null) throw new Exception("Wearable sprite cache survived Play Mode with destroyed objects");
         var rows = (System.Collections.Generic.List<Button>)typeof(GameUI).GetField("_rows", flags).GetValue(ui);
         if (!rows[0].GetComponentInChildren<Text>(true).text.Contains("장착검") || !rows[1].GetComponentInChildren<Text>(true).text.Contains("장착투구")) throw new Exception("Equipped items are not first");
         if (rows[0].image.color.g <= rows[0].image.color.r) throw new Exception("Equipped item has no green highlight");

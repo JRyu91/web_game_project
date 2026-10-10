@@ -35,7 +35,7 @@ public class GearAttachment : MonoBehaviour {
     Sprite[][] _fx; // [dir][frame]
     Sprite _sheath;
     string _weaponName;
-    int _weaponDir;
+    int _weaponDir, _weaponEnhance;
     [System.Serializable] class TipEntry { public string key; public float x, y; }
     [System.Serializable] class TipFile { public TipEntry[] tips; }
     static Dictionary<string, Vector2> _tips;
@@ -68,6 +68,14 @@ public class GearAttachment : MonoBehaviour {
     bool _staff;
     static readonly Dictionary<Sprite, Sprite> StaffBodies = new Dictionary<Sprite, Sprite>();
     static readonly HashSet<string> StaffBodySources = new HashSet<string>();
+
+    // Domain reload is disabled: editor-generated Sprite objects die on entering Play Mode, static references do not.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetWearCaches() {
+        _wearFile = null; _maleWearFile = null; _maleWearLoaded = false;
+        MalePoseIndex.Clear(); WearPoseIndex.Clear(); WearSprites.Clear();
+        StaffBodies.Clear(); StaffBodySources.Clear();
+    }
 
     static void LoadStaffBody(string gender) {
         if (!StaffBodySources.Add(gender)) return;
@@ -256,7 +264,8 @@ public class GearAttachment : MonoBehaviour {
     }
 
     // 파일명(확장자 없음, 예: "L000_낡은단검"). null = 숨김.
-    public void SetWeapon(string name) {
+    public void SetWeapon(string name, int enhance = 0) {
+        _weaponEnhance = Mathf.Clamp(enhance, 0, Game.Data.GameData.ENH_MAX);
         if (_weaponName == name) { Apply(); return; }
         _weaponName = name;
         _staff = !string.IsNullOrEmpty(name) && System.Array.Exists(Game.Data.GameData.Staves, w => System.IO.Path.GetFileName(w.spritePath) == name);
@@ -331,7 +340,14 @@ public class GearAttachment : MonoBehaviour {
         _weaponDir = dir;
         _weaponSr.flipX = flip;
         _weaponSr.sortingOrder = back ? 5 : 7; // 몸 6
-        if (_mat != null) _mat.mainTexture = _weaponSr.sprite.texture;
+        if (_mat != null) {
+            _mat.mainTexture = _weaponSr.sprite.texture;
+            // 확정 강화 외형: +7 청염, +11 적염, +15 무지갯빛. 원본 실루엣과 손 앵커를 그대로 따른다.
+            Color glow = _weaponEnhance < 7 ? Color.clear : _weaponEnhance < 11 ? new Color(.12f, .65f, 1f) :
+                _weaponEnhance < 15 ? new Color(1f, .18f, .06f) : Color.HSVToRGB(Mathf.Repeat(ZoneController.Now * .22f, 1), .75f, 1);
+            if (_weaponEnhance >= 7) glow.a = .65f + .2f * Mathf.Sin(ZoneController.Now * 7);
+            _mat.SetColor("_EnhanceColor", glow);
+        }
         if (reacting || _fx == null) return;
         var fs = sheath ? _sheathFx : _fx[dir];
         var f = fs[(int)(ZoneController.Now * _fxInfo.fps) % _fxInfo.frames];

@@ -1,6 +1,19 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let signup = false, account = null, instance = null;
+function fitGame() {
+  const viewport = window.visualViewport;
+  if (viewport && viewport.scale !== 1) return; // Keep browser pinch zoom available.
+  const style = $('game').style;
+  style.setProperty('--game-height', `${viewport?.height ?? window.innerHeight}px`);
+  style.setProperty('--game-width', `${viewport?.width ?? window.innerWidth}px`);
+  style.setProperty('--game-top', `${viewport?.offsetTop ?? 0}px`);
+  style.setProperty('--game-left', `${viewport?.offsetLeft ?? 0}px`);
+}
+window.addEventListener('resize', fitGame);
+window.visualViewport?.addEventListener('resize', fitGame);
+window.visualViewport?.addEventListener('scroll', fitGame);
+fitGame();
 async function api(path, body) {
   const res = await fetch(path, body === undefined ? {cache:'no-store'} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const data = res.status === 204 ? {} : await res.json();
@@ -68,7 +81,7 @@ $('play').onclick = async () => {
     const build = await api('/web/build.json');
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
-    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.10',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
+    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.11',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
     window.gameInstance = instance;
     try { $('chat').hidden = localStorage.chatHidden === '1'; } catch { $('chat').hidden = false; }
     $('loading').textContent = ''; $('unity-canvas').focus();

@@ -1,7 +1,7 @@
 // 액터 스프라이트: 시간대 char 그레이딩(전역 _CharTint/_CharGrade) + 원본 텍셀 격자 1px 외곽선.
 // 외곽선 색은 전역 _ActorOutline (a=0 이면 끔) — ZoneController 가 존/시간대별로 설정.
 Shader "Game/ActorSprite" {
-    Properties { [PerRendererData] _MainTex ("Sprite", 2D) = "white" {} _Flash ("Hit Flash", Float) = 0 }
+    Properties { [PerRendererData] _MainTex ("Sprite", 2D) = "white" {} _Flash ("Hit Flash", Float) = 0 _EnhanceColor ("Enhancement Glow", Color) = (0,0,0,0) }
     SubShader {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" "CanUseSpriteAtlas"="True" }
         Cull Off ZWrite Off Blend One OneMinusSrcAlpha
@@ -12,6 +12,7 @@ Shader "Game/ActorSprite" {
             #include "UnityCG.cginc"
             #include "Grade.cginc"
             sampler2D _MainTex; float4 _MainTex_TexelSize; float4 _ActorOutline;
+            float4 _EnhanceColor;
             float4 _CharTint; float4 _CharGrade; float _Flash; // _Flash: 액터별 흰 플래시(피격) // 전역: tint rgb+a, (sat, br) — ZoneController
             struct a2v { float4 vertex : POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 color : COLOR; };
@@ -26,6 +27,19 @@ Shader "Game/ActorSprite" {
                     float n = tex2D(_MainTex, i.uv + float2(t.x, 0)).a + tex2D(_MainTex, i.uv - float2(t.x, 0)).a
                             + tex2D(_MainTex, i.uv + float2(0, t.y)).a + tex2D(_MainTex, i.uv - float2(0, t.y)).a;
                     if (n > 0.0) c = float4(_ActorOutline.rgb, _ActorOutline.a * i.color.a);
+                }
+                if (_EnhanceColor.a > 0) {
+                    if (c.a > 0) c.rgb = lerp(c.rgb, _EnhanceColor.rgb, .28 * _EnhanceColor.a);
+                    else {
+                        float2 t = _MainTex_TexelSize.xy;
+                        float near = max(max(tex2D(_MainTex, i.uv + float2(t.x, 0)).a, tex2D(_MainTex, i.uv - float2(t.x, 0)).a),
+                            max(tex2D(_MainTex, i.uv + float2(0, t.y)).a, tex2D(_MainTex, i.uv - float2(0, t.y)).a));
+                        float far = max(max(tex2D(_MainTex, i.uv + float2(t.x, t.y) * 2).a, tex2D(_MainTex, i.uv - float2(t.x, t.y) * 2).a),
+                            max(tex2D(_MainTex, i.uv + float2(t.x, -t.y) * 2).a, tex2D(_MainTex, i.uv + float2(-t.x, t.y) * 2).a));
+                        float halo = saturate(near + far * .35) * _EnhanceColor.a * i.color.a;
+                        c.rgb = _EnhanceColor.rgb;
+                        c.a = halo;
+                    }
                 }
                 c.rgb *= c.a;
                 return c;

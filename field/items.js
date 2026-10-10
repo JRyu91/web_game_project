@@ -3,8 +3,8 @@
 //수치 출처: 장비 이름·레벨·방어력 = unity_client Data/GameData.Generated.cs, 몬스터 exp·gold·강화확률·강화석 = unity_review/balance/stats/r5_set.json,
 //드랍·강화 비용·파괴 규칙 = unity_review/balance/stats/sim.py(r5 시뮬이 쓴 그대로), 보스 = unity_review/spec_boss_spawn.md.
 
-const SWORD = ["낡은단검","청동단검","청동검","강철검","기사검","십자검","대검","미스릴검","용아검","화염검","뇌명검","서리검","명왕검","파사검","뇌신검","광휘검","파멸검","절멸검","종말의낫","최후의검","오메가"];
-const STAFF = ["나무지팡이","도토리지팡이","참나무지팡이","무쇠지팡이","룬지팡이","수정지팡이","자수정지팡이","은빛지팡이","얼음지팡이","화염지팡이","폭풍지팡이","서리지팡이","심연지팡이","몽환지팡이","천공지팡이","성좌지팡이","창세지팡이","공허지팡이","창조의아침","드래곤스태프","적룡스태프"];
+const SWORD = ["낡은단검","청동단검","청동검","강철검","기사검","십자검","대검","미스릴검","용아검","화염검","뇌명검","서리검","명왕검","파사검","뇌신검","광휘검","파멸검","절멸검","종말의낫","최후의검","오메가 검"];
+const STAFF = ["나무지팡이","도토리지팡이","참나무지팡이","무쇠지팡이","룬지팡이","수정지팡이","자수정지팡이","은빛지팡이","얼음지팡이","화염지팡이","폭풍지팡이","서리지팡이","심연지팡이","몽환지팡이","천공지팡이","성좌지팡이","창세지팡이","공허지팡이","창조의아침 지팡이","드래곤 지팡이","적룡 지팡이"];
 //무기 tier = 배열 인덱스, 레벨 = tier*5. 투구·갑옷 tier 도 GameData 배열 인덱스 그대로(클라 SaveData.helmetTier 와 같은 뜻).
 const HELMET = [[0,"해진천","common",3],[5,"무명","common",4],[10,"가죽","common",5],[15,"무두질가죽","common",7],[20,"리벳가죽","common",9],[25,"은","warrior",12],[30,"뿔","warrior",16],[35,"미스릴","warrior",21],[40,"용린","warrior",28],[45,"화염","warrior",37],[50,"뇌명","warrior",48],[55,"서리","warrior",63],[60,"명왕","warrior",84],[65,"파사","warrior",111],[70,"뇌신","warrior",146],[75,"광휘","warrior",193],[80,"파멸","warrior",255],[85,"절멸","warrior",336],[90,"종언","warrior",444],[95,"근원","warrior",586],[100,"오메가","warrior",773],[25,"수정","mage",12],[30,"자수정","mage",16],[35,"은빛","mage",21],[40,"얼음","mage",28],[45,"화염","mage",37],[50,"폭풍","mage",48],[55,"서리","mage",63],[60,"심연","mage",84],[65,"몽환","mage",111],[70,"천공","mage",146],[75,"성좌","mage",193],[80,"창세","mage",255],[85,"공허","mage",336],[90,"창조","mage",444],[95,"드래곤","mage",586],[100,"적룡","mage",773]]; //[레벨, 이름, cls, def]
 const ARMOR = [[0,"해진천","common",4],[5,"무명","common",5],[10,"가죽","common",7],[15,"무두질가죽","common",10],[20,"리벳가죽","common",13],[25,"은","warrior",17],[30,"뿔","warrior",22],[35,"미스릴","warrior",29],[40,"용린","warrior",39],[45,"화염","warrior",52],[50,"뇌명","warrior",69],[55,"서리","warrior",92],[60,"명왕","warrior",123],[65,"파사","warrior",163],[70,"뇌신","warrior",217],[75,"광휘","warrior",289],[80,"파멸","warrior",384],[85,"절멸","warrior",510],[90,"종언","warrior",678],[95,"근원","warrior",902],[100,"오메가","warrior",1200],[25,"수정","mage",17],[30,"자수정","mage",22],[35,"은빛","mage",29],[40,"얼음","mage",39],[45,"화염","mage",52],[50,"폭풍","mage",69],[55,"서리","mage",92],[60,"심연","mage",123],[65,"몽환","mage",163],[70,"천공","mage",217],[75,"성좌","mage",289],[80,"창세","mage",384],[85,"공허","mage",510],[90,"창조","mage",678],[95,"드래곤","mage",902],[100,"적룡","mage",1200]];
@@ -47,7 +47,7 @@ const GOLD_PER_LEVEL = 0.75, STONES_PER_LEVEL = 0.82; // 강화석은 ceil 반�
 const xpToLevel = lv => Math.round(30 * lv * lv * (lv > 70 ? 1.05 ** (lv - 70) : 1) * XM(lv));
 const table = slot => slot === 'helmet' ? HELMET : ARMOR;
 const itemLevel = it => it.slot === 'weapon' ? it.tier * 5 : table(it.slot)[it.tier][0];
-const itemName = it => it.slot === 'weapon' ? (it.kind === 'staff' ? STAFF : SWORD)[it.tier] : table(it.slot)[it.tier][1];
+const itemName = it => it.slot === 'weapon' ? (it.kind === 'staff' ? STAFF : SWORD)[it.tier] : table(it.slot)[it.tier][1] + (it.slot === 'helmet' ? ' 투구' : ' 갑옷');
 const stepMult = tgt => tgt <= 4 ? 2 : tgt <= 7 ? 6 : tgt <= 10 ? 14 : tgt <= 14 ? 30 : 60;
 const enhCost = it => {
   const L = itemLevel(it), m = stepMult(it.enh + 1);

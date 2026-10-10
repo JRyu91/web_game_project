@@ -124,6 +124,7 @@ public static class EquipmentRegression {
         try {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var file=MaleAssets;Require(file!=null,"Male manifest missing");
+            bool identityGpu=Environment.GetCommandLineArgs().Contains("--male-identity-gpu");
             string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../../unity_review/stage3/team_v6/f_round/code/final"));
             Shader.SetGlobalVector("_CharGrade",Vector4.zero);Shader.SetGlobalColor("_ActorOutline",new Color(.035f,.025f,.05f,1));
             var loadouts=new List<(int h,int a)>{(-1,2),(-1,5),(-1,21)};
@@ -133,12 +134,22 @@ public static class EquipmentRegression {
             if(file.helmets[2]!=null)loadouts.Add((2,21));
             foreach (var pair in new[] { (h:-1,a:15), (h:2,a:15) }) loadouts.Add(pair);
             for (int tier=0;tier<37;tier++) if (!loadouts.Contains((tier,tier))) loadouts.Add((tier,tier));
+            if(identityGpu) {
+                loadouts.Clear();
+                var tiers=new[]{16,17,18,19,20,32,33,34,35,36};
+                for(int i=0;i<tiers.Length;i++) {
+                    int tier=tiers[i];
+                    loadouts.Add((tier,tier));loadouts.Add((tier,-1));loadouts.Add((-1,tier));
+                    loadouts.Add((tier,tiers[(i+1)%tiers.Length]));
+                }
+            }
             foreach(var loadout in loadouts) {
                 var actors=new List<PlayerController>();var cam=new GameObject("MaleRepresentativeCamera").AddComponent<Camera>();
                 const int cell=256,cols=14,rows=5;var rt=new RenderTexture(cell*cols,cell*rows,24);
+                Texture2D texture=null;var active=RenderTexture.active;
                 try {
                     cam.orthographic=true;cam.orthographicSize=cell*rows/80f;cam.transform.position=new Vector3(cell*cols/80f,cell*rows/80f,-10);
-                    cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=new Color(.13f,.12f,.16f);cam.targetTexture=rt;
+                    cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=identityGpu?Color.clear:new Color(.13f,.12f,.16f);cam.targetTexture=rt;
                     string kind=loadout.a>=21||loadout.h>=21?"staff":"sword";int index=0;
                     foreach(int face in new[]{1,-1})foreach(var pose in Frames("main_m")) {
                         var p=Player("male");actors.Add(p);p.ApplySave(Loadout(kind,10,loadout.h,loadout.a));
@@ -146,12 +157,26 @@ public static class EquipmentRegression {
                         p.GetComponent<GearAttachment>().SetFace(face);MaleParts(p,loadout.h,loadout.a,kind=="staff");Weapon(p,kind,10);
                         p.transform.position=new Vector3((index%cols*cell+cell/2f)/40f,((rows-1-index/cols)*cell+20)/40f-SpriteBBox.Get(p.GetComponent<SpriteRenderer>().sprite).yMin,0);index++;
                     }
-                    cam.Render();RenderTexture.active=rt;var texture=new Texture2D(rt.width,rt.height,TextureFormat.RGBA32,false);
-                    texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();RenderTexture.active=null;
-                    File.WriteAllBytes(Path.Combine(output,$"male_representative_h{loadout.h:D2}_a{loadout.a:D2}.png"),texture.EncodeToPNG());Object.DestroyImmediate(texture);
-                }finally{cam.targetTexture=null;Object.DestroyImmediate(rt);Object.DestroyImmediate(cam.gameObject);foreach(var p in actors)Object.DestroyImmediate(p.gameObject);}
+                    cam.Render();RenderTexture.active=rt;texture=new Texture2D(rt.width,rt.height,TextureFormat.RGBA32,false);
+                    texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();
+                    if(identityGpu) {
+                        var equipped=texture.GetPixels32();
+                        foreach(var p in actors) {Part(p,"Helmet").enabled=false;Part(p,"Armor").enabled=false;}
+                        cam.Render();texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();
+                        var withoutGear=texture.GetPixels32();
+                        for(int n=0;n<index;n++) {
+                            int visible=0,changed=0,x0=n%cols*cell,y0=(rows-1-n/cols)*cell;
+                            for(int y=y0;y<y0+cell;y++)for(int x=x0;x<x0+cell;x++) {
+                                int pixel=y*rt.width+x;
+                                if(equipped[pixel].a>0)visible++;
+                                if(!equipped[pixel].Equals(withoutGear[pixel]))changed++;
+                            }
+                            Require(visible>30&&changed>10,$"GPU gear invisible h{loadout.h}/a{loadout.a}/pose{n}");
+                        }
+                    } else File.WriteAllBytes(Path.Combine(output,$"male_representative_h{loadout.h:D2}_a{loadout.a:D2}.png"),texture.EncodeToPNG());
+                }finally{RenderTexture.active=active;if(texture!=null)Object.DestroyImmediate(texture);cam.targetTexture=null;Object.DestroyImmediate(rt);Object.DestroyImmediate(cam.gameObject);foreach(var p in actors)Object.DestroyImmediate(p.gameObject);}
             }
-            Debug.Log($"PASS male representative: {loadouts.Count*70} GPU poses, ready head families and 3 armor families, independent/mixed slots, both faces, source geometry/weapon/layer binding; visual review separate");EditorApplication.Exit(0);
+            Debug.Log(identityGpu?$"PASS male identity: {loadouts.Count*70} GPU poses, independent/mixed slots, both faces, source geometry/weapon/layer binding, visible gear pixels vs hidden gear; visual review separate":$"PASS male representative: {loadouts.Count*70} GPU poses, ready head families and 3 armor families, independent/mixed slots, both faces, source geometry/weapon/layer binding; visual review separate");EditorApplication.Exit(0);
         }catch(Exception ex){Debug.LogException(ex);EditorApplication.Exit(1);}
     }
     public static void RunMaleReplacement() {
@@ -232,8 +257,67 @@ public static class EquipmentRegression {
         }
         File.WriteAllText(Path.Combine(output,"male_examples.json"),JsonUtility.ToJson(new MaleExampleFile {examples=examples.ToArray()},true));
     }
+    public static void RunEnhancementBatch() {
+        try { EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single); RunEnhancement(); Functional(); EditorApplication.Exit(0); }
+        catch(Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
+    }
+    public static void RunEnhancement() {
+        float time = ZoneController.AnimTime;
+        var p = Player("male");
+        try {
+            ZoneController.AnimTime = 0;
+            var gear = p.GetComponent<GearAttachment>(); var anim = p.GetComponent<FrameAnimator>();
+            foreach (string kind in new[] {"sword", "staff"}) {
+                Color previous = Color.clear;
+                foreach (int enh in new[] {0, 6, 7, 10, 11, 14, 15, 25, 0}) {
+                    var save = Loadout(kind, 20, -1, -1); save.weaponEnh = enh; p.ApplySave(save);
+                    foreach (string clip in new[] {"idle", "walk", "attack", "attack1", "attack2"}) foreach (int face in new[] {-1, 1}) {
+                        anim.Still(clip, clip.StartsWith("attack") ? 9 : 0); gear.SetFace(face); gear.Apply();
+                        var weapon = Part(p,"Weapon");
+                        Require(weapon.enabled, "Enhanced weapon hidden " + kind + "/" + clip);
+                        Color color = weapon.sharedMaterial.GetColor("_EnhanceColor");
+                        Require((color.a > 0) == (enh >= 7), "Enhancement boundary/reset " + enh);
+                        if (enh >= 7 && enh < 11) Require(color.b > color.r, "Blue enhancement");
+                        if (enh >= 11 && enh < 15) Require(color.r > color.b, "Red enhancement");
+                        if (enh == 15) Require(color != previous, "Rainbow boundary");
+                    }
+                    previous = Part(p,"Weapon").sharedMaterial.GetColor("_EnhanceColor");
+                }
+            }
+            // Render the real weapon shader: material values alone cannot catch GPU/WebGL shader failures.
+            var cam = new GameObject("EnhancementCamera").AddComponent<Camera>();
+            var rt = new RenderTexture(128,128,24); var pixels = new Texture2D(128,128,TextureFormat.RGBA32,false);
+            var active = RenderTexture.active;
+            try {
+                cam.orthographic=true;cam.orthographicSize=2;cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=Color.black;cam.targetTexture=rt;
+                foreach(var sr in p.GetComponentsInChildren<SpriteRenderer>(true)) sr.enabled=false;
+                var weapon=Part(p,"Weapon");
+                weapon.gameObject.layer=31;cam.cullingMask=1<<31;
+                foreach(string kind in new[] {"sword","staff"}) foreach(string clip in new[] {"idle","attack2"}) {
+                    Color32[] baseline=null;
+                    foreach(int enh in new[] {0,7,11,15}) {
+                        var save=Loadout(kind,20,-1,-1);save.weaponEnh=enh;p.ApplySave(save);anim.Still(clip,clip=="idle"?0:9);gear.Apply();
+                        foreach(var sr in p.GetComponentsInChildren<SpriteRenderer>(true))sr.enabled=sr==weapon;
+                        cam.transform.position=weapon.bounds.center+new Vector3(0,0,-10);cam.Render();RenderTexture.active=rt;
+                        pixels.ReadPixels(new Rect(0,0,128,128),0,0);pixels.Apply();var current=pixels.GetPixels32();
+                        if(enh==0) baseline=current;
+                        else Require(current.Where((color,index)=>!color.Equals(baseline[index])).Count()>10,"GPU enhancement invisible "+kind+"/"+clip+"/+"+enh);
+                    }
+                }
+            } finally {RenderTexture.active=active;cam.targetTexture=null;Object.DestroyImmediate(pixels);Object.DestroyImmediate(rt);Object.DestroyImmediate(cam.gameObject);}
+            var state = new InvState {level=100,equip=new InvEquip {weapon=1},inv=new[] {new InvItem {uid=1,slot="weapon",kind="staff",tier=20,enh=15}}};
+            p.ApplyState(state); anim.Still("idle",0); gear.Apply();
+            Color first = Part(p,"Weapon").sharedMaterial.GetColor("_EnhanceColor");
+            ZoneController.AnimTime = 1; gear.Apply();
+            Require(first != Part(p,"Weapon").sharedMaterial.GetColor("_EnhanceColor"), "Rainbow does not animate");
+            state.inv[0].enh=6;p.ApplyState(state);gear.Apply();
+            Require(Part(p,"Weapon").sharedMaterial.GetColor("_EnhanceColor").a==0,"Authoritative enhancement reset");
+            Debug.Log("PASS Equipment enhancement: +6/7/10/11/14/15/25, sword/staff, carry/attack, left/right, authoritative update/reset, animated rainbow");
+        } finally {ZoneController.AnimTime=time;Object.DestroyImmediate(p.gameObject);}
+    }
     public static void Run() {
         try {
+            RunEnhancement();
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             foreach(string path in Directory.GetFiles(Application.dataPath+"/Resources/Sprites/Wearables","*.png")) {
                 var ti=(TextureImporter)AssetImporter.GetAtPath("Assets"+path.Substring(Application.dataPath.Length));
@@ -359,11 +443,15 @@ public static class EquipmentRegression {
         try {
             var manager=root.AddComponent<GameManager>();
             var roster=new[]{new RosterEntry{id="equipment_peer",gender="female",zone="A",equip=new EquipMsg{
-                weapon=new EquipWeaponMsg{kind="staff",tier=20},helmet=new EquipWearMsg{tier=36},armor=new EquipWearMsg{tier=36}}}};
+                weapon=new EquipWeaponMsg{kind="staff",tier=20,enh=11},helmet=new EquipWearMsg{tier=36},armor=new EquipWearMsg{tier=36}}}};
             var method=typeof(GameManager).GetMethod("UpdateRoster",BindingFlags.Instance|BindingFlags.NonPublic);
             method.Invoke(manager,new object[]{roster});
             var ghost=root.transform.Find("Ghost_equipment_peer");Require(ghost!=null,"Remote roster actor missing");
             var gear=ghost.GetComponent<GearAttachment>();gear.Apply();
+            var remoteWeapon=ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Weapon");
+            Require(remoteWeapon.sharedMaterial.GetColor("_EnhanceColor").r>.9f,"Remote enhancement missing");
+            roster[0].equip.weapon.enh=0;method.Invoke(manager,new object[]{roster});gear.Apply();
+            Require(remoteWeapon.sharedMaterial.GetColor("_EnhanceColor").a==0,"Remote enhancement reset");
             Require(ghost.GetComponentsInChildren<SpriteRenderer>().Any(r=>r.name=="Helmet"&&r.enabled&&r.sprite!=null),"Remote helmet missing");
             Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Armor").sprite.texture.name=="a_36","Remote armor tier");
             roster[0].gender="male";roster[0].equip.helmet.tier=2;roster[0].equip.armor.tier=3;

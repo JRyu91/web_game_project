@@ -170,7 +170,7 @@ public class PlayerController : MonoBehaviour {
 
     void RefreshGearVisual() {
         var w = CurrentWeapon;
-        _gear.SetWeapon(System.IO.Path.GetFileName(w.spritePath)); // WeaponsDir 8방향(5/6)
+        _gear.SetWeapon(System.IO.Path.GetFileName(w.spritePath), WeaponEnhance); // WeaponsDir 8방향(5/6)
         _gear.SetWear(HelmetTierIdx, ArmorTierIdx);
     }
 

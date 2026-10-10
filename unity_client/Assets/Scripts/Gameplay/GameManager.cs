@@ -310,7 +310,7 @@ public class GameManager : MonoBehaviour {
         var weapon = entry.equip?.weapon;
         var defs = weapon?.kind == "staff" ? GameData.Staves : GameData.Swords;
         string name = weapon != null && (weapon.kind == "staff" || weapon.kind == "sword") && weapon.tier >= 0 && weapon.tier < defs.Length ? System.IO.Path.GetFileName(defs[weapon.tier].spritePath) : null;
-        go.GetComponent<Game.Rendering.GearAttachment>().SetWeapon(name);
+        go.GetComponent<Game.Rendering.GearAttachment>().SetWeapon(name, weapon?.enh ?? 0);
         go.GetComponent<Game.Rendering.GearAttachment>().SetWear(entry.equip?.helmet?.tier ?? -1, entry.equip?.armor?.tier ?? -1);
         go.GetComponent<Game.Rendering.ActorNameplate>().SetText((entry.name ?? entry.id) + " · 다른 플레이어");
     }
