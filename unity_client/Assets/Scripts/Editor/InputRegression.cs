@@ -229,6 +229,70 @@ public static class InputRegression {
         } catch (Exception error) { Finish(false, error.ToString()); }
     }
 
+    public static void EnhancementLayout() {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        var root = new GameObject("EnhancementLayoutRegression");
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var targets = new[] { new Vector2Int(1600, 1000), new Vector2Int(402, 874), new Vector2Int(852, 393), new Vector2Int(720, 393), new Vector2Int(402, 874), new Vector2Int(1600, 1000) };
+        var cam = root.AddComponent<Camera>(); cam.orthographic = true; cam.orthographicSize = 9;
+        var actor = new GameObject("Player"); actor.transform.SetParent(root.transform);
+        var pl = actor.AddComponent<PlayerController>(); pl.Init(false, "male", () => Array.Empty<MonsterController>());
+        var net = root.AddComponent<NetworkClient>(); net.enabled = false;
+        var ui = new GameObject("GameUI").AddComponent<GameUI>(); ui.transform.SetParent(root.transform);
+        RectTransform FieldRect(string name) {
+            var value = typeof(GameUI).GetField(name, flags).GetValue(ui);
+            return value is RectTransform rect ? rect : (RectTransform)((Component)value).transform;
+        }
+        Rect Bounds(RectTransform child, RectTransform parent) {
+            var corners = new Vector3[4]; child.GetWorldCorners(corners);
+            var points = corners.Select(c => parent.InverseTransformPoint(c)).ToArray();
+            return Rect.MinMaxRect(points.Min(c => c.x), points.Min(c => c.y), points.Max(c => c.x), points.Max(c => c.y));
+        }
+        void Inside(RectTransform child, RectTransform parent) {
+            var b = Bounds(child, parent); var p = parent.rect;
+            if (b.xMin < p.xMin - .1f || b.xMax > p.xMax + .1f || b.yMin < p.yMin - .1f || b.yMax > p.yMax + .1f)
+                throw new Exception($"{child.name} exceeds {parent.name}: {b} / {p}");
+        }
+        RenderTexture rt = null;
+        try {
+            rt = new RenderTexture(targets[0].x, targets[0].y, 24); cam.targetTexture = rt; ui.Init(cam, pl, null, net);
+            foreach (var size in targets) {
+                cam.targetTexture = null; rt.Release(); UnityEngine.Object.DestroyImmediate(rt);
+                rt = new RenderTexture(size.x, size.y, 24); cam.targetTexture = rt;
+                typeof(GameUI).GetMethod("ResponsiveLayout", flags).Invoke(ui, null);
+                var preview = FieldRect("_enhPreview"); var button = FieldRect("_bEnhTry"); var result = FieldRect("_enhResult");
+                ui.Show("enh"); Canvas.ForceUpdateCanvases();
+                var parent = (RectTransform)preview.parent;
+                if (Bounds(preview, parent).Overlaps(Bounds(button, parent)) || Bounds(preview, parent).Overlaps(Bounds(result, parent)))
+                    throw new Exception("Enhancement preview overlaps action/result");
+                Inside(preview, parent); Inside(button, parent); Inside(result, parent);
+                foreach (var kind in new[] { "sword", "staff" }) {
+                    int count = kind == "staff" ? Game.Data.GameData.Staves.Length : Game.Data.GameData.Swords.Length;
+                    for (int tier = 0; tier < count; tier++) {
+                        var item = new InvItem { uid = 1, slot = "weapon", kind = kind, tier = tier, enh = 14, cost = new InvCost { stones = 1, gold = 1 } };
+                        ui.OnInv(new InvMsg { req = "join", ok = true, state = new InvState { level = 100, equip = new InvEquip { weapon = 1 }, inv = new[] { item } } });
+                        typeof(GameUI).GetField("_sel", flags).SetValue(ui, 1);
+                        typeof(GameUI).GetMethod("Redraw", flags).Invoke(ui, null);
+                        Canvas.ForceUpdateCanvases(); Inside(FieldRect("_icon"), preview);
+                        var icon = FieldRect("_icon").GetComponent<Image>();
+                        if (icon.sprite == null || icon.rectTransform.sizeDelta != icon.sprite.rect.size) throw new Exception("Enhancement icon lost native size");
+                    }
+                }
+                foreach (var outcome in new[] { "success", "down", "destroy" }) {
+                    typeof(GameUI).GetMethod("ShowEnh", flags).Invoke(ui, new object[] { new InvEnh { result = outcome, from = 14, to = 15 } });
+                    int visibleFrames = 0;
+                    for (int frame = 0; frame < 24; frame++) { ui.SetFxTime(frame / 10f); Canvas.ForceUpdateCanvases(); if (FieldRect("_fx").GetComponent<Image>().enabled) { visibleFrames++; Inside(FieldRect("_fx"), preview); } }
+                    if (visibleFrames == 0) throw new Exception($"Enhancement {outcome} FX missing");
+                }
+                ui.Show("inv"); Canvas.ForceUpdateCanvases();
+                var groups = (System.Collections.Generic.List<RectTransform>)typeof(GameUI).GetField("_autoGroups", flags).GetValue(ui);
+                if (groups.Count != 2 || groups[0].parent != groups[1].parent || Bounds(groups[0], (RectTransform)groups[0].parent).Overlaps(Bounds(groups[1], (RectTransform)groups[1].parent))) throw new Exception("Automatic processing groups overlap/split");
+                foreach (var group in groups) foreach (var child in group.GetComponentsInChildren<RectTransform>(true).Where(r => r.parent == group)) Inside(child, group);
+                Debug.Log($"[EnhancementLayout] PASS {size}: all weapon icons, result FX, grouped automatic controls, resize transitions");
+            }
+        } finally { cam.targetTexture = null; UnityEngine.Object.DestroyImmediate(root); if (rt != null) { rt.Release(); UnityEngine.Object.DestroyImmediate(rt); } }
+    }
+
     // Presentation fixtures use authoritative state shape; no network or economy writes.
     public static void Stats() {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

@@ -74,9 +74,11 @@ public class MonsterController : MonoBehaviour {
     // 보스 특수 공격: 240px 안이면(근접 포함) 4초마다 공격 모션 impact 에서 불덩이 발사, 도착 시 근접과 같은 피해.
     // 근접만 있으면 지팡이(218px)에게 보스가 손도 못 댐(261009 형 신고 "드래곤이 불을 안 뿜음")
     const float BREATH_RANGE = 240f * PX_TO_UNIT, BREATH_CD = 4f, BREATH_SPEED = 160f * PX_TO_UNIT, BREATH_FPS = 10f; // 220→160: 날아가는 게 보이게
-    // 염제(20)·수령동지(21): 브레스 대신 플레이어 발밑 불기둥(160px 여백 포함), 불이 커지는 0.35초 뒤 아직 그 자리면 피해
+    // 염제(20)는 불기둥, 히든(21)은 고정된 목표에 핵폭탄 낙하 후 폭발.
     const float PILLAR_DELAY = 0.35f, PILLAR_HALF = 24f * PX_TO_UNIT;
     float _pillarT = -1, _pillarX, _trailT;
+    const float NUKE_FALL = 0.6f;
+    SpriteRenderer _nukeVis; Sprite[] _bombFrames; float _nukeT, _nukeX, _nukeLandingY;
     public static string BreathKey = "Sprites/FX/obj_firebreath/anim1";
     bool IsBoss => Def.rank == "boss" || Def.rank == "midboss" || Def.rank == "hidden";
     float _breathCd = 1.5f; bool _breathing;
@@ -85,7 +87,20 @@ public class MonsterController : MonoBehaviour {
     void SpawnBreath() {
         var player = PlayerController.Local;
         if (player == null || player.IsDead) return;
-        if (Def.tier >= 20) { _pillarX = player.Visual.BodyX; _pillarT = 0; HitFx.Play("obj_firepillar", new Vector3(_pillarX, WorldConfig.GroundY + 1.6f, 0), 12f, 1f, false, 10); return; }
+        if (Def.tier == 21) {
+            KillNuke();
+            _bombFrames ??= HitFx.Frames("Sprites/FX/obj_bomb/anim1");
+            _nukeX = player.Visual.BodyX; _nukeT = 0;
+            // Native PNG alpha bottoms: bomb frame8 y=61/64, blast union y=193/200; textures are not CPU-readable.
+            _nukeLandingY = WorldConfig.GroundY + 29f * PX_TO_UNIT;
+            _nukeVis = new GameObject("BossNuclearBomb").AddComponent<SpriteRenderer>();
+            _nukeVis.transform.SetParent(transform, true);
+            _nukeVis.sortingOrder = 10;
+            if (_bombFrames.Length > 0) _nukeVis.sprite = _bombFrames[0];
+            _nukeVis.transform.position = new Vector3(_nukeX, _nukeLandingY + 3f, 0);
+            return;
+        }
+        if (Def.tier == 20) { _pillarX = player.Visual.BodyX; _pillarT = 0; HitFx.Play("obj_firepillar", new Vector3(_pillarX, WorldConfig.GroundY + 1.6f, 0), 12f, 1f, false, 10); return; }
         _breathFrames ??= HitFx.Frames(BreathKey);
         _breathVis = new GameObject("BossBreath").AddComponent<SpriteRenderer>(); _breathVis.sortingOrder = 9; _breathVis.flipX = _face < 0;
         var b = _sr.bounds; // 입 = 몸 앞쪽 위
@@ -95,6 +110,21 @@ public class MonsterController : MonoBehaviour {
         if (_breathFrames.Length > 0) _breathVis.sprite = _breathFrames[0];
     }
     void StepBreath(float dt) {
+        if (_nukeVis != null) {
+            var target = PlayerController.Local;
+            if (_state == MobState.Dead || target == null || target.IsDead) KillNuke();
+            else {
+                _nukeT += dt;
+                float progress = Mathf.Clamp01(_nukeT / NUKE_FALL);
+                _nukeVis.transform.position = new Vector3(_nukeX, _nukeLandingY + 3f * (1f - progress), 0);
+                if (_bombFrames.Length > 0) _nukeVis.sprite = _bombFrames[Mathf.Min(_bombFrames.Length - 1, (int)(progress * _bombFrames.Length))];
+                if (progress >= 1f) {
+                    HitFx.Play("obj_nuke", new Vector3(_nukeX, WorldConfig.GroundY + 93f * PX_TO_UNIT, 0), 14f, 1f, false, 10);
+                    if (Mathf.Abs(target.Visual.BodyX - _nukeX) <= PILLAR_HALF + 0.3f) target.TakeDamage(Def.atk);
+                    KillNuke();
+                }
+            }
+        }
         if (_pillarT >= 0 && (_pillarT += dt) >= PILLAR_DELAY) {
             var target = PlayerController.Local; _pillarT = -1;
             if (_state != MobState.Dead && target != null && !target.IsDead && Mathf.Abs(target.Visual.BodyX - _pillarX) <= PILLAR_HALF + 0.3f) target.TakeDamage(Def.atk);
@@ -115,11 +145,17 @@ public class MonsterController : MonoBehaviour {
         }
     }
     void KillBreath() { if (_breathVis == null) return; if (Application.isPlaying) Destroy(_breathVis.gameObject); else DestroyImmediate(_breathVis.gameObject); _breathVis = null; }
-    void OnDestroy() => KillBreath();
+    void KillNuke() { if (_nukeVis == null) return; if (Application.isPlaying) Destroy(_nukeVis.gameObject); else DestroyImmediate(_nukeVis.gameObject); _nukeVis = null; }
+    void OnDestroy() { KillBreath(); KillNuke(); }
     SpriteRenderer _aura;
 
     // 매 프레임: 몸 bbox 중심 x(BodyX)·지면에 맞춤, 좌우만 보스 flipX 따라감(상하 고정).
-    void LateUpdate() => RefreshAura();
+    void LateUpdate() {
+        if (_nukeVis != null) _vis.Refresh(); // Resolve pose foot alignment before freezing the child in world space.
+        RefreshAura();
+        // Parent owns cleanup; keep the frozen target independent of boss movement.
+        if (_nukeVis != null) _nukeVis.transform.position = new Vector3(_nukeX, _nukeLandingY + 3f * (1f - Mathf.Clamp01(_nukeT / NUKE_FALL)), 0);
+    }
     public void RefreshAura() { // 캡처 툴용 공개
         if (_aura == null) return;
         var ls = transform.localScale;
@@ -247,6 +283,7 @@ public class MonsterController : MonoBehaviour {
 
     void Die() {
         _breathing = false;
+        KillBreath(); KillNuke(); _pillarT = -1;
         HitFx.Play("obj_poof", new Vector3(_vis.BodyX, WorldConfig.GroundY + 0.4f, 0), 12f, IsBoss ? 2f : 1f);
         _state = MobState.Dead;
         Hp = 0;

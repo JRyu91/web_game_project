@@ -23,7 +23,8 @@ public class GameUI : MonoBehaviour {
 
     PlayerController _pl; MonsterSpawner _sp; NetworkClient _net; Camera _cam;
     Font _font, _fontB; Sprite _panel, _btn, _btnDown, _btnOff;
-    RectTransform _root, _skillHudRoot;
+    RectTransform _root, _skillHudRoot, _enhPreview;
+    readonly List<RectTransform> _autoGroups = new List<RectTransform>();
     readonly Dictionary<string, GameObject> _panels = new Dictionary<string, GameObject>();
     Image _toastBg;
     Text _versionLabel;
@@ -36,7 +37,7 @@ public class GameUI : MonoBehaviour {
     Text _channel, _hpText, _expText, _lvText, _goldText, _potText; Image _hpFill, _expFill;
     Image _fx, _icon; Sprite[] _fxDestroy, _fxSuccess, _fxFail, _fxPlay; float _fxT = -1;
     int _sel, _page, _pendingSummon; float _toastT;
-    bool _wasOnline, _summonAck, _summonSpawned;
+    bool _wasOnline, _summonAck, _summonSpawned, _rewardToast;
     float _summonRetry;
     int _summonToken, _summonSeq, _summonAckSeq, _summonMonsterId;
     Button _bBreak, _bBreakMany, _bExpand, _bAuto, _bAutoBreak, _bBreakLevel;
@@ -110,7 +111,7 @@ public class GameUI : MonoBehaviour {
         _toast = Label(_root, "", new Vector2(0, -64), new Vector2(600, 24), TextAnchor.MiddleCenter, new Vector2(0.5f, 1), true); // 상단 중앙, 보스 HP 바(위 8px + 48px) 아래
 
         // 인벤토리·장비
-        var inv = Panel("inv", "가방 / 장비", new Vector2(600, 600));
+        var inv = Panel("inv", "가방 / 장비", new Vector2(600, 640));
         for (int r = 0; r < PageSize; r++) {
             int k = r;
             _checks.Add(Btn(inv, "", new Vector2(20, -50 - r * 32), new Vector2(30, BtnH), () => Check(k), new Vector2(0, 1)));   // 다중 선택 체크
@@ -133,20 +134,22 @@ public class GameUI : MonoBehaviour {
         Btn(inv, "−", new Vector2(174, -454), new Vector2(44, BtnH), () => { _filterLevel = Mathf.Max(0, _filterLevel - 10); Redraw(); }, new Vector2(0, 1));
         Btn(inv, "+", new Vector2(220, -454), new Vector2(44, BtnH), () => { _filterLevel = Mathf.Min(100, _filterLevel + 10); Redraw(); }, new Vector2(0, 1));
         _bBreakLevel = Btn(inv, "레벨 이하 분해", new Vector2(280, -454), new Vector2(144, BtnH), () => Confirm($"Lv{_filterLevel} 이하 장비를 전부 분해할까? 장착 장비는 제외돼.", () => Send(new InvReq { type = "disassemble", level = _filterLevel })), new Vector2(0, 1));
-        _bAuto = Btn(inv, "", new Vector2(20, -492), new Vector2(155, BtnH), () => Send(new InvReq { type = "auto_sell", enabled = !(_pl.Inv?.autoSell ?? false), level = _autoLevel }), new Vector2(0, 1));
-        _autoText = Label(inv, "", new Vector2(180, -492), new Vector2(185, BtnH), TextAnchor.MiddleLeft, new Vector2(0, 1));
-        Btn(inv, "−", new Vector2(366, -492), new Vector2(44, BtnH), () => SetAutoLevel(-10), new Vector2(0, 1));
-        Btn(inv, "+", new Vector2(412, -492), new Vector2(44, BtnH), () => SetAutoLevel(10), new Vector2(0, 1));
+        var sellGroup = AutoGroup(inv, "AutoSell", 486);
+        _bAuto = Btn(sellGroup, "", new Vector2(8, -7), new Vector2(155, BtnH), () => Send(new InvReq { type = "auto_sell", enabled = !(_pl.Inv?.autoSell ?? false), level = _autoLevel }), new Vector2(0, 1));
+        _autoText = Label(sellGroup, "", new Vector2(172, -7), new Vector2(280, BtnH), TextAnchor.MiddleLeft, new Vector2(0, 1));
+        Btn(sellGroup, "−", new Vector2(454, -7), new Vector2(44, BtnH), () => SetAutoLevel(-10), new Vector2(0, 1));
+        Btn(sellGroup, "+", new Vector2(500, -7), new Vector2(44, BtnH), () => SetAutoLevel(10), new Vector2(0, 1));
 
-        _bAutoBreak = Btn(inv, "", new Vector2(20, -530), new Vector2(155, BtnH), () => {
+        var breakGroup = AutoGroup(inv, "AutoDisassemble", 538);
+        _bAutoBreak = Btn(breakGroup, "", new Vector2(8, -7), new Vector2(155, BtnH), () => {
             if (_pl.Inv?.autoDisassemble == true) Send(new InvReq { type = "auto_disassemble", enabled = false, level = _autoBreakLevel });
             else Confirm($"새 드롭과 보류 장비 중 Lv{_autoBreakLevel} 이하를 자동 분해해. 복구할 수 없고 자동 판매는 꺼져.",
                 () => Send(new InvReq { type = "auto_disassemble", enabled = true, level = _autoBreakLevel }));
         }, new Vector2(0, 1));
-        _autoBreakText = Label(inv, "", new Vector2(180, -530), new Vector2(185, BtnH), TextAnchor.MiddleLeft, new Vector2(0, 1));
-        Btn(inv, "−", new Vector2(366, -530), new Vector2(44, BtnH), () => SetAutoBreakLevel(-10), new Vector2(0, 1));
-        Btn(inv, "+", new Vector2(412, -530), new Vector2(44, BtnH), () => SetAutoBreakLevel(10), new Vector2(0, 1));
-        Label(inv, "자동 처리는 새 드롭·보류 장비만 적용 (판매 / 분해 중 하나)", new Vector2(20, -568), new Vector2(560, 24), TextAnchor.MiddleLeft, new Vector2(0, 1));
+        _autoBreakText = Label(breakGroup, "", new Vector2(172, -7), new Vector2(280, BtnH), TextAnchor.MiddleLeft, new Vector2(0, 1));
+        Btn(breakGroup, "−", new Vector2(454, -7), new Vector2(44, BtnH), () => SetAutoBreakLevel(-10), new Vector2(0, 1));
+        Btn(breakGroup, "+", new Vector2(500, -7), new Vector2(44, BtnH), () => SetAutoBreakLevel(10), new Vector2(0, 1));
+        Label(inv, "새 드롭·보류 장비에 적용 · 판매 / 분해 중 하나", new Vector2(20, -590), new Vector2(560, 40), TextAnchor.MiddleLeft, new Vector2(0, 1));
 
         if (isAdmin) {
             var admin = Panel("admin", "관리 / 채널", new Vector2(420, 470));
@@ -175,15 +178,17 @@ public class GameUI : MonoBehaviour {
         Btn(confirm, "진행", new Vector2(240, -108), new Vector2(140, BtnH), () => { var action = _confirmAction; _confirmAction = null; Toggle("confirm"); action?.Invoke(); }, new Vector2(0, 1));
 
         // 강화
-        var enh = Panel("enh", "강화", new Vector2(360, 300));
+        var enh = Panel("enh", "강화", new Vector2(360, 560));
         _enhInfo = Label(enh, "", new Vector2(20, -50), new Vector2(320, 110), TextAnchor.UpperLeft, new Vector2(0, 1));
-        _bEnhTry = Btn(enh, "강화 시도", new Vector2(20, -170), new Vector2(150, BtnH), () => ItemReq("enhance"), new Vector2(0, 1));
-        _enhResult = Label(enh, "", new Vector2(20, -210), new Vector2(200, 60), TextAnchor.UpperLeft, new Vector2(0, 1));
-        // 오른쪽 빈 칸: 대상 장비 아이콘(원본 1x) + 그 위 결과 FX(같은 중심)
-        _icon = new GameObject("EnhIcon").AddComponent<Image>(); _icon.transform.SetParent(enh, false); _icon.raycastTarget = false;
-        var ir = _icon.rectTransform; ir.anchorMin = ir.anchorMax = new Vector2(1, 1); ir.pivot = new Vector2(0.5f, 0.5f); ir.anchoredPosition = new Vector2(-90, -190);
-        _fx = new GameObject("EnhFx").AddComponent<Image>(); _fx.transform.SetParent(enh, false);
-        var fr = _fx.rectTransform; fr.anchorMin = fr.anchorMax = new Vector2(1, 1); fr.pivot = new Vector2(0.5f, 0.5f); fr.anchoredPosition = ir.anchoredPosition;
+        _enhPreview = Img(enh, null, new Vector2(20, -166), new Vector2(320, 264)).rectTransform;
+        _enhPreview.gameObject.name = "EnhPreview"; _enhPreview.GetComponent<Image>().color = Color.clear;
+        _bEnhTry = Btn(enh, "강화 시도", new Vector2(20, -440), new Vector2(150, BtnH), () => ItemReq("enhance"), new Vector2(0, 1));
+        _enhResult = Label(enh, "", new Vector2(20, -482), new Vector2(320, 60), TextAnchor.UpperLeft, new Vector2(0, 1));
+        // 대상 장비와 최대 256px 결과 FX가 버튼과 겹치지 않는 독립 영역.
+        _icon = new GameObject("EnhIcon").AddComponent<Image>(); _icon.transform.SetParent(_enhPreview, false); _icon.raycastTarget = false;
+        var ir = _icon.rectTransform; ir.anchorMin = ir.anchorMax = ir.pivot = new Vector2(0.5f, 0.5f); ir.anchoredPosition = Vector2.zero;
+        _fx = new GameObject("EnhFx").AddComponent<Image>(); _fx.transform.SetParent(_enhPreview, false);
+        var fr = _fx.rectTransform; fr.anchorMin = fr.anchorMax = fr.pivot = new Vector2(0.5f, 0.5f); fr.anchoredPosition = ir.anchoredPosition;
         _fx.enabled = false; _fx.raycastTarget = false;
 
         // 상점
@@ -288,7 +293,7 @@ public class GameUI : MonoBehaviour {
                 else if (m.drop.disassembled > 0) parts.Add($"자동 분해 · 강화석 +{m.drop.disassembled}");
                 else if (m.drop.item != null && m.drop.item.uid > 0) parts.Add($"{(m.state?.HasPendingDrop == true && m.state.pendingDrop.uid == m.drop.item.uid ? "보류" : "획득")}: {m.drop.item.name}");
                 if (m.drop.levelUp > 0) parts.Add($"레벨 업! Lv{m.state.level}");
-                Toast(string.Join("  ", parts), Color.white);
+                Toast(string.Join("  ", parts), Color.white, true);
                 break;
             case "potion": _pl.DrinkPotion(); break;
             case "bot": Toast($"봇 {m.bots}마리 · 접속 {m.pop}/{m.cap}", Color.white); break;
@@ -405,11 +410,15 @@ public class GameUI : MonoBehaviour {
     public void Toggle(string id) { foreach (var kv in _panels) kv.Value.SetActive(kv.Key == id && !kv.Value.activeSelf); Redraw(); }
     public void Show(string id) { foreach (var kv in _panels) kv.Value.SetActive(kv.Key == id); Redraw(); }
     public void SelectUid(int uid) { _sel = uid; Redraw(); }
-    void Toast(string s, Color c) { _toast.text = s; _toast.color = c; _toastT = 3f; ToastBg(); }
+    void Toast(string s, Color c, bool reward = false) { _toast.text = s; _toast.color = c; _toastT = 3f; _rewardToast = reward; ToastBg(); }
     // 토스트 뒤 반투명 띠: 패널·버튼 위에서도 읽히게(글자 폭 + 여백)
     void ToastBg() {
         if (_toastBg == null) { _toastBg = new GameObject("ToastBg").AddComponent<Image>(); _toastBg.raycastTarget = false; _toastBg.color = new Color(0, 0, 0, 0.6f); _toastBg.transform.SetParent(_toast.transform.parent, false); }
         _toastBg.transform.SetAsLastSibling(); _toast.transform.SetAsLastSibling(); // 글자 바로 뒤(형제 순서 = 그리는 순서)
+        if (_rewardToast) {
+            int firstPanel = _panels.Values.Min(panel => panel.transform.GetSiblingIndex());
+            _toastBg.transform.SetSiblingIndex(firstPanel); _toast.transform.SetSiblingIndex(_toastBg.transform.GetSiblingIndex() + 1);
+        }
         _toastBg.enabled = _toast.text.Length > 0;
         var t = _toast.rectTransform; var r = _toastBg.rectTransform;
         r.anchorMin = t.anchorMin; r.anchorMax = t.anchorMax; r.pivot = new Vector2(.5f, .5f);
@@ -655,6 +664,7 @@ public class GameUI : MonoBehaviour {
         foreach (var card in _statCards)
             foreach (var text in card.GetComponentsInChildren<Text>(true)) text.fontSize = 14;
         ToastBg(); // 재배치(SetParent)로 형제 순서가 바뀌므로 토스트·배경을 다시 맨 위로
+        if (_icon.sprite != null) _icon.rectTransform.sizeDelta = _icon.sprite.rect.size;
         if (!_mobile) return;
         bool shortLandscape = width >= 720 && height < 480;
         float menuLeft = shortLandscape ? 220 : 10, menuTop = shortLandscape ? 10 : 94;
@@ -696,16 +706,30 @@ public class GameUI : MonoBehaviour {
             for (int i = 0; i < widgets.Length; i++) {
                 var child = widgets[i];
                 if (i < 2) continue; // Fixed title and close button.
-                if (!_statCards.Contains(child) && child.GetComponent<Image>() != null && child.GetComponent<Button>() == null && child.GetComponent<InputField>() == null) continue;
+                if (!_statCards.Contains(child) && !_autoGroups.Contains(child) && child != _enhPreview && child.GetComponent<Image>() != null && child.GetComponent<Button>() == null && child.GetComponent<InputField>() == null) continue;
                 child.SetParent(contentRect, false); child.anchorMin = child.anchorMax = child.pivot = new Vector2(0, 1);
                 var button = child.GetComponent<Button>();
-                float h = button != null ? 48 : child == _allocationInfo.rectTransform ? 80 : child.GetComponent<Text>() != null ? Mathf.Clamp(_desktop[child].size.y, 28, 96) : Mathf.Max(28, _desktop[child].size.y); // 긴 설명칸 여백 컷
+                float h = _autoGroups.Contains(child) ? 108 : button != null ? 48 : child == _allocationInfo.rectTransform ? 80 : child.GetComponent<Text>() != null ? Mathf.Clamp(_desktop[child].size.y, 28, 96) : Mathf.Max(28, _desktop[child].size.y); // 긴 설명칸 여백 컷
                 int checkIndex = button != null ? _checks.IndexOf(button) : -1;
                 bool itemRow = button != null && _rows.Contains(button);
                 if ((itemRow || checkIndex >= 0) && !child.gameObject.activeSelf) continue; // 빈 아이템 줄은 자리 차지 안 함(빈 가방 큰 여백)
                 float childWidth = checkIndex >= 0 ? 44 : itemRow ? contentWidth - 50 : contentWidth;
                 bool allocationInfo = child == _allocationInfo.rectTransform;
                 child.anchoredPosition = new Vector2(itemRow ? 50 : allocationInfo ? 6 : 0, -y); child.sizeDelta = new Vector2(allocationInfo ? childWidth - 12 : childWidth, h);
+                if (_autoGroups.Contains(child)) {
+                    var controls = child.GetComponentsInChildren<Button>(true);
+                    var toggle = (RectTransform)controls[0].transform;
+                    toggle.anchoredPosition = new Vector2(8, -6); toggle.sizeDelta = new Vector2(childWidth - 16, 44);
+                    ResizeButtonText(controls[0], childWidth - 16, 44);
+                    var criteria = child.GetComponentsInChildren<Text>(true).Single(t => t == _autoText || t == _autoBreakText);
+                    criteria.rectTransform.anchoredPosition = new Vector2(8, -56); criteria.rectTransform.sizeDelta = new Vector2(childWidth - 120, 44);
+                    criteria.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    for (int k = 1; k < controls.Length; k++) {
+                        var control = (RectTransform)controls[k].transform;
+                        control.anchoredPosition = new Vector2(childWidth - 104 + (k - 1) * 48, -56); control.sizeDelta = new Vector2(44, 44);
+                        ResizeButtonText(controls[k], 44, 44);
+                    }
+                }
                 if (button != null) ResizeButtonText(button, childWidth, h);
                 var input = child.GetComponent<InputField>();
                 if (input != null) foreach (var text in input.GetComponentsInChildren<Text>(true)) text.rectTransform.sizeDelta = new Vector2(contentWidth - 20, h);
@@ -718,6 +742,13 @@ public class GameUI : MonoBehaviour {
             ((RectTransform)close.transform).sizeDelta = new Vector2(44, 44); ResizeButtonText(close, 44, 44);
         }
         ToastBg();
+    }
+    RectTransform AutoGroup(RectTransform parent, string name, float y) {
+        var group = Img(parent, null, new Vector2(20, -y), new Vector2(560, 46));
+        group.gameObject.name = name;
+        group.color = new Color(0.88f, 0.83f, 0.71f, 0.7f);
+        _autoGroups.Add(group.rectTransform);
+        return group.rectTransform;
     }
     void ResizeButtonText(Button button, float width, float height) {
         var text = button.GetComponentInChildren<Text>(true);

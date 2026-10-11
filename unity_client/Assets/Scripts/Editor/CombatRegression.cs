@@ -17,6 +17,60 @@ public static class CombatRegression {
     static object Call(object obj, string name, params object[] args) => obj.GetType().GetMethod(name, Private).Invoke(obj, args);
     static void Check(bool condition, string message) { if (!condition) throw new Exception("[CombatRegression] " + message); }
 
+    public static void RunHiddenNuke() {
+        var root = new GameObject("HiddenNukeRegression");
+        try {
+            var player = root.AddComponent<PlayerController>(); player.Init(true, "male", () => Array.Empty<MonsterController>());
+            var mob = new GameObject("HiddenBoss").AddComponent<MonsterController>(); mob.transform.SetParent(root.transform);
+            var def = GameData.Monsters.First(m => m.tier == 21); def.atk = 1;
+            mob.Init(def, new Vector3(20, WorldConfig.GroundY, 0), 0, 80);
+            Check(HitFx.Frames("Sprites/FX/obj_bomb/anim1").Length == 9 && HitFx.Frames("Sprites/FX/obj_nuke/anim1").Length == 11, "original nuclear asset frames missing");
+            int hp = player.Hp;
+            Call(mob, "SpawnBreath");
+            var bomb = (SpriteRenderer)Field(mob, "_nukeVis").GetValue(mob); float top = bomb.transform.position.y, x = bomb.transform.position.x;
+            Check(Vector3.Distance(bomb.transform.lossyScale, Vector3.one) < 0.001f, "boss scale changed bomb original size");
+            mob.transform.position += Vector3.right * 2; Call(mob, "LateUpdate");
+            Check(bomb.transform.position.x == x && bomb.transform.position.y == top, "parent made bomb follow boss movement");
+            var hiddenAnim = mob.GetComponent<FrameAnimator>();
+            foreach (string clip in new[] { "walk", "attack", "hurt" }) foreach (int order in new[] { 0, 1 })
+                for (int frame = 0; frame < hiddenAnim.FrameCount(clip); frame++) {
+                    hiddenAnim.Still(clip, frame); mob.transform.position += Vector3.up;
+                    if (order == 0) mob.GetComponent<ActorVisual>().Refresh();
+                    Call(mob, "LateUpdate");
+                    if (order == 1) mob.GetComponent<ActorVisual>().Refresh();
+                    Check(Vector3.Distance(bomb.transform.position, new Vector3(x, top, 0)) < 0.001f, "pose foot alignment moved fixed bomb under LateUpdate order");
+                }
+            Check(bomb.sprite != null && (float)Field(mob, "_pillarT").GetValue(mob) < 0, "hidden used pillar / missing bomb");
+            Call(mob, "StepBreath", 0.3f);
+            Check(bomb.transform.position.y < top && bomb.transform.position.x == x && player.Hp == hp, "bomb not falling / early damage");
+            player.transform.position += Vector3.right * 4;
+            Call(mob, "StepBreath", 0.3f);
+            Check(player.Hp == hp && Field(mob, "_nukeVis").GetValue(mob) == null, "dodge failed / bomb leaked");
+            Call(mob, "SpawnBreath"); Call(mob, "StepBreath", 0.59f);
+            Check(player.Hp == hp, "damage before impact");
+            Call(mob, "StepBreath", 0.02f); Check(player.Hp < hp, "impact did not damage");
+            hp = player.Hp; Call(mob, "StepBreath", 1f); Check(player.Hp == hp, "impact repeated damage");
+            Call(mob, "SpawnBreath"); Call(mob, "Die"); Call(mob, "StepBreath", 1f);
+            Check(player.Hp == hp && Field(mob, "_nukeVis").GetValue(mob) == null, "dead boss retained bomb/damage");
+            var fire = new GameObject("Emperor").AddComponent<MonsterController>(); fire.transform.SetParent(root.transform);
+            fire.Init(GameData.Monsters.First(m => m.tier == 20), new Vector3(20, WorldConfig.GroundY, 0), 0, 80); Call(fire, "SpawnBreath");
+            Check((float)Field(fire, "_pillarT").GetValue(fire) == 0 && Field(fire, "_nukeVis").GetValue(fire) == null, "tier20 firepillar changed");
+            var dragon = new GameObject("DragonBreath").AddComponent<MonsterController>(); dragon.transform.SetParent(root.transform);
+            dragon.Init(GameData.Monsters.First(m => m.tier == 19), new Vector3(20, WorldConfig.GroundY, 0), 0, 80); Call(dragon, "SpawnBreath");
+            Check(dragon.BreathInFlight && Field(dragon, "_nukeVis").GetValue(dragon) == null, "tier19 breath changed");
+            var cancelled = new GameObject("CancelledNuke").AddComponent<MonsterController>(); cancelled.transform.SetParent(root.transform);
+            cancelled.Init(def, new Vector3(20, WorldConfig.GroundY, 0), 0, 80); Call(cancelled, "SpawnBreath");
+            var removedBomb = (SpriteRenderer)Field(cancelled, "_nukeVis").GetValue(cancelled);
+            UnityEngine.Object.DestroyImmediate(cancelled.gameObject);
+            Check(removedBomb == null, "despawn/map cleanup left bomb renderer");
+            var playerDeath = new GameObject("PlayerDeathNuke").AddComponent<MonsterController>(); playerDeath.transform.SetParent(root.transform);
+            playerDeath.Init(def, new Vector3(20, WorldConfig.GroundY, 0), 0, 80); Call(playerDeath, "SpawnBreath");
+            Call(player, "Die"); Call(playerDeath, "StepBreath", 1f);
+            Check(Field(playerDeath, "_nukeVis").GetValue(playerDeath) == null, "player death retained bomb");
+            Debug.Log("[CombatRegression] PASS hidden original nuclear frames, downward fixed aim, impact-only once, dodge, boss/player death, despawn cleanup, tier19 breath + tier20 pillar preserved");
+        } finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
     static void CheckRangeGeometry() {
         var root = new GameObject("RangeGeometryRegression");
         try {

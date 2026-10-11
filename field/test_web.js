@@ -154,7 +154,7 @@ async function evaluate(expression) {
       const z=Math.max(1,Math.min(Math.floor(b.rw/1280),Math.floor(b.rh/720))),w=b.rw/z,h=b.rh/z;
       assert(w>=1000&&h>=640,'desktop inventory layout');
       async function click(x,y){const p={x:b.x+x*z*b.w/b.rw,y:b.y+y*z*b.h/b.rh};await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...p});await pause(100);await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...p});await pause(300);}
-      const left=w/2-300,top=h/2-310,helmet=latest.equip.helmet;
+      const left=w/2-300,top=h/2-330,helmet=latest.equip.helmet;
       await click(left+160,top+96); // second equipped row is helmet
       await click(left+356,top+274);
       await until(()=>latest.equip.helmet===0,'actual inventory mouse unequip');await shot('ui-unequip');
