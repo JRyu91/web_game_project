@@ -8,6 +8,8 @@ const base = process.argv.slice(2).find(x=>!x.startsWith('--')) || 'http://local
 const mobile=process.argv.includes('--mobile');
 const checkPeer=process.argv.includes('--peer');
 const checkEquipment=process.argv.includes('--equipment');
+const checkSkills=process.argv.includes('--skills');
+assert(!checkSkills || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'skills fixture is local-only');
 assert(!checkEquipment || ['localhost','127.0.0.1'].includes(new URL(base).hostname),'equipment fixture is local-only');
 const checkSystems=process.argv.includes('--systems'),systemResponses=new Map();
 const checkChat=process.argv.includes('--chat'),chats=[],invReqs=[];
@@ -74,6 +76,7 @@ async function evaluate(expression) {
   await until(()=>joined>0,'real browser WebSocket join');
   await until(()=>kills>=2,'automatic combat rewards',90000);
   assert(latest.gold>0&&latest.exp>=0&&latest.inv.length>=1);
+  if(checkSkills)assert.deepEqual([...latest.skills].sort(),['qi','rain','volc','king','end'].flatMap(key=>['sword','staff'].map(kind=>key+'_'+kind)).sort(),'all ten learned skills reach WebGL');
   await rewardCapture;
   if(adminPw) {
     for(const id of ['admin','allocate','sum']){await evaluate(`gameInstance.SendMessage('GameUI','Show','${id}')`);await pause(800);const r=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,`${captureName}-${id}.png`),Buffer.from(r.data,'base64'));}
@@ -136,6 +139,18 @@ async function evaluate(expression) {
     console.log('PASS real WebGL natural level-up -> allocation/rejection and exclusive automatic policies');
   }
   let restoredWear;
+  if(checkSkills&&!checkEquipment) {
+    for(const [index,kind] of ['sword','staff'].entries()) {
+      const weapon=latest.inv.find(item=>item.slot==='weapon'&&item.kind===kind&&item.tier===20);
+      assert(weapon,'skills fixture requires both level-100 weapons');
+      const seq=920001+index,beforeKills=kills;
+      await evaluate(`window.gameSocket.send(${JSON.stringify(JSON.stringify({type:'equip',slot:'weapon',uid:weapon.uid,seq}))})`);
+      await until(()=>systemResponses.has(seq),'skill weapon switch ACK');
+      assert.equal(systemResponses.get(seq).ok,true);
+      await until(()=>kills>beforeKills,'learned '+kind+' skill combat rewards',30000);
+      console.log('PASS real WebGL learned '+kind+' skill combat after weapon switch');
+    }
+  }
   if(checkEquipment) {
     assert(latest.level===100&&latest.inv.length>=116&&latest.invCap===200&&!latest.pendingDrop,'run against disposable equipment fixture with drop space');
     let equipmentSeq=910000;
@@ -188,6 +203,7 @@ async function evaluate(expression) {
   await evaluate("document.getElementById('play').click()");
   await until(()=>joined>=2,'rejoin',180000);
   assert(latest.gold>=before.gold&&latest.level>=before.level,'progress retained after reload');
+  if(checkSkills){assert.equal(latest.skills.length,10,'learned skills retained after actual browser reload');console.log('PASS WebGL ten learned skills load and reload persistence');}
   if(checkEquipment){assert.deepEqual(latest.equip,restoredWear,'equipment restored after actual browser reload');console.log('PASS WebGL equipment reload persistence');}
   if(checkSystems)assert(latest.str>=1&&latest.autoSell&&!latest.autoDisassemble,'allocated stats and automatic policy retained after reload');
   fs.mkdirSync(out,{recursive:true});

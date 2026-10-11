@@ -37,17 +37,36 @@ public static class Stage3Capture {
             var playerGo = new GameObject("SkillRegressionPlayer"); playerGo.transform.SetParent(root.transform);
             var player = playerGo.AddComponent<PlayerController>(); player.Init(true, "male", () => new List<MonsterController>());
             var feedback = root.AddComponent<SkillFeedback>(); feedback.Init(player, () => new MonsterController[0]);
-            foreach (var asset in new[] { "obj_energybolt", "obj_firebolt", "obj_bomb", "obj_nuke" })
-                if (Resources.LoadAll<Sprite>("Sprites/FX/" + asset + "/anim1").Length == 0) throw new System.Exception("Missing skill resource: " + asset);
+            foreach (var skill in GameData.Skills) {
+                var frames = HitFx.Frames("Sprites/FX/skill_" + skill.key + "/anim1");
+                if (frames.Length < 3 || frames.Any(frame => frame.rect.width != frame.texture.width || frame.rect.height != frame.texture.height))
+                    throw new System.Exception("Missing or sliced native skill frames: " + skill.key);
+            }
             foreach (var skill in GameData.Skills) {
                 feedback.Clear(); feedback.Cast(skill);
                 if (!SkillFeedback.Supports(skill.key) || feedback.ActiveCount == 0) throw new System.Exception("Missing skill feedback: " + skill.key);
                 feedback.Tick(2);
                 if (feedback.ActiveCount != 0) throw new System.Exception("Skill feedback leaked: " + skill.key);
             }
-            for (int i = 0; i < 40; i++) feedback.Cast(GameData.Skills[0]);
-            if (feedback.ActiveCount > 32) throw new System.Exception("Skill feedback exceeded cap");
+            for (int i = 0; i < 80; i++) feedback.Cast(GameData.Skills[0]);
+            if (feedback.ActiveCount > 48) throw new System.Exception("Skill feedback exceeded cap");
             feedback.Clear();
+            feedback.Cast(GameData.Skills[0]);
+            var effect = feedback.GetComponentsInChildren<SpriteRenderer>().First(renderer => renderer.gameObject.name.StartsWith("Skill_"));
+            var anchored = effect.transform.position;
+            root.transform.position += Vector3.right * 5;
+            feedback.Tick(.01f);
+            if (Vector3.Distance(effect.transform.position, anchored) > .001f) throw new System.Exception("Skill world anchor moved with owner");
+            player.GameplayReady = false; feedback.Tick(.01f);
+            feedback.Impact(GameData.Skills[0], new[] { new Vector3(1, WorldConfig.GroundY, 0) });
+            if (feedback.ActiveCount != 0) throw new System.Exception("Skill feedback survived gameplay pause");
+            player.GameplayReady = true; feedback.Cast(GameData.Skills[0]); feedback.enabled = false; feedback.SendMessage("OnDisable");
+            feedback.Impact(GameData.Skills[0], new[] { new Vector3(1, WorldConfig.GroundY, 0) }); feedback.Windup(GameData.Skills[0], .12f);
+            if (feedback.ActiveCount != 0) throw new System.Exception("Disabled skill feedback leaked");
+            feedback.enabled = true;
+            typeof(PlayerController).GetField("_state", flags).SetValue(player, PlayerState.Dead);
+            feedback.Impact(GameData.Skills[0], new[] { new Vector3(1, WorldConfig.GroundY, 0) });
+            if (feedback.ActiveCount != 0) throw new System.Exception("Dead player emitted skill feedback");
             Debug.Log("PASS RenderingRegression: immediate roster, facing, gear layer, nameplate, departure, ten skill effects, lifecycle cap");
         } finally { Object.DestroyImmediate(root); }
     }
@@ -164,6 +183,104 @@ public static class Stage3Capture {
         }
         ZoneController.AnimTime = 0;
         Debug.Log("PASS RenderingCapture: ten skill feedback frames");
+    }
+
+    [System.Serializable] sealed class SkillVisualClips { public SkillFeedback.Clip[] clips; }
+    public static void SkillVisualRegression() {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        _cam = new GameObject("SkillReviewCamera").AddComponent<Camera>();
+        _cam.orthographic = true; _cam.clearFlags = CameraClearFlags.SolidColor; _cam.backgroundColor = new Color(.08f,.1f,.12f);
+        _zc = new GameObject("SkillReviewZone").AddComponent<ZoneController>(); _zc.Cam = _cam;
+        var clips = JsonUtility.FromJson<SkillVisualClips>(Resources.Load<TextAsset>("Config/skill_fx").text).clips;
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        int cases = 0;
+        try {
+            foreach (bool mobile in new[] { false, true }) foreach (string gender in new[] { "m", "f" }) foreach (int face in new[] { 1, -1 }) {
+                int width = mobile ? 144 : 320, height = mobile ? 288 : 180;
+                var target = new RenderTexture(width, height, 24); var cell = new Texture2D(width, height, TextureFormat.RGB24, false);
+                var sheet = new Texture2D(width * 5, height * 6, TextureFormat.RGB24, false);
+                _cam.targetTexture = target;
+                for (int index = 0; index < GameData.Skills.Length; index++) {
+                    var skill = GameData.Skills[index];
+                    Setup("skill_review", Zone.A, gender, skill.weapon, 100);
+                    _pl.ApplyState(new InvState { level = 100, skills = new[] { skill.key }, equip = new InvEquip { weapon = 1 }, inv = new[] { new InvItem { uid = 1, slot = "weapon", kind = skill.weapon, tier = 0 } } });
+                    typeof(PlayerController).GetProperty("Face").SetValue(_pl, face);
+                    _pl.GetComponent<GearAttachment>().SetFace(face);
+                    _pl.GetComponent<FrameAnimator>().Still("idle", 0);
+                    Mob(1, PX + face * 1.3f, 999999);
+                    foreach (var actor in ActorVisual.All) if (actor != null) actor.Refresh();
+                    _cam.orthographicSize = mobile ? 7.2f : 4.5f;
+                    _cam.aspect = (float)width / height; _cam.transform.position = new Vector3(PX + face * .6f, WorldConfig.GroundY + 2.4f, -10);
+                    var feedback = _pl.gameObject.AddComponent<SkillFeedback>(); feedback.Init(_pl, () => _mobs);
+                    var pending = (List<SkillDef>)typeof(PlayerController).GetField("_pendingSkills", flags).GetValue(_pl); pending.Add(skill);
+                    typeof(PlayerController).GetField("_state", flags).SetValue(_pl, PlayerState.Attack);
+                    var clip = clips.First(value => value.key == skill.key);
+                    _cam.Render(); RenderTexture.active = target; cell.ReadPixels(new Rect(0,0,width,height),0,0); cell.Apply();
+                    var baseline = cell.GetPixels32();
+                    feedback.Windup(skill, .12f); feedback.Tick(.06f);
+                    for (int phase = 0; phase < 3; phase++) {
+                        if (phase == 1) {
+                            feedback.Cast(skill);
+                            var frames = HitFx.Frames("Sprites/FX/" + clip.asset + "/anim1");
+                            var strike = feedback.GetComponentsInChildren<SpriteRenderer>().First(renderer => renderer.gameObject.name.EndsWith("_impact"));
+                            if (strike.sprite != frames[clip.impactFrame]) throw new System.Exception("Native strike frame missed: " + skill.key);
+                        }
+                        if (phase == 2) feedback.Tick((HitFx.Frames("Sprites/FX/" + clip.asset + "/anim1").Length - clip.impactFrame) / clip.fps * .65f);
+                        _cam.Render(); RenderTexture.active = target; cell.ReadPixels(new Rect(0,0,width,height),0,0); cell.Apply();
+                        var rendered = cell.GetPixels32(); int changed = 0;
+                        for (int pixel = 0; pixel < rendered.Length; pixel++) if (rendered[pixel].r != baseline[pixel].r || rendered[pixel].g != baseline[pixel].g || rendered[pixel].b != baseline[pixel].b) changed++;
+                        if (changed < 5) throw new System.Exception("Empty/clipped skill stage: " + skill.key + " phase=" + phase);
+                        int tile = index * 3 + phase; sheet.SetPixels(tile % 5 * width, (5 - tile / 5) * height, width, height, cell.GetPixels());
+                    }
+                    feedback.Clear(); cases++;
+                }
+                sheet.Apply(); Debug.Log("SKILL_REVIEW_JPEG " + (mobile ? "mobile" : "desktop") + "_" + gender + "_" + face + " " + System.Convert.ToBase64String(sheet.EncodeToJPG(65)));
+                _cam.targetTexture = null; RenderTexture.active = null; Object.DestroyImmediate(sheet); Object.DestroyImmediate(cell); Object.DestroyImmediate(target);
+            }
+            Debug.Log("PASS SkillVisualRegression: " + cases + " cases, native windup/impact/afterglow 240 GPU frames; contact cells skill order x 3 phases");
+        } finally {
+            Clear(); RenderTexture.active = null;
+            if (_cam != null) Object.DestroyImmediate(_cam.gameObject);
+            if (_zc != null) Object.DestroyImmediate(_zc.gameObject);
+            ZoneController.AnimTime = 0;
+        }
+    }
+
+    public static void SkillComboVisualRegression() {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        _cam = new GameObject("ComboReviewCamera").AddComponent<Camera>(); _cam.orthographic = true;
+        _cam.clearFlags = CameraClearFlags.SolidColor; _cam.backgroundColor = new Color(.08f,.1f,.12f);
+        _zc = new GameObject("ComboReviewZone").AddComponent<ZoneController>(); _zc.Cam = _cam;
+        int cases = 0;
+        try {
+            foreach (bool mobile in new[] { false, true }) foreach (string gender in new[] { "m", "f" }) {
+                int width = mobile ? 144 : 320, height = mobile ? 288 : 180, tile = 0;
+                var target = new RenderTexture(width, height, 24); var cell = new Texture2D(width, height, TextureFormat.RGB24, false);
+                var sheet = new Texture2D(width * 4, height * 2, TextureFormat.RGB24, false); _cam.targetTexture = target;
+                foreach (string weapon in new[] { "sword", "staff" }) foreach (int face in new[] { 1, -1 }) {
+                    Setup("skill_combo", Zone.A, gender, weapon, 100);
+                    var skills = GameData.Skills.Where(skill => skill.weapon == weapon).ToArray();
+                    _pl.ApplyState(new InvState { level = 100, skills = skills.Select(skill => skill.key).ToArray(), equip = new InvEquip { weapon = 1 }, inv = new[] { new InvItem { uid = 1, slot = "weapon", kind = weapon, tier = 0 } } });
+                    typeof(PlayerController).GetProperty("Face").SetValue(_pl, face); _pl.GetComponent<GearAttachment>().SetFace(face);
+                    _pl.GetComponent<FrameAnimator>().Still("idle", 0);
+                    for (int i = 0; i < 6; i++) Mob(new[] { 1, 8, 13 }[i % 3], PX + face * (1.3f + i % 3 * .3f), 999999);
+                    foreach (var actor in ActorVisual.All) if (actor != null) actor.Refresh();
+                    _cam.orthographicSize = mobile ? 7.2f : 4.5f; _cam.aspect = (float)width / height;
+                    _cam.transform.position = new Vector3(PX + face * .6f, WorldConfig.GroundY + 2.4f, -10);
+                    var feedback = _pl.gameObject.AddComponent<SkillFeedback>(); feedback.Init(_pl, () => _mobs);
+                    foreach (var skill in skills) feedback.Cast(skill);
+                    for (int phase = 0; phase < 2; phase++) {
+                        if (phase == 1) feedback.Tick(.2f);
+                        _cam.Render(); RenderTexture.active = target; cell.ReadPixels(new Rect(0,0,width,height),0,0); cell.Apply();
+                        sheet.SetPixels(tile % 4 * width, (1 - tile / 4) * height, width, height, cell.GetPixels()); tile++;
+                    }
+                    feedback.Clear(); cases++;
+                }
+                sheet.Apply(); Debug.Log("SKILL_COMBO_JPEG " + (mobile ? "mobile" : "desktop") + "_" + gender + " " + System.Convert.ToBase64String(sheet.EncodeToJPG(65)));
+                _cam.targetTexture = null; RenderTexture.active = null; Object.DestroyImmediate(sheet); Object.DestroyImmediate(cell); Object.DestroyImmediate(target);
+            }
+            Debug.Log("PASS SkillComboVisualRegression: " + cases + " five-skill clustered-six-target cases, peak and +200ms 32 GPU frames; cells sword-right/left then staff-right/left, two phases each");
+        } finally { Clear(); RenderTexture.active = null; if (_cam != null) Object.DestroyImmediate(_cam.gameObject); if (_zc != null) Object.DestroyImmediate(_zc.gameObject); ZoneController.AnimTime = 0; }
     }
 
     const string OUT = "../unity_review/stage3";

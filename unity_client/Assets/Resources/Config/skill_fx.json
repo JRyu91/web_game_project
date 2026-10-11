@@ -1,0 +1,136 @@
+{
+  "clips": [
+    {
+      "key": "qi_sword",
+      "asset": "skill_qi_sword",
+      "fps": 16,
+      "originX": 33,
+      "originY": 42,
+      "impactFrame": 2,
+      "frames": 9,
+      "width": 75,
+      "height": 70,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/e94f264b-d209-4783-b350-1db4075bc72e/rpg-qi-sword.png"
+    },
+    {
+      "key": "volc_staff",
+      "asset": "skill_volc_staff",
+      "fps": 14,
+      "originX": 77,
+      "originY": 201,
+      "impactFrame": 4,
+      "frames": 11,
+      "width": 154,
+      "height": 243,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/59fe7646-89f3-4df9-9925-65ce217abfa1/rpg-volc-staff.png"
+    },
+    {
+      "key": "rain_sword",
+      "asset": "skill_rain_sword",
+      "fps": 16,
+      "originX": 4,
+      "originY": 52,
+      "impactFrame": 2,
+      "frames": 7,
+      "width": 63,
+      "height": 106,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/1cd3775d-5936-4ab6-a619-69483ffda06d/rpg-rain-sword.png"
+    },
+    {
+      "key": "volc_sword",
+      "asset": "skill_volc_sword",
+      "fps": 12,
+      "originX": 94,
+      "originY": 35,
+      "impactFrame": 3,
+      "frames": 10,
+      "width": 191,
+      "height": 89,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/cd1afbfb-cb11-4d5e-9f91-13a03a7ca635/rpg-volc-sword.png"
+    },
+    {
+      "key": "king_staff",
+      "asset": "skill_king_staff",
+      "fps": 14,
+      "originX": 63,
+      "originY": 66,
+      "impactFrame": 3,
+      "frames": 16,
+      "width": 117,
+      "height": 126,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/fd6b7d71-ec32-4a1a-8cb3-85d80e5ca55d/rpg-king-staff.png"
+    },
+    {
+      "key": "king_sword",
+      "asset": "skill_king_sword",
+      "fps": 14,
+      "originX": 40,
+      "originY": 121,
+      "impactFrame": 4,
+      "frames": 13,
+      "width": 80,
+      "height": 151,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/a2163346-7ef6-4743-9217-f584df4bfbe9/rpg-king-sword.png"
+    },
+    {
+      "key": "rain_staff",
+      "asset": "skill_rain_staff",
+      "fps": 12,
+      "originX": 35,
+      "originY": 44,
+      "impactFrame": 3,
+      "frames": 12,
+      "width": 65,
+      "height": 71,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/254ce73d-3237-43aa-b738-c339b0b58875/rpg-rain-staff.png"
+    },
+    {
+      "key": "end_sword",
+      "asset": "skill_end_sword",
+      "fps": 14,
+      "originX": 119,
+      "originY": 173,
+      "impactFrame": 3,
+      "frames": 13,
+      "width": 241,
+      "height": 219,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/2df6ab04-b4f6-4999-bdda-c36a0c02b4ae/rpg-end-sword.png"
+    },
+    {
+      "key": "end_staff",
+      "asset": "skill_end_staff",
+      "fps": 12,
+      "originX": 78,
+      "originY": 85,
+      "impactFrame": 3,
+      "frames": 12,
+      "width": 158,
+      "height": 129,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/6f83bc68-6132-4e0c-a515-dd666f0da1b6/rpg-end-staff.png"
+    },
+    {
+      "key": "qi_staff",
+      "asset": "skill_qi_staff",
+      "fps": 16,
+      "originX": 30,
+      "originY": 26,
+      "impactFrame": 3,
+      "frames": 7,
+      "width": 54,
+      "height": 48,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/c5681851-069d-4926-a03e-11459e79ccc6/rpg-qi-staff.png"
+    },
+    {
+      "key": "meteor_projectile",
+      "asset": "skill_meteor_projectile",
+      "fps": 16,
+      "originX": 20,
+      "originY": 47,
+      "impactFrame": 0,
+      "frames": 8,
+      "width": 62,
+      "height": 66,
+      "source": "https://api.pixellab.ai/mcp/pixel-tools/1f72b722-3653-4855-85b5-7f24528edac3/rpg-meteor-projectile.png"
+    }
+  ]
+}

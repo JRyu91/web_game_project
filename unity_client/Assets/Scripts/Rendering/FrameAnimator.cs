@@ -125,6 +125,10 @@ public class FrameAnimator : MonoBehaviour {
         if (n < _idx.Length) { System.Array.Resize(ref _idx, n); System.Array.Resize(ref _dur, n); }
     }
 
+    public float SecondsToImpact {
+        get { float seconds = 0; if (_dur != null) for (int i = 0; i < _impactPos; i++) seconds += _dur[i]; return seconds; }
+    }
+
     public float Length { get { float t = 0; if (_dur != null) foreach (var d in _dur) t += d; return t; } }
 
     // A hit reaction changes only the displayed sprite; attack frames, impact and cooldowns keep running.

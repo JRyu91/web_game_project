@@ -6,114 +6,119 @@ using Game.Gameplay;
 using UnityEngine;
 
 namespace Game.Rendering {
-// Skill damage remains in PlayerController; this component only paints the impact event.
-// ponytail: procedural skill paths stand in for missing bespoke art; replace when matching skill frame assets are supplied.
+// Native clip anticipation follows the attack; the authoritative damage event starts its impact frame.
 public class SkillFeedback : MonoBehaviour {
+    [Serializable] public sealed class Clip { public string key, asset; public float fps = 16; public float originX, originY; public int impactFrame; }
+    [Serializable] sealed class ClipFile { public Clip[] clips; }
     sealed class Effect {
         public GameObject go; public SpriteRenderer sprite; public Sprite[] frames;
-        public float age, duration; public Vector3 start, end;
+        public SkillDef skill; public bool windup, detail;
+        public float age, duration; public int first, last; public Vector3 position, start;
     }
+    const int MaxEffects = 48;
     readonly List<Effect> _effects = new List<Effect>();
-    readonly Dictionary<string, Sprite[]> _frames = new Dictionary<string, Sprite[]>();
+    readonly Dictionary<string, Clip> _clips = new Dictionary<string, Clip>();
     PlayerController _player; Func<IEnumerable<MonsterController>> _monsters;
-    Material _lineMaterial;
     Zone _zone;
     public int ActiveCount => _effects.Count;
     public void Init(PlayerController player, Func<IEnumerable<MonsterController>> monsters) {
         _player = player; _monsters = monsters;
         _zone = ZoneController.Current != null ? ZoneController.Current.Zone : Zone.A;
-        _lineMaterial = new Material(Shader.Find("Sprites/Default"));
-        _player.OnSkillCast += Cast;
+        var file = Resources.Load<TextAsset>("Config/skill_fx");
+        if (file != null) foreach (var clip in JsonUtility.FromJson<ClipFile>(file.text).clips) _clips[clip.key] = clip;
+        _player.OnSkillWindup += Windup;
+        _player.OnSkillImpact += Impact;
     }
     public static bool Supports(string key) => GameData.Skills.Any(s => s.key == key);
-    public void Clear() {
-        foreach (var e in _effects) { if (Application.isPlaying) Destroy(e.go); else DestroyImmediate(e.go); }
-        _effects.Clear();
+    static void Remove(Effect effect) { if (Application.isPlaying) Destroy(effect.go); else DestroyImmediate(effect.go); }
+    public void Clear() { foreach (var effect in _effects) Remove(effect); _effects.Clear(); }
+    void ClearWindup(string key) {
+        for (int i = _effects.Count - 1; i >= 0; i--) if (_effects[i].windup && _effects[i].skill.key == key) { Remove(_effects[i]); _effects.RemoveAt(i); }
     }
-    Effect Create(string name, float duration, Vector3 start, Vector3 end) {
-        if (_effects.Count >= 32) { var old = _effects[0]; if (Application.isPlaying) Destroy(old.go); else DestroyImmediate(old.go); _effects.RemoveAt(0); }
-        var go = new GameObject(name); go.transform.SetParent(transform, false); go.transform.position = start;
-        var effect = new Effect { go = go, duration = duration, start = start, end = end }; _effects.Add(effect); return effect;
+    Vector3[] Targets(SkillDef skill) => (_monsters?.Invoke() ?? Enumerable.Empty<MonsterController>())
+        .Where(m => _player.SkillHits(skill, m)).Select(m => {
+            var visual = m.GetComponent<ActorVisual>();
+            return new Vector3(visual != null ? visual.BodyX : m.transform.position.x, WorldConfig.GroundY, 0);
+        }).ToArray();
+    public void Cast(SkillDef skill) => Impact(skill, Targets(skill)); // Existing preview/capture callers.
+    public void Windup(SkillDef skill, float seconds) {
+        if (seconds > 0) Paint(skill, Targets(skill), true, seconds);
     }
-    void SpriteEffect(string asset, Vector3 start, Vector3 end, float duration, int face, float delay = 0) {
-        if (!_frames.TryGetValue(asset, out var frames)) {
-            frames = Resources.LoadAll<Sprite>("Sprites/FX/" + asset + "/anim1").OrderBy(s => s.name).ToArray();
-            _frames[asset] = frames;
+    public void Impact(SkillDef skill, Vector3[] targets) {
+        if (!isActiveAndEnabled || _player == null || _player.IsDead || !_player.GameplayReady) return;
+        ClearWindup(skill.key);
+        Paint(skill, targets, false, 0);
+        if (skill.weapon == "sword") {
+            var frames = HitFx.Frames("Sprites/FX/obj_hitspark/anim1");
+            foreach (var target in targets) Add(skill, frames, 0, frames.Length - 1, frames.Length / 24f, false, true, target + Vector3.up * .65f, target + Vector3.up * .65f);
         }
+    }
+    void Paint(SkillDef skill, Vector3[] targets, bool windup, float seconds) {
+        if (!isActiveAndEnabled || _player == null || _player.IsDead || !_player.GameplayReady || !_clips.TryGetValue(skill.key, out var clip)) return;
+        var frames = HitFx.Frames("Sprites/FX/" + clip.asset + "/anim1");
         if (frames.Length == 0) return;
-        var e = Create(asset, duration, start, end); e.frames = frames;
-        e.sprite = e.go.AddComponent<SpriteRenderer>(); e.sprite.sortingOrder = 9; e.sprite.sprite = frames[0]; e.sprite.flipX = face < 0; e.age = -delay; e.sprite.enabled = delay == 0;
-    }
-    void Path(string name, Vector3[] points, Color color, float duration = 0.45f) {
-        var e = Create(name, duration, Vector3.zero, Vector3.zero);
-        var line = e.go.AddComponent<LineRenderer>(); line.sharedMaterial = _lineMaterial;
-        line.useWorldSpace = true; line.positionCount = points.Length; line.SetPositions(points);
-        line.startWidth = line.endWidth = 2f / 40f; line.startColor = line.endColor = color; line.sortingOrder = 9;
-    }
-    void Arc(Vector3 center, float radius, float from, float to, Color color) {
-        var points = new Vector3[17];
-        for (int i = 0; i < points.Length; i++) { float angle = Mathf.Lerp(from, to, i / 16f) * Mathf.Deg2Rad; points[i] = Snap(center + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * radius); }
-        Path("SkillArc", points, color);
-    }
-    static Vector3 Snap(Vector3 p) => new Vector3(Mathf.Round(p.x * 40) / 40, Mathf.Round(p.y * 40) / 40, 0);
-    public void Cast(SkillDef skill) {
-        if (_player == null || !Supports(skill.key)) return;
-        float x = _player.transform.position.x; int face = _player.Face;
-        var center = new Vector3(x, WorldConfig.GroundY + 0.8f, 0);
-        var targets = (_monsters?.Invoke() ?? Enumerable.Empty<MonsterController>()).Where(m => m != null && !m.IsDead)
-            .Where(m => skill.kind == "map" || skill.kind == "facing" && (m.transform.position.x - x) * face >= 0 || skill.kind == "area" && ActorVisual.Gap(m.transform, _player.transform) <= 3.2f || skill.kind == "line" && (m.transform.position.x - x) * face >= 0 && ActorVisual.Gap(m.transform, _player.transform) <= _player.LineRange)
-            .OrderBy(m => Mathf.Abs(m.transform.position.x - x)).Take(12).Select(m => new Vector3(m.transform.position.x, WorldConfig.GroundY + 0.6f, 0)).ToArray();
-        var ahead = center + Vector3.right * face * 2;
-        var cyan = new Color(0.45f, 0.9f, 1); var gold = new Color(1, 0.85f, 0.3f);
-        switch (skill.key) {
-            case "qi_staff": SpriteEffect("obj_energybolt", center, targets.Length > 0 ? targets[0] : ahead, 0.35f, face); break;
-            case "rain_staff": SpriteEffect("obj_firebolt", center, targets.Length > 0 ? targets[0] : ahead, 0.45f, face); break;
-            case "qi_sword": case "rain_sword": Arc(center, skill.key == "qi_sword" ? 1.3f : 2.3f, face > 0 ? -80 : 100, face > 0 ? 80 : 260, cyan); break;
-            case "volc_staff":
-                var previous = center;
-                foreach (var target in targets) { Path("ChainLightning", new[] { Snap(previous), Snap((previous + target) / 2 + Vector3.up * 0.45f), Snap(target) }, cyan); previous = target; }
-                if (targets.Length == 0) Path("ChainLightning", new[] { center, ahead + Vector3.up }, cyan);
-                break;
-            case "volc_sword": case "end_sword":
-                float width = skill.key == "end_sword" ? 7 : 3;
-                var crack = new Vector3[17];
-                for (int i = 0; i < crack.Length; i++) crack[i] = Snap(new Vector3(x - width + width * 2 * i / 16f, WorldConfig.GroundY + (i % 2) * 0.15f, 0));
-                Path("GroundCrack", crack, gold, 0.65f);
-                if (skill.key == "end_sword") Arc(center, 3, 0, 360, gold);
-                break;
-            case "king_sword": Arc(center, 1.5f, 0, 360, gold); Arc(center, 2.2f, 0, 360, gold); break;
-            case "king_staff":
-                foreach (var target in targets.Length > 0 ? targets : new[] { ahead }) {
-                    Arc(target, 0.6f, 0, 360, cyan);
-                    for (int i = 0; i < 5; i++) {
-                        var flake = Snap(target + new Vector3((i - 2) * 0.35f, 0.8f + (i % 2) * 0.45f));
-                        Path("FrostFlake", new[] { flake - Vector3.up * 0.12f, flake + Vector3.up * 0.12f }, cyan);
-                        Path("FrostFlake", new[] { flake - Vector3.right * 0.12f, flake + Vector3.right * 0.12f }, cyan);
-                    }
-                }
-                break;
-            case "end_staff":
-                foreach (var target in targets.Length > 0 ? targets : new[] { ahead }) { SpriteEffect("obj_bomb", target + new Vector3(-1, 3), target, 0.4f, face); SpriteEffect("obj_nuke", target, target, 0.8f, face, 0.4f); }
-                break;
+        int impact = Mathf.Clamp(clip.impactFrame, 0, frames.Length - 1);
+        bool projectile = windup && (skill.key == "qi_staff" || skill.key == "rain_staff");
+        bool meteor = windup && skill.key == "end_staff";
+        if (meteor && _clips.TryGetValue("meteor_projectile", out var meteorClip)) { clip = meteorClip; frames = HitFx.Frames("Sprites/FX/" + clip.asset + "/anim1"); }
+        if (windup && impact == 0 && !projectile && !meteor) return;
+        int first = windup ? 0 : impact, last = windup && !meteor ? impact - 1 : frames.Length - 1;
+        float duration = windup ? seconds : (last - first + 1) / Mathf.Max(1, clip.fps);
+        int face = _player.Face;
+        var ahead = new Vector3(_player.Visual.BodyX + face * 1.5f, WorldConfig.GroundY, 0);
+        // Sword silhouettes define the sweep once; spells strike each actual target, including imminent kills.
+        var positions = skill.weapon == "sword" ? new[] { skill.kind == "area" || skill.kind == "map" ? new Vector3(_player.Visual.BodyX, WorldConfig.GroundY, 0) : ahead }
+            : targets.Length == 0 ? new[] { ahead } : targets;
+        if (projectile) {
+            var ordered = targets.Where(target => (target.x - _player.Visual.BodyX) * face >= 0).OrderBy(target => Mathf.Abs(target.x - _player.Visual.BodyX)).ToArray();
+            positions = new[] { ordered.Length > 0 ? ordered[skill.key == "qi_staff" ? ordered.Length - 1 : 0] : ahead };
+            frames = HitFx.Frames("Sprites/FX/" + (skill.key == "qi_staff" ? "obj_energybolt" : "obj_firebolt") + "/anim1");
+            first = 0; last = frames.Length - 1;
+        }
+        foreach (var target in positions) {
+            var frame = frames[first];
+            var offset = projectile ? Vector3.up * .65f : new Vector3((frame.texture.width * .5f - clip.originX) * face, clip.originY - frame.texture.height * .5f, 0) / frame.pixelsPerUnit;
+            float height = skill.key == "rain_sword" ? 1.3f : skill.key == "qi_sword" || skill.key == "qi_staff" || skill.key == "rain_staff" ? .8f : skill.key == "king_sword" ? .6f : 0;
+            if (projectile || meteor) height = 0;
+            var position = Snap(target + offset + Vector3.up * height);
+            var start = projectile ? Snap(new Vector3(_player.Visual.BodyX + face * .3f, WorldConfig.GroundY + .8f, 0)) : meteor ? position + new Vector3(face * 3f, 5f, 0) : position;
+            Add(skill, frames, first, last, duration, windup, false, start, position);
         }
     }
+    void Add(SkillDef skill, Sprite[] frames, int first, int last, float duration, bool windup, bool detail, Vector3 start, Vector3 position) {
+        if (frames.Length == 0) return;
+        if (_effects.Count >= MaxEffects) {
+            int oldest = _effects.FindIndex(e => e.windup || e.detail); if (oldest < 0) oldest = 0;
+            Remove(_effects[oldest]); _effects.RemoveAt(oldest);
+        }
+        var go = new GameObject("Skill_" + skill.key + (windup ? "_windup" : detail ? "_hit" : "_impact"));
+        go.transform.SetParent(transform, false); go.transform.position = start;
+        var sprite = go.AddComponent<SpriteRenderer>(); sprite.sortingOrder = windup ? 8 : detail ? 11 : 10;
+        sprite.sprite = frames[first]; sprite.flipX = _player.Face < 0;
+        _effects.Add(new Effect { go = go, sprite = sprite, frames = frames, skill = skill, windup = windup, detail = detail, duration = duration, first = first, last = last, position = position, start = start });
+    }
+
+    static Vector3 Snap(Vector3 position) => new Vector3(Mathf.Round(position.x * 40) / 40, Mathf.Round(position.y * 40) / 40, 0);
     public void Tick(float dt) {
+        if (_player == null || _player.IsDead || !_player.GameplayReady) { Clear(); return; }
         for (int i = _effects.Count - 1; i >= 0; i--) {
-            var e = _effects[i]; e.age += dt;
-            if (e.age >= e.duration) { if (Application.isPlaying) Destroy(e.go); else DestroyImmediate(e.go); _effects.RemoveAt(i); continue; }
-            if (e.sprite == null) continue;
-            if (e.age < 0) continue;
-            e.sprite.enabled = true;
-            float progress = e.age / e.duration;
-            e.go.transform.position = Snap(Vector3.Lerp(e.start, e.end, progress));
-            e.sprite.sprite = e.frames[Mathf.Min(e.frames.Length - 1, (int)(progress * e.frames.Length))];
+            var effect = _effects[i]; effect.age += Mathf.Max(0, dt);
+            if (!effect.windup && effect.age >= effect.duration || effect.windup && !_player.PreparingSkill(effect.skill.key)) { Remove(effect); _effects.RemoveAt(i); continue; }
+            float progress = Mathf.Clamp01(effect.age / effect.duration);
+            effect.go.transform.position = Snap(Vector3.Lerp(effect.start, effect.position, progress)); // World anchors survive owner movement.
+            effect.sprite.sprite = effect.frames[Mathf.Min(effect.last, effect.first + (int)(progress * (effect.last - effect.first + 1)))];
+            if (!effect.windup) effect.sprite.color = new Color(1, 1, 1, Mathf.Clamp01((1 - progress) * 4));
         }
     }
     void Update() {
         var zone = ZoneController.Current != null ? ZoneController.Current.Zone : Zone.A;
-        if (_player == null || _player.IsDead || !_player.GameplayReady || zone != _zone) { Clear(); _zone = zone; return; }
+        if (zone != _zone) { Clear(); _zone = zone; return; }
         Tick(Time.deltaTime);
     }
-    void OnDestroy() { if (_player != null) _player.OnSkillCast -= Cast; Clear(); if (_lineMaterial != null) { if (Application.isPlaying) Destroy(_lineMaterial); else DestroyImmediate(_lineMaterial); } }
+    void OnDisable() => Clear();
+    void OnDestroy() {
+        if (_player != null) { _player.OnSkillWindup -= Windup; _player.OnSkillImpact -= Impact; }
+        Clear();
+    }
 }
 }

@@ -11,6 +11,7 @@ I.normalize = raw => {
   for(const kind of ['sword','staff'])for(let tier=0;tier<21;tier++)add('weapon',kind,tier);
   for(const slot of ['helmet','armor'])for(let tier=0;tier<37;tier++)add(slot,'',tier);
   s.bagExpansions=140; // 200 slots: leave room for drops so acceptance play does not pause.
+  if(process.argv.includes('--skills'))s.skills=I.view(s).skillbooks.map(book=>book.key);
   return normalize(s);
 };
 require('./server');

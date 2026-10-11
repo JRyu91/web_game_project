@@ -191,6 +191,7 @@ public static class CombatRegression {
             UnityEngine.Object.DestroyImmediate(root);
         }
         RunAnimation();
+        RunSkillFeedback();
     }
 
     static void CheckSkyGroundCoverage() {
@@ -362,6 +363,66 @@ public static class CombatRegression {
         player.ApplyState(new InvState { level = player.Level, skills = skills, equip = new InvEquip { weapon = 1 }, inv = new[] { new InvItem { uid = 1, slot = "weapon", kind = player.WeaponKind, tier = player.WeaponTierIdx } } });
     }
 
+    public static void RunSkillFeedback() {
+        var root = new GameObject("SkillContractRegression");
+        var previousLocal = PlayerController.Local; float previousGround = WorldConfig.GroundY;
+        int checkedSkills = 0;
+        try {
+            foreach (string gender in new[] { "male", "female" }) foreach (int face in new[] { -1, 1 }) foreach (string weapon in new[] { "sword", "staff" }) {
+                var go = new GameObject("SkillPlayer"); go.transform.SetParent(root.transform);
+                var pool = new List<MonsterController>();
+                var player = go.AddComponent<PlayerController>(); player.Level = 100; player.WeaponKind = weapon; player.Init(false, gender, () => pool);
+                typeof(PlayerController).GetProperty("Face").SetValue(player, face); player.GetComponent<GearAttachment>().SetFace(face);
+                var skills = GameData.Skills.Where(skill => skill.weapon == weapon).ToArray(); GrantSkills(player, skills.Select(skill => skill.key).ToArray());
+                var gaps = new[] { .25f, .25f, player.LineRange + .02f, 3.22f, 20f, 20f }; var sides = new[] { 1, -1, 1, 1, 1, -1 };
+                var definition = GameData.Monsters[0]; definition.hp = 10000000; definition.def = 0;
+                for (int index = 0; index < gaps.Length; index++) {
+                    var monster = new GameObject("SkillTarget").AddComponent<MonsterController>(); monster.transform.SetParent(root.transform);
+                    monster.Init(definition, Vector3.zero, -80, 80); var visual = monster.GetComponent<ActorVisual>(); visual.Refresh();
+                    float x = player.Visual.BodyX + face * sides[index] * (player.Visual.HalfWidth + visual.HalfWidth + gaps[index]);
+                    monster.transform.position += Vector3.right * (x - visual.BodyX); pool.Add(monster);
+                }
+                var feedback = go.AddComponent<SkillFeedback>(); feedback.Init(player, () => pool);
+                Vector3[] captured = null; player.OnSkillImpact += (skill, targets) => captured = targets;
+                var pending = (List<SkillDef>)Field(player, "_pendingSkills").GetValue(player);
+                foreach (var skill in skills) {
+                    feedback.Clear(); pending.Clear(); pending.Add(skill); Field(player, "_state").SetValue(player, PlayerState.Attack); Field(player, "_impactApplied").SetValue(player, false);
+                    feedback.Windup(skill, .12f); feedback.Tick(.5f);
+                    Check(feedback.ActiveCount > 0, "Frozen/late animation lost skill windup " + skill.key);
+                    const int seed = 721; Field(player, "_rng").SetValue(player, new System.Random(seed));
+                    var expectedRng = new System.Random(seed);
+                    int raw = Mathf.Max(1, Mathf.RoundToInt((CombatMath.PlayerFixedAtk(100) + CombatMath.RollWeaponDamage(player.CurrentWeapon, 0, expectedRng)) * skill.mult));
+                    int expectedDamage = CombatMath.ApplyGrowthDamage(raw, player.AttackMultiplier, player.CriticalChance, player.CriticalDamageMultiplier, expectedRng);
+                    var damage = new Dictionary<MonsterController, List<int>>(); Call(player, "CastSkill", skill, pool.ToArray(), damage);
+                    var expected = pool.Where((monster, index) => skill.kind == "map" || skill.kind == "facing" && sides[index] > 0 || skill.kind == "area" && gaps[index] <= 3.2f || skill.kind == "line" && sides[index] > 0 && gaps[index] <= player.LineRange).ToArray();
+                    Check(captured.Length == expected.Length && damage.Count == expected.Length, "Skill target contract mismatch " + skill.key);
+                    foreach (var monster in expected) {
+                        Check(captured.Any(point => Mathf.Abs(point.x - monster.GetComponent<ActorVisual>().BodyX) < .001f), "Authoritative skill position mismatch " + skill.key);
+                        Check(damage[monster].Count == 1 && damage[monster][0] == expectedDamage, "Skill damage/balance changed " + skill.key);
+                        Field(monster, "_hitCooldownTimer").SetValue(monster, 0f); int hp = monster.Hp; monster.TakeDamageBatch(damage[monster]);
+                        Check(monster.Hp == hp - expectedDamage, "Skill impact actual health mismatch " + skill.key);
+                    }
+                    Check(player.SkillCooldown(skill.key) == player.SkillBaseCooldown(skill), "Skill cooldown changed " + skill.key); checkedSkills++;
+                }
+                feedback.Clear();
+                foreach (var monster in pool) { var visual = monster.GetComponent<ActorVisual>(); monster.transform.position += Vector3.right * (player.Visual.BodyX + face * (player.Visual.HalfWidth + visual.HalfWidth + .25f) - visual.BodyX); }
+                var combo = new Dictionary<MonsterController, List<int>>();
+                foreach (var skill in skills) Call(player, "CastSkill", skill, pool.ToArray(), combo);
+                Check(combo.Count == 6 && combo.Values.All(hits => hits.Count == 5), "Five-skill six-target combo lost damage");
+                Check(feedback.ActiveCount == (weapon == "sword" ? 35 : 30), "Five-skill combo lost native core / victim effects");
+                feedback.Clear(); pending.Clear(); pending.Add(skills[0]); Field(player, "_impactApplied").SetValue(player, false); feedback.Windup(skills[0], .12f);
+                GrantSkills(player, Array.Empty<string>()); feedback.Tick(.01f); Check(feedback.ActiveCount == 0, "Revoked skill retained windup");
+                GrantSkills(player, skills.Select(skill => skill.key).ToArray()); pending.Add(skills[0]); feedback.Windup(skills[0], .12f);
+                player.RestoreTransport(player.GetSnapshot()); feedback.Tick(.01f); Check(feedback.ActiveCount == 0, "Save restore retained stale skill windup");
+                feedback.Cast(skills[0]);
+                var zone = new GameObject("SkillZone").AddComponent<ZoneController>(); zone.SetZone(Zone.B, Tod.Day); Call(feedback, "Update");
+                Check(feedback.ActiveCount == 0, "Zone transition retained skill effects"); UnityEngine.Object.DestroyImmediate(zone.gameObject);
+                foreach (var monster in pool) UnityEngine.Object.DestroyImmediate(monster.gameObject); UnityEngine.Object.DestroyImmediate(go);
+            }
+            Debug.Log("PASS SkillContractRegression: " + checkedSkills + " skill/sex/face exact target+health+cooldown cases; five-skill six-target combos, frozen windup, revoke/save/zone cleanup");
+        } finally { WorldConfig.GroundY = previousGround; typeof(PlayerController).GetProperty("Local").SetValue(null, previousLocal); UnityEngine.Object.DestroyImmediate(root); }
+    }
+
     public static void RunAnimation() {
         var root = new GameObject("CombatAnimationRegression");
         var previousLocal = PlayerController.Local;
@@ -374,9 +435,14 @@ public static class CombatRegression {
             player.Init(true, "male", () => spawner.Alive);
             GrantSkills(player, GameData.Skills.Where(skill => skill.weapon == "staff" && skill.lv <= player.Level).Select(skill => skill.key).ToArray());
             var animator = player.GetComponent<FrameAnimator>();
-            int impacts = 0, casts = 0; bool impactDuringReaction = false;
+            int impacts = 0, casts = 0, windups = 0, skillImpacts = 0; bool impactDuringReaction = false;
             animator.OnImpact += () => { impacts++; impactDuringReaction |= animator.Reacting; };
             player.OnSkillCast += _ => casts++;
+            player.OnSkillWindup += (skill, seconds) => { windups++; Check(seconds > 0 && seconds <= animator.Length, "Skill anticipation does not match animation impact"); };
+            player.OnSkillImpact += (skill, positions) => {
+                skillImpacts++;
+                Check(impacts == 0 && positions.Length == 1, "Skill impact must capture eligible targets at the attack impact");
+            };
             const int seed = 456;
             Field(player, "_rng").SetValue(player, new System.Random(seed));
             var rng = new System.Random(seed);
@@ -400,6 +466,7 @@ public static class CombatRegression {
             Check(player.GetComponent<SpriteRenderer>().sprite == Resources.LoadAll<Sprite>($"{ActorScale.PlayerRoot}/main_m/hurt").OrderBy(frame => frame.name).First(), "hurt frame was not displayed");
             // Player.Step이 자동 공격을 시작하고 Tick이 실제 impact 프레임 이벤트를 발생시킨다.
             for (int i = 0; i < 120 && impacts == 0; i++) { player.Step(dt); animator.Tick(dt); }
+            Check(windups == 2 && skillImpacts == 2, "Skill windup/authoritative impact repeated or missed");
             Check(impacts == 1 && casts == 2 && target.Hp == def.hp - expected + basic, "애니메이션 impact 스킬 피해 / 투사체 지연 불일치");
             Call(player, "TickProjectiles", 0.2f);
             Check(target.Hp == def.hp - expected, "hurt 중 발사한 투사체 기본 공격 피해 불일치");

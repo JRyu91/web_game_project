@@ -58,6 +58,8 @@ public class PlayerController : MonoBehaviour {
     public event Action<int, int> OnHpChanged;      // hp, maxHp
     public event Action<int, long, long> OnLevelChanged; // level, exp, need
     public event Action<SkillDef> OnSkillCast;
+    public event Action<SkillDef, float> OnSkillWindup;
+    public event Action<SkillDef, Vector3[]> OnSkillImpact;
 
     // field/core.js 의 px 단위 상수를 그대로 옮기면 유니티 유닛(월드가 대략 -10~10) 기준으로 터무니없이 커진다
     // (몬스터가 화면을 한 프레임에 가로질러 "순간이동"처럼 보이던 버그의 원인). 1 unit = 40 "game px" 로 환산.
@@ -224,6 +226,7 @@ public class PlayerController : MonoBehaviour {
         _state = PlayerState.Attack;
         _anim.Play(PickAttackClip(), loop: false);
         _anim.TrimTo(interval); // 간격 < 클립이면 impact 이후 회수 프레임부터 자름
+        foreach (var skill in _pendingSkills) if (CanCast(skill)) OnSkillWindup?.Invoke(skill, _anim.SecondsToImpact);
         CombatLog?.Invoke($"start {_anim.Clip}");
     }
 
@@ -265,24 +268,33 @@ public class PlayerController : MonoBehaviour {
         hits.Add(amount);
     }
 
+    public bool PreparingSkill(string key) => _state == PlayerState.Attack && !_impactApplied && _pendingSkills.Any(skill => skill.key == key && CanCast(skill));
+
+    public bool SkillHits(SkillDef skill, MonsterController target) {
+        if (target == null || target.IsDead) return false;
+        float distance = ActorVisual.Gap(target.transform, transform);
+        bool ahead = (target.transform.position.x - transform.position.x) * Face >= 0;
+        return skill.kind switch {
+            "line" => ahead && distance <= LineRange,
+            "area" => distance <= 3.2f,
+            "facing" => ahead,
+            "map" => true,
+            _ => false,
+        };
+    }
+
     void CastSkill(SkillDef s, MonsterController[] pool, Dictionary<MonsterController, List<int>> damage) {
         if (!CanCast(s)) return;
         _skillCd[s.key] = SkillBaseCooldown(s);
         int atk = CombatMath.PlayerFixedAtk(Level) + CombatMath.RollWeaponDamage(CurrentWeapon, WeaponEnhance, _rng);
         int dmg = GrowthDamage(Mathf.Max(1, Mathf.RoundToInt(atk * s.mult)), out bool crit);
-        bool AheadOf(MonsterController m) => (m.transform.position.x - transform.position.x) * Face >= 0;
+        var positions = OnSkillImpact != null ? new List<Vector3>() : null;
         foreach (var m in pool) {
-            if (m == null || m.IsDead) continue;
-            float dist = ActorVisual.Gap(m.transform, transform);
-            bool hit = s.kind switch {
-                "line" => AheadOf(m) && dist <= LineRange,
-                "area" => dist <= 3.2f,
-                "facing" => AheadOf(m),
-                "map" => true,
-                _ => false,
-            };
-            if (hit) { if (crit) m.MarkCritical(); AddDamage(damage, m, dmg); }
+            if (!SkillHits(s, m)) continue;
+            if (crit) m.MarkCritical(); AddDamage(damage, m, dmg);
+            if (positions != null) { var visual = m.GetComponent<ActorVisual>(); positions.Add(new Vector3(visual != null ? visual.BodyX : m.transform.position.x, WorldConfig.GroundY, 0)); }
         }
+        OnSkillImpact?.Invoke(s, positions.ToArray());
         OnSkillCast?.Invoke(s);
     }
 
