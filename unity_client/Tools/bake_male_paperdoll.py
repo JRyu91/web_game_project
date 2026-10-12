@@ -20,27 +20,28 @@ MATERIAL_COUNTS = {}
 
 
 def grip_mask(p):
-    hand = HANDS.get(f'main_m/{p["clip"]}/{p["frame"]}')
-    yy, xx = np.indices((148, 148))
-    return (abs(xx-hand['x']) <= 5) & (abs(yy-hand['y']) <= 5) if hand else np.zeros((148, 148), dtype=bool)
+    shape = (p["height"], p["width"])
+    hand = HANDS.get(f'{p["gender"]}/{p["clip"]}/{p["frame"]}')
+    yy, xx = np.indices((p["height"], p["width"]))
+    return (abs(xx-hand['x']) <= 5) & (abs(yy-hand['y']) <= 5) if hand else np.zeros(shape, dtype=bool)
 
 
 def face_opening(p, original):
-    data = pose_data('main_m', p['clip'], p['frame'], original)
+    data = pose_data(p['gender'], p['clip'], p['frame'], original)
     return polygon_mask(original.size, [data['head_point'](x, y) for x, y in ((-10,-3),(10,-3),(10,9),(-10,9))])
 
 
 def source(p, staff=False):
     clip = ('staff_' + p['clip']) if staff and p['clip'].startswith('attack') else p['clip']
-    return Image.open(RES / f'Sprites/CharactersBaked/main_m/{clip}/frame_{p["frame"]:02}.png').convert('RGBA')
+    return Image.open(RES / f'Sprites/CharactersBaked/{p["gender"]}/{clip}/frame_{p["frame"]:02}.png').convert('RGBA')
 
 
 def head_mask(p, im):
-    d = pose_data('main_m', p['clip'], p['frame'], im)
+    d = pose_data(p['gender'], p['clip'], p['frame'], im)
     # A jaw-shaped boundary excludes raised forearms crossing below the face.
     points = ((-18,-26),(18,-26),(18,-5),(10,8),(-10,8),(-18,-5))
     mask = polygon_mask(im.size, [d['head_point'](x, y) for x, y in points])
-    yy, xx = np.indices((148, 148))
+    yy, xx = np.indices((p["height"], p["width"]))
     cx, cy = d['head']
     ax, ay = d['head_point'](0, 1)
     local_y = (xx-cx)*(ax-cx) + (yy-cy)*(ay-cy)
@@ -62,7 +63,7 @@ def parts(p, im):
 
 def head_crop(p, im):
     head, _ = parts(p, im)
-    _, cx, cy, *_ = next(a for a in ANCHORS['main_m'][p['clip']] if a[0] == p['frame'])
+    _, cx, cy, *_ = next(a for a in ANCHORS[p['gender']][p['clip']] if a[0] == p['frame'])
     rect = (cx - 32, cy - 40, cx + 32, cy + 24)
     return head.crop(rect), rect
 
@@ -72,8 +73,8 @@ def restored_body(p, generated, robe=False, polished=False):
     src, dst = np.asarray(original).copy(), np.asarray(generated.convert('RGBA')).copy()
     head = head_mask(p, original)
     # Restore whole original hands, including outline and existing grip anchors.
-    d = pose_data('main_m', p['clip'], p['frame'], original)
-    yy, xx = np.indices((148, 148))
+    d = pose_data(p['gender'], p['clip'], p['frame'], original)
+    yy, xx = np.indices((p["height"], p["width"]))
     protect = d['feet'].copy()
     if polished:
         foot_y = np.where(protect)[0]
@@ -82,7 +83,7 @@ def restored_body(p, generated, robe=False, polished=False):
         foot_contact = protect.copy()
     protect |= grip_mask(p)
     # The other hand stays exposed below the chest, while upper-arm skin may be covered.
-    _, cx, cy, nx, ny, wx, wy, *_ = next(a for a in ANCHORS['main_m'][p['clip']] if a[0] == p['frame'])
+    _, cx, cy, nx, ny, wx, wy, *_ = next(a for a in ANCHORS[p['gender']][p['clip']] if a[0] == p['frame'])
     if not d['lying']:
         protect |= d['skin'] & (yy >= wy - 2) & ~head
     dst[protect] = src[protect]
@@ -100,8 +101,8 @@ def restored_body(p, generated, robe=False, polished=False):
 def restored_head(p, generated, preserve_face=True, independent=False):
     original = source(p, True)
     src, dst = np.asarray(original).copy(), np.asarray(generated.convert('RGBA')).copy()
-    _, cx, cy, nx, ny, *_ = next(a for a in ANCHORS['main_m'][p['clip']] if a[0] == p['frame'])
-    yy, xx = np.indices((148, 148))
+    _, cx, cy, nx, ny, *_ = next(a for a in ANCHORS[p['gender']][p['clip']] if a[0] == p['frame'])
+    yy, xx = np.indices((p["height"], p["width"]))
     support = (xx-cx)**2 + (yy-cy)**2 <= 40**2
     if not independent:
         if not (p['clip'] == 'dead' and p['frame'] >= 5):
@@ -109,7 +110,7 @@ def restored_head(p, generated, preserve_face=True, independent=False):
         else:
             support &= (xx-nx)*(cx-nx) + (yy-ny)*(cy-ny) >= -15
     dst[~support] = 0
-    data = pose_data('main_m', p['clip'], p['frame'], original)
+    data = pose_data(p['gender'], p['clip'], p['frame'], original)
     source_body = (src[:, :, 3] > 0) & ~head_mask(p, original)
     if independent:
         rgb = dst[:, :, :3].astype(int)
@@ -118,7 +119,7 @@ def restored_head(p, generated, preserve_face=True, independent=False):
         nearby_feather = np.zeros_like(purple)
         for dy in range(5):
             for dx in range(5):
-                nearby_feather |= padded[dy:dy+148, dx:dx+148]
+                nearby_feather |= padded[dy:dy+p["height"], dx:dx+p["width"]]
         outline = (rgb.max(axis=2) <= 45) & (rgb.max(axis=2)-rgb.min(axis=2) <= 15) & (dst[:, :, 3] > 0)
         # Native purple feathers and adjacent dark outlines may overlap the torso; AI clothing edits may not.
         support &= head_mask(p, original) | purple | (nearby_feather & outline)
@@ -133,7 +134,7 @@ def restored_head(p, generated, preserve_face=True, independent=False):
     nearby = np.zeros_like(face)
     for dy in range(3):
         for dx in range(3):
-            nearby |= padded[dy:dy+148, dx:dx+148]
+            nearby |= padded[dy:dy+p["height"], dx:dx+p["width"]]
     nearby &= facial_opening & (src[:, :, 3] > 0) & support
     if preserve_face:
         dst[nearby] = src[nearby]
@@ -145,8 +146,8 @@ def identity_parts(p, generated, tier=None, head_generated=None):
     head = np.asarray(restored_head(p, generated if head_generated is None else head_generated,
                                    preserve_face=tier not in range(16, 21), independent=head_generated is not None)).copy()
     original = source(p, True)
-    d = pose_data('main_m', p['clip'], p['frame'], original)
-    yy, xx = np.indices((148, 148))
+    d = pose_data(p['gender'], p['clip'], p['frame'], original)
+    yy, xx = np.indices((p["height"], p["width"]))
     cx, cy = d['head']
     ax, ay = d['head_point'](0, 1)
     # The neck collar belongs to armour even where it extends outside the original torso.
@@ -179,7 +180,7 @@ def identity_parts(p, generated, tier=None, head_generated=None):
             grown = owned.copy()
             for dy in range(3):
                 for dx in range(3):
-                    grown |= padded[dy:dy+148, dx:dx+148] & opaque
+                    grown |= padded[dy:dy+p["height"], dx:dx+p["width"]] & opaque
             if np.array_equal(grown, owned):
                 break
             owned = grown
@@ -219,10 +220,10 @@ def defaults():
             'helmets': [None] * 37, 'armors': [None] * 37}
 
 
-def sword_trails():
+def sword_trails(poses=POSES):
     layers = []
-    for p in POSES:
-        out = np.zeros((148, 148, 4), dtype=np.uint8)
+    for p in poses:
+        out = np.zeros((p["height"], p["width"], 4), dtype=np.uint8)
         if p['clip'].startswith('attack'):
             a, b = np.asarray(source(p)), np.asarray(source(p, True))
             changed = np.any(a != b, axis=2)
@@ -243,13 +244,14 @@ def robe_material_chroma():
     return np.median(rgb[selected] / rgb[selected].sum(axis=1, keepdims=True), axis=0)
 
 
-def material(im, tier, base_tier, p, head=False):
+def material(im, tier, base_tier, p, head=False, target_color=None):
     a = np.asarray(im).copy()
     rgb = a[:, :, :3].astype(float)
     weights = np.array([.2126, .7152, .0722])
     value = rgb @ weights
     base = np.array([int(DESIGNS[base_tier][1][i:i+2], 16) for i in (1, 3, 5)])
-    target = np.array([int(DESIGNS[tier][1][i:i+2], 16) for i in (1, 3, 5)])
+    color = DESIGNS[tier][1] if target_color is None else target_color
+    target = np.array([int(color[i:i+2], 16) for i in (1, 3, 5)])
     chroma = rgb / np.maximum(rgb.sum(axis=2, keepdims=True), 1)
     base_chroma = robe_material_chroma() if base_tier == 21 and not head else base / base.sum()
     # Tint only the family material; preserve contrasting trim and source skin.
@@ -259,9 +261,12 @@ def material(im, tier, base_tier, p, head=False):
     material_shadow = (base_tier == 21 and not head) & (value >= 25) & ((rgb.max(axis=2) - rgb.min(axis=2)) >= 15)
     selected &= ((rgb.max(axis=2) > 65) | material_shadow) & (rgb.min(axis=2) < 190) & (a[:, :, 3] > 0)
     original = source(p, True)
-    d = pose_data('main_m', p['clip'], p['frame'], original)
+    d = pose_data(p['gender'], p['clip'], p['frame'], original)
     skin = (rgb[:, :, 0] >= 185) & (rgb[:, :, 0] > rgb[:, :, 1] * 1.08) & (rgb[:, :, 1] > rgb[:, :, 2] * 1.12)
     protected_skin = skin & (d['arms'] | face_opening(p, original))
+    if target_color is not None:
+        # Explicit metal correction protects actual source skin, not skin-coloured AI metal.
+        protected_skin &= np.all(a == np.asarray(original), axis=2)
     selected &= ~protected_skin
     if tier < 2:
         selected &= ~d['arms']
@@ -391,10 +396,10 @@ def build(partial=False, identity_tiers=(), identity_head_tiers=()):
                 if tier not in identity_heads:
                     assert not np.any(np.asarray(h[-1])[:, :, 3][source_body]), (tier, i, 'source arm in helmet')
                 else:
-                    skin_arms = pose_data('main_m', p['clip'], p['frame'], source(p, True))['arms'] & ~head_mask(p, source(p, True))
+                    skin_arms = pose_data(p['gender'], p['clip'], p['frame'], source(p, True))['arms'] & ~head_mask(p, source(p, True))
                     assert not np.any(np.asarray(h[-1])[:, :, 3][skin_arms]), (tier, i, 'source skin arm in independent helmet')
                 original = source(p, True)
-                facial = pose_data('main_m', p['clip'], p['frame'], original)['skin'] & face_opening(p, original) & head_mask(p, original)
+                facial = pose_data(p['gender'], p['clip'], p['frame'], original)['skin'] & face_opening(p, original) & head_mask(p, original)
                 composite = Image.alpha_composite(a[-1], h[-1])
                 if polished_plate or tier in identity:
                     assert composite.getbbox()[3] == original.getbbox()[3], (tier, i, 'plate ground changed')

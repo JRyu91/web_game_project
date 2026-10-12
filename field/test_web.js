@@ -209,7 +209,7 @@ async function evaluate(expression) {
   fs.mkdirSync(out,{recursive:true});
   if(checkPeer){
     peer=new WebSocket(base.replace(/^http/,'ws'));
-    await new Promise((resolve,reject)=>{peer.once('error',reject);peer.once('open',()=>peer.send(JSON.stringify({type:'join',id:peerId,name:'퇴장검증',gender:'male'})));peer.on('message',data=>{const m=JSON.parse(data);if(m.type==='inv'&&m.req==='join'&&m.ok){peerInv=m.state;resolve();}});});
+    await new Promise((resolve,reject)=>{peer.once('error',reject);peer.once('open',()=>peer.send(JSON.stringify({type:'join',id:peerId,name:'퇴장검증',gender:process.argv.includes('--female')?'female':'male'})));peer.on('message',data=>{const m=JSON.parse(data);if(m.type==='inv'&&m.req==='join'&&m.ok){peerInv=m.state;resolve();}});});
     await until(()=>peerPresent,'remote roster arrival');
     peer.send(JSON.stringify({type:'pos',x:12,face:-1}));await pause(1200);
     const shot=await call('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,captureName+'-peer.png'),Buffer.from(shot.data,'base64'));

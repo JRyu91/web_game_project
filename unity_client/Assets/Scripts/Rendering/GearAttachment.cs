@@ -51,18 +51,18 @@ public class GearAttachment : MonoBehaviour {
     [System.Serializable] class WearRect { public int x, y, width, height, cropX, cropY; }
     [System.Serializable] class WearAtlas { public string path; public WearRect[] frames; }
     [System.Serializable] class WearFile { public WearPose[] poses; public WearAtlas[] helmets, armors; }
-    [System.Serializable] class MaleWearFile { public WearPose[] poses; public WearAtlas defaultHead, defaultBody, staffDefaultBody, swordTrail; public WearAtlas[] helmets, armors; }
+    [System.Serializable] class ReplacementWearFile { public WearPose[] poses; public WearAtlas defaultHead, defaultBody, staffDefaultBody, swordTrail; public WearAtlas[] helmets, armors; }
     struct WearFrame { public Sprite sprite; public Vector2 offset; }
     static WearFile _wearFile;
-    static MaleWearFile _maleWearFile;
-    static bool _maleWearLoaded;
-    static readonly Dictionary<Sprite, int> MalePoseIndex = new Dictionary<Sprite, int>();
+    ReplacementWearFile _replacementWearFile;
+    static readonly Dictionary<string, ReplacementWearFile> ReplacementFiles = new Dictionary<string, ReplacementWearFile>();
+    static readonly Dictionary<Sprite, int> ReplacementPoseIndex = new Dictionary<Sprite, int>();
     static readonly Dictionary<Sprite, int> WearPoseIndex = new Dictionary<Sprite, int>();
     static readonly Dictionary<string, WearFrame[]> WearSprites = new Dictionary<string, WearFrame[]>();
     SpriteRenderer _displayBody, _armorSr, _helmetSr, _defaultHeadSr, _swordTrailSr;
     Material _displayMat, _armorMat, _helmetMat, _defaultHeadMat, _swordTrailMat;
     WearFrame[] _armorWear, _helmetWear;
-    WearFrame[] _maleArmor, _maleHelmet, _maleHead, _maleBody, _maleStaffBody, _maleSwordTrail;
+    WearFrame[] _replacementArmor, _replacementHelmet, _replacementHead, _replacementBody, _replacementStaffBody, _replacementSwordTrail;
     int _helmetTier = -1, _armorTier = -1;
     bool _bodyWasEnabled;
     bool _staff;
@@ -72,8 +72,8 @@ public class GearAttachment : MonoBehaviour {
     // Domain reload is disabled: editor-generated Sprite objects die on entering Play Mode, static references do not.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetWearCaches() {
-        _wearFile = null; _maleWearFile = null; _maleWearLoaded = false;
-        MalePoseIndex.Clear(); WearPoseIndex.Clear(); WearSprites.Clear();
+        _wearFile = null; ReplacementFiles.Clear();
+        ReplacementPoseIndex.Clear(); WearPoseIndex.Clear(); WearSprites.Clear();
         StaffBodies.Clear(); StaffBodySources.Clear();
     }
 
@@ -127,31 +127,34 @@ public class GearAttachment : MonoBehaviour {
     public void SetWear(int helmetTier, int armorTier) {
         LoadWear();
         _helmetTier = helmetTier; _armorTier = armorTier;
-        if (!_maleWearLoaded) {
-            _maleWearLoaded = true;
-            var file = Resources.Load<TextAsset>("Config/male_wearable_manifest");
-            if (file != null) {
-                _maleWearFile = JsonUtility.FromJson<MaleWearFile>(file.text);
-                for (int i = 0; i < _maleWearFile.poses.Length; i++) {
-                    var p = _maleWearFile.poses[i];
+        string gender = _anim == null ? null : _anim.SourceKey;
+        _replacementWearFile = null;
+        _replacementHelmet = _replacementArmor = _replacementHead = _replacementBody = _replacementStaffBody = _replacementSwordTrail = null;
+        if (gender == "main_m" || gender == "main_f") {
+            if (!ReplacementFiles.TryGetValue(gender, out _replacementWearFile)) {
+                var file = Resources.Load<TextAsset>(gender == "main_m" ? "Config/male_wearable_manifest" : "Config/female_wearable_manifest");
+                _replacementWearFile = file == null ? null : JsonUtility.FromJson<ReplacementWearFile>(file.text);
+                ReplacementFiles[gender] = _replacementWearFile;
+                if (_replacementWearFile != null) for (int i = 0; i < _replacementWearFile.poses.Length; i++) {
+                    var p = _replacementWearFile.poses[i];
                     var body = Resources.Load<Sprite>($"{ActorScale.PlayerRoot}/{p.gender}/{p.clip}/frame_{p.frame:00}");
-                    if (body != null) MalePoseIndex[body] = i;
+                    if (body != null) ReplacementPoseIndex[body] = i;
                 }
             }
         }
-        if (_anim != null && _anim.SourceKey == "main_m" && _maleWearFile != null) {
-            WearFrame[] Tier(WearAtlas[] entries, int tier) => entries != null && tier >= 0 && tier < entries.Length ? WearFrames(entries[tier], _maleWearFile.poses) : null;
-            _maleHelmet = Tier(_maleWearFile.helmets, helmetTier); _maleArmor = Tier(_maleWearFile.armors, armorTier);
-            _maleHead = WearFrames(_maleWearFile.defaultHead, _maleWearFile.poses);
-            _maleBody = WearFrames(_maleWearFile.defaultBody, _maleWearFile.poses);
-            _maleStaffBody = WearFrames(_maleWearFile.staffDefaultBody, _maleWearFile.poses);
-            _maleSwordTrail = WearFrames(_maleWearFile.swordTrail, _maleWearFile.poses);
+        if (_replacementWearFile != null) {
+            WearFrame[] Tier(WearAtlas[] entries, int tier) => entries != null && tier >= 0 && tier < entries.Length ? WearFrames(entries[tier], _replacementWearFile.poses) : null;
+            _replacementHelmet = Tier(_replacementWearFile.helmets, helmetTier); _replacementArmor = Tier(_replacementWearFile.armors, armorTier);
+            _replacementHead = WearFrames(_replacementWearFile.defaultHead, _replacementWearFile.poses);
+            _replacementBody = WearFrames(_replacementWearFile.defaultBody, _replacementWearFile.poses);
+            _replacementStaffBody = WearFrames(_replacementWearFile.staffDefaultBody, _replacementWearFile.poses);
+            _replacementSwordTrail = WearFrames(_replacementWearFile.swordTrail, _replacementWearFile.poses);
         }
-        bool maleReady = _anim != null && _anim.SourceKey == "main_m" && _maleHead != null && _maleBody != null && _maleStaffBody != null &&
-            (helmetTier < 0 || _maleHelmet != null) && (armorTier < 0 || _maleArmor != null);
-        // shortcut: 새 남자 착용은 ClipTable 선택 35프레임만 지원한다. ClipTable 변경 시 자산을 다시 베이크한다.
-        _helmetWear = maleReady || _wearFile == null ? null : WearFrames(_wearFile.helmets, helmetTier);
-        _armorWear = maleReady || _wearFile == null ? null : WearFrames(_wearFile.armors, armorTier);
+        bool replacementReady = _replacementWearFile != null && _replacementHead != null && _replacementBody != null && _replacementStaffBody != null &&
+            (helmetTier < 0 || _replacementHelmet != null) && (armorTier < 0 || _replacementArmor != null);
+        // shortcut: 대체 착용은 성별당 ClipTable 선택 35프레임만 지원한다. ClipTable 변경 시 자산을 다시 베이크한다.
+        _helmetWear = replacementReady || _wearFile == null ? null : WearFrames(_wearFile.helmets, helmetTier);
+        _armorWear = replacementReady || _wearFile == null ? null : WearFrames(_wearFile.armors, armorTier);
         ApplyWear();
     }
 
@@ -160,25 +163,25 @@ public class GearAttachment : MonoBehaviour {
         var body = _bodyRenderer.sprite;
         _defaultHeadSr.enabled = false;
         _swordTrailSr.enabled = false;
-        int malePose = -1;
-        bool maleReplacement = _bodyWasEnabled && _anim != null && _anim.SourceKey == "main_m" && body != null && MalePoseIndex.TryGetValue(body, out malePose) &&
-            (_helmetTier >= 0 || _armorTier >= 0) && _maleHead != null && (_staff ? _maleStaffBody : _maleBody) != null &&
-            (_helmetTier < 0 || _maleHelmet != null) && (_armorTier < 0 || _maleArmor != null);
-        if (maleReplacement) {
+        int replacementPose = -1;
+        bool replacement = _bodyWasEnabled && _replacementWearFile != null && body != null && ReplacementPoseIndex.TryGetValue(body, out replacementPose) && _anim != null && _anim.SourceKey == _replacementWearFile.poses[replacementPose].gender &&
+            (_helmetTier >= 0 || _armorTier >= 0) && _replacementHead != null && (_staff ? _replacementStaffBody : _replacementBody) != null &&
+            (_helmetTier < 0 || _replacementHelmet != null) && (_armorTier < 0 || _replacementArmor != null);
+        if (replacement) {
             _bodyRenderer.enabled = false;
             _displayBody.enabled = _armorTier < 0; _armorSr.enabled = _armorTier >= 0;
             _defaultHeadSr.enabled = _helmetTier < 0; _helmetSr.enabled = _helmetTier >= 0;
-            _swordTrailSr.enabled = !_staff && _maleSwordTrail != null && _maleWearFile.poses[malePose].clip.StartsWith("attack");
+            _swordTrailSr.enabled = !_staff && _replacementSwordTrail != null && _replacementWearFile.poses[replacementPose].clip.StartsWith("attack");
             void Part(SpriteRenderer sr, Material mat, WearFrame[] frames) {
                 if (!sr.enabled) return;
-                var frame = frames[malePose]; sr.sprite = frame.sprite; sr.flipX = _bodyRenderer.flipX; sr.color = _bodyRenderer.color;
+                var frame = frames[replacementPose]; sr.sprite = frame.sprite; sr.flipX = _bodyRenderer.flipX; sr.color = _bodyRenderer.color;
                 sr.transform.localPosition = new Vector3(sr.flipX ? -frame.offset.x : frame.offset.x, frame.offset.y, 0);
                 if (mat != null) { mat.mainTexture = frame.sprite.texture; mat.SetFloat("_Flash", _bodyRenderer.sharedMaterial == null ? 0 : _bodyRenderer.sharedMaterial.GetFloat("_Flash")); }
                 else sr.sharedMaterial = _bodyRenderer.sharedMaterial;
             }
-            Part(_displayBody, _displayMat, _staff ? _maleStaffBody : _maleBody); Part(_armorSr, _armorMat, _maleArmor);
-            Part(_defaultHeadSr, _defaultHeadMat, _maleHead); Part(_helmetSr, _helmetMat, _maleHelmet);
-            Part(_swordTrailSr, _swordTrailMat, _maleSwordTrail);
+            Part(_displayBody, _displayMat, _staff ? _replacementStaffBody : _replacementBody); Part(_armorSr, _armorMat, _replacementArmor);
+            Part(_defaultHeadSr, _defaultHeadMat, _replacementHead); Part(_helmetSr, _helmetMat, _replacementHelmet);
+            Part(_swordTrailSr, _swordTrailMat, _replacementSwordTrail);
             return;
         }
         Sprite display = body;

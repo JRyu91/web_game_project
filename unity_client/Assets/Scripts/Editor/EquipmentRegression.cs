@@ -40,8 +40,12 @@ public static class EquipmentRegression {
     static MaleManifest MaleAssets {
         get { if (!_maleAssetsLoaded) { _maleAssetsLoaded = true; var file = Resources.Load<TextAsset>("Config/male_wearable_manifest"); if (file != null) _maleAssets = JsonUtility.FromJson<MaleManifest>(file.text); } return _maleAssets; }
     }
+    static MaleManifest _femaleAssets; static bool _femaleAssetsLoaded;
+    static MaleManifest FemaleAssets {
+        get { if (!_femaleAssetsLoaded) { _femaleAssetsLoaded = true; var file = Resources.Load<TextAsset>("Config/female_wearable_manifest"); if (file != null) _femaleAssets = JsonUtility.FromJson<MaleManifest>(file.text); } return _femaleAssets; }
+    }
     static string TierTexture(bool male, string slot, int tier) {
-        var file = male ? MaleAssets : null;
+        var file = male ? MaleAssets : FemaleAssets;
         var entries = slot == "Helmet" ? file?.helmets : file?.armors;
         return entries != null && tier < entries.Length && entries[tier] != null && !string.IsNullOrEmpty(entries[tier].path)
             ? Path.GetFileName(entries[tier].path) : (slot == "Helmet" ? "h_" : "a_") + tier.ToString("00");
@@ -96,10 +100,10 @@ public static class EquipmentRegression {
         Require(fx.enabled==hasFx,"Weapon effect visibility "+dir+sprite);
         Require(float.IsFinite(gear.Muzzle.x)&&float.IsFinite(gear.Muzzle.y),"Invalid projectile muzzle");
     }
-    static void MaleParts(PlayerController p, int helmet, int armor, bool staff) {
-        var source = p.GetComponent<SpriteRenderer>(); var file = MaleAssets;
+    static void ReplacementParts(PlayerController p, int helmet, int armor, bool staff) {
+        var source = p.GetComponent<SpriteRenderer>(); var file = p.GetComponent<FrameAnimator>().SourceKey == "main_m" ? MaleAssets : FemaleAssets;
         Parts(p, helmet, armor);
-        Require(file != null, "Missing male replacement manifest; legacy overlays are not a pass");
+        Require(file != null, "Missing replacement manifest; legacy overlays are not a pass");
         bool wearing = helmet >= 0 || armor >= 0;
         bool attackPose = DisplayKey(source.sprite).Split('/')[1].StartsWith("attack");
         bool cleanStaffBody = staff && attackPose;
@@ -120,11 +124,15 @@ public static class EquipmentRegression {
             Require(sr.sharedMaterial.GetFloat("_Flash") == source.sharedMaterial.GetFloat("_Flash"), "Replacement flash " + slot);
         }
     }
-    public static void RunMaleRepresentative() {
+    public static void RunMaleRepresentative() => RunRepresentative("male");
+    public static void RunFemaleIdentityGpu() => RunRepresentative("female");
+    static void RunRepresentative(string gender) {
         try {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            var file=MaleAssets;Require(file!=null,"Male manifest missing");
-            bool identityGpu=Environment.GetCommandLineArgs().Contains("--male-identity-gpu");
+            var file=gender == "male" ? MaleAssets : FemaleAssets;Require(file!=null,"Replacement manifest missing");
+            bool identityGpu=gender == "female" || Environment.GetCommandLineArgs().Contains("--male-identity-gpu");
+            bool slotReview=gender == "female" && Environment.GetCommandLineArgs().Contains("--female-slot-review");
+            bool reviewStdout=slotReview || gender == "female" && Environment.GetCommandLineArgs().Contains("--female-review-stdout");
             string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../../unity_review/stage3/team_v6/f_round/code/final"));
             Shader.SetGlobalVector("_CharGrade",Vector4.zero);Shader.SetGlobalColor("_ActorOutline",new Color(.035f,.025f,.05f,1));
             var loadouts=new List<(int h,int a)>{(-1,2),(-1,5),(-1,21)};
@@ -142,6 +150,10 @@ public static class EquipmentRegression {
                     loadouts.Add((tier,tier));loadouts.Add((tier,-1));loadouts.Add((-1,tier));
                     loadouts.Add((tier,tiers[(i+1)%tiers.Length]));
                 }
+                if(gender == "female") foreach(int tier in new[]{0,2,5,15,21,24,30}) loadouts.Add((tier,tier));
+            }
+            if(slotReview) {
+                loadouts.Clear();loadouts.AddRange(new[]{(33,33),(33,-1),(-1,33),(34,34),(34,-1),(-1,34),(35,34),(33,34),(34,33)});
             }
             foreach(var loadout in loadouts) {
                 var actors=new List<PlayerController>();var cam=new GameObject("MaleRepresentativeCamera").AddComponent<Camera>();
@@ -151,16 +163,19 @@ public static class EquipmentRegression {
                     cam.orthographic=true;cam.orthographicSize=cell*rows/80f;cam.transform.position=new Vector3(cell*cols/80f,cell*rows/80f,-10);
                     cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=identityGpu?Color.clear:new Color(.13f,.12f,.16f);cam.targetTexture=rt;
                     string kind=loadout.a>=21||loadout.h>=21?"staff":"sword";int index=0;
-                    foreach(int face in new[]{1,-1})foreach(var pose in Frames("main_m")) {
-                        var p=Player("male");actors.Add(p);p.ApplySave(Loadout(kind,10,loadout.h,loadout.a));
+                    foreach(int face in new[]{1,-1})foreach(var pose in Frames(gender == "male" ? "main_m" : "main_f")) {
+                        var p=Player(gender);actors.Add(p);p.ApplySave(Loadout(kind,10,loadout.h,loadout.a));
                         p.GetComponent<FrameAnimator>().Still(pose.clip,pose.index);p.GetComponent<ActorVisual>().Refresh();
-                        p.GetComponent<GearAttachment>().SetFace(face);MaleParts(p,loadout.h,loadout.a,kind=="staff");Weapon(p,kind,10);
+                        p.GetComponent<GearAttachment>().SetFace(face);ReplacementParts(p,loadout.h,loadout.a,kind=="staff");Weapon(p,kind,10);
                         p.transform.position=new Vector3((index%cols*cell+cell/2f)/40f,((rows-1-index/cols)*cell+20)/40f-SpriteBBox.Get(p.GetComponent<SpriteRenderer>().sprite).yMin,0);index++;
                     }
                     cam.Render();RenderTexture.active=rt;texture=new Texture2D(rt.width,rt.height,TextureFormat.RGBA32,false);
                     texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();
                     if(identityGpu) {
                         var equipped=texture.GetPixels32();
+                        if(reviewStdout && (slotReview || loadout.h == loadout.a && new[]{0,2,5,15,16,20,21,24,30,36}.Contains(loadout.h) ||
+                            loadout.h == 36 && (loadout.a == -1 || loadout.a == 16) || loadout.h == -1 && loadout.a == 36))
+                            Debug.Log("FEMALE_WEAR_REVIEW_JPEG h"+loadout.h+"_a"+loadout.a+" "+Convert.ToBase64String(texture.EncodeToJPG(85)));
                         foreach(var p in actors) {Part(p,"Helmet").enabled=false;Part(p,"Armor").enabled=false;}
                         cam.Render();texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();
                         var withoutGear=texture.GetPixels32();
@@ -176,51 +191,54 @@ public static class EquipmentRegression {
                     } else File.WriteAllBytes(Path.Combine(output,$"male_representative_h{loadout.h:D2}_a{loadout.a:D2}.png"),texture.EncodeToPNG());
                 }finally{RenderTexture.active=active;if(texture!=null)Object.DestroyImmediate(texture);cam.targetTexture=null;Object.DestroyImmediate(rt);Object.DestroyImmediate(cam.gameObject);foreach(var p in actors)Object.DestroyImmediate(p.gameObject);}
             }
-            Debug.Log(identityGpu?$"PASS male identity: {loadouts.Count*70} GPU poses, independent/mixed slots, both faces, source geometry/weapon/layer binding, visible gear pixels vs hidden gear; visual review separate":$"PASS male representative: {loadouts.Count*70} GPU poses, ready head families and 3 armor families, independent/mixed slots, both faces, source geometry/weapon/layer binding; visual review separate");EditorApplication.Exit(0);
+            Debug.Log(identityGpu?$"PASS {gender} identity: {loadouts.Count*70} GPU poses, independent/mixed slots, both faces, source geometry/weapon/layer binding, visible gear pixels vs hidden gear; visual review separate":$"PASS male representative: {loadouts.Count*70} GPU poses, ready head families and 3 armor families, independent/mixed slots, both faces, source geometry/weapon/layer binding; visual review separate");EditorApplication.Exit(0);
         }catch(Exception ex){Debug.LogException(ex);EditorApplication.Exit(1);}
     }
-    public static void RunMaleReplacement() {
+    public static void RunMaleReplacement() => RunReplacement("male", true);
+    public static void RunMaleReplacementChecks() => RunReplacement("male", false);
+    public static void RunFemaleReplacement() => RunReplacement("female", false);
+    static void RunReplacement(string gender, bool captureExamples) {
         try {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            var file = MaleAssets;
-            Require(file != null && file.helmets?.Length == 37 && file.armors?.Length == 37, "Male replacement needs all 37 tiers per slot");
+            var file = gender == "male" ? MaleAssets : FemaleAssets;
+            Require(file != null && file.helmets?.Length == 37 && file.armors?.Length == 37, "Replacement needs all 37 tiers per slot");
             foreach (var atlas in file.helmets.Concat(file.armors).Concat(new[] {file.defaultHead,file.defaultBody,file.staffDefaultBody,file.swordTrail})) {
-                Require(atlas != null && !string.IsNullOrEmpty(atlas.path), "Unmade male tier/default layer");
+                Require(atlas != null && !string.IsNullOrEmpty(atlas.path), "Unmade tier/default layer");
                 var ti = AssetImporter.GetAtPath("Assets/Resources/"+atlas.path+".png") as TextureImporter;
-                Require(ti != null && ti.filterMode == FilterMode.Point && !ti.mipmapEnabled && ti.spritePixelsPerUnit == 40 && ti.textureCompression == TextureImporterCompression.Uncompressed, "Male import " + atlas.path);
+                Require(ti != null && ti.filterMode == FilterMode.Point && !ti.mipmapEnabled && ti.spritePixelsPerUnit == 40 && ti.textureCompression == TextureImporterCompression.Uncompressed, "Replacement import " + atlas.path);
             }
-            var p = Player("male");
+            var p = Player(gender);
             try {
                 p.ApplySave(Loadout("sword",10,-1,-1));
                 var anim = p.GetComponent<FrameAnimator>(); var gear = p.GetComponent<GearAttachment>(); var sr = p.GetComponent<SpriteRenderer>();
-                var poses = Frames("main_m").ToArray(); Require(poses.Length == 35,"Male selected frame count");
+                var poses = Frames(gender == "male" ? "main_m" : "main_f").ToArray(); Require(poses.Length == 35,"Selected frame count");
                 foreach (var kind in new[] {"sword","staff"}) {
                     p.ApplySave(Loadout(kind,10,-1,-1));
                     foreach (var pose in poses) foreach (int face in new[] {1,-1}) {
                         anim.Still(pose.clip,pose.index); gear.SetFace(face);
                         var original = sr.sprite; var pivot = original.pivot;
                         foreach (int tier in Enumerable.Range(0,37)) foreach (var slots in new[] {(h:tier,a:-1),(h:-1,a:tier),(h:tier,a:(tier*17+3)%37)}) {
-                            gear.SetWear(slots.h,slots.a); MaleParts(p,slots.h,slots.a,kind=="staff"); Weapon(p,kind,10);
+                            gear.SetWear(slots.h,slots.a); ReplacementParts(p,slots.h,slots.a,kind=="staff"); Weapon(p,kind,10);
                             Require(sr.sprite==original && sr.sprite.pivot==pivot,"Wearing changed source geometry");
                         }
-                        gear.SetWear(-1,-1); MaleParts(p,-1,-1,kind=="staff");
+                        gear.SetWear(-1,-1); ReplacementParts(p,-1,-1,kind=="staff");
                     }
                     foreach(var clip in Clips) {
                         gear.SetWear(5,15); anim.Play(clip,false); int guard=0; var seen=new HashSet<string>();
-                        do { gear.Apply(); MaleParts(p,5,15,kind=="staff"); seen.Add(DisplayKey(sr.sprite)); anim.Tick(.001f); Require(++guard<10000,"Male animation stuck "+clip); } while(!anim.Done);
-                        Require(seen.Count==ClipTable.Get("main_m/"+clip).frames.Distinct().Count(),"Male motion skipped replacement pose");
+                        do { gear.Apply(); ReplacementParts(p,5,15,kind=="staff"); seen.Add(DisplayKey(sr.sprite)); anim.Tick(.001f); Require(++guard<10000,"Replacement animation stuck "+clip); } while(!anim.Done);
+                        Require(seen.Count==ClipTable.Get(anim.SourceKey+"/"+clip).frames.Distinct().Count(),"Motion skipped replacement pose");
                     }
                 }
-                p.ApplySave(Loadout("sword",10,5,15)); anim.Play("attack",false); anim.React("hurt"); gear.Apply(); MaleParts(p,5,15,false);
-                sr.sharedMaterial.SetFloat("_Flash",1); gear.Apply(); MaleParts(p,5,15,false); sr.sharedMaterial.SetFloat("_Flash",0); gear.Apply();
+                p.ApplySave(Loadout("sword",10,5,15)); anim.Play("attack",false); anim.React("hurt"); gear.Apply(); ReplacementParts(p,5,15,false);
+                sr.sharedMaterial.SetFloat("_Flash",1); gear.Apply(); ReplacementParts(p,5,15,false); sr.sharedMaterial.SetFloat("_Flash",0); gear.Apply();
                 foreach(var pose in poses) {
                     anim.Still(pose.clip,pose.index);
-                    for(int h=0;h<37;h++) for(int a=0;a<37;a++) { gear.SetWear(h,a); MaleParts(p,h,a,false); }
+                    for(int h=0;h<37;h++) for(int a=0;a<37;a++) { gear.SetWear(h,a); ReplacementParts(p,h,a,false); }
                 }
             } finally { Object.DestroyImmediate(p.gameObject); }
             Functional();
-            CaptureMaleExamples();
-            Debug.Log("PASS MaleReplacement: all 37 helmet/armor tiers, independent slots, 35 poses, both faces/weapons, 47915 mixed poses, timing/React/flash/source geometry, authoritative state/save/remote; art review is separate");
+            if (captureExamples) CaptureMaleExamples();
+            Debug.Log("PASS " + gender + " replacement: all 37 helmet/armor tiers, independent slots, 35 poses, both faces/weapons, 47915 mixed poses, timing/React/flash/source geometry, authoritative state/save/remote; art review is separate");
             EditorApplication.Exit(0);
         } catch(Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
     }
@@ -356,7 +374,7 @@ public static class EquipmentRegression {
                             anim.Still(frame.clip, frame.index); gear.SetFace(face);
                             p.GetComponent<ActorVisual>().Refresh(); gear.Apply();
                             Parts(p, helmet, armor); Weapon(p,kind,wt);
-                            if(kind=="staff"&&frame.clip.StartsWith("attack") && (body != "main_m" || MaleAssets == null || helmet < 0 && armor < 0)) {
+                            if(kind=="staff"&&frame.clip.StartsWith("attack") && ((body == "main_m" ? MaleAssets : FemaleAssets) == null || helmet < 0 && armor < 0)) {
                                 var displayed=Part(p,"Body");
                                 var clean=Resources.Load<Sprite>($"{ActorScale.PlayerRoot}/{body}/staff_{frame.clip}/frame_{frame.index:00}");
                                 Require(clean!=null&&displayed.enabled&&displayed.sprite==clean,"Staff still shows baked sword slash");
@@ -436,6 +454,14 @@ public static class EquipmentRegression {
                     anim.Still(f.clip,f.index);
                     for(int h=0;h<37;h++) for(int a=0;a<37;a++){gear.SetWear(h,a);Parts(p,h,a);}
                 }
+                string other = gender == "male" ? "main_f" : "main_m";
+                anim.SetSource(ActorScale.PlayerRoot + "/" + other); anim.Play("idle");
+                gear.SetWeapon(Path.GetFileName(GameData.Staves[20].spritePath));
+                foreach (var layer in new[] {"Body","Head","Helmet","Armor","SwordTrail"}) {
+                    var sr = Part(p,layer);
+                    Require(!sr.enabled || sr.sprite.name.StartsWith(other+"/") || layer == "Body" && sr.sprite == p.GetComponent<SpriteRenderer>().sprite,
+                        "Gender transition displayed stale " + layer);
+                }
                 state.equip.helmet=state.equip.armor=0;p.ApplyState(state);gear.Apply();Parts(p,-1,-1);
             } finally { Object.DestroyImmediate(p.gameObject); }
         }
@@ -453,12 +479,17 @@ public static class EquipmentRegression {
             roster[0].equip.weapon.enh=0;method.Invoke(manager,new object[]{roster});gear.Apply();
             Require(remoteWeapon.sharedMaterial.GetColor("_EnhanceColor").a==0,"Remote enhancement reset");
             Require(ghost.GetComponentsInChildren<SpriteRenderer>().Any(r=>r.name=="Helmet"&&r.enabled&&r.sprite!=null),"Remote helmet missing");
-            Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Armor").sprite.texture.name=="a_36","Remote armor tier");
+            Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Armor").sprite.texture.name==TierTexture(false,"Armor",36),"Remote armor tier");
             roster[0].gender="male";roster[0].equip.helmet.tier=2;roster[0].equip.armor.tier=3;
             method.Invoke(manager,new object[]{roster});gear.Apply();
             Require(ghost.GetComponent<FrameAnimator>().SourceKey=="main_m","Remote gender switch");
             Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Helmet").sprite.texture.name==TierTexture(true,"Helmet",2),"Remote switched helmet tier");
             Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Armor").sprite.texture.name==TierTexture(true,"Armor",3),"Remote switched armor tier");
+            roster[0].gender="female";roster[0].equip.helmet.tier=36;roster[0].equip.armor.tier=15;
+            method.Invoke(manager,new object[]{roster});gear.Apply();
+            Require(ghost.GetComponent<FrameAnimator>().SourceKey=="main_f","Remote reverse gender switch");
+            Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Helmet").sprite.texture.name==TierTexture(false,"Helmet",36),"Remote reverse helmet tier");
+            Require(ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Armor").sprite.texture.name==TierTexture(false,"Armor",15),"Remote reverse armor tier");
             var plate=ghost.GetComponent<ActorNameplate>();plate.SendMessage("LateUpdate");
             var helmetSr=ghost.GetComponentsInChildren<SpriteRenderer>().First(r=>r.name=="Helmet");
             Require(ghost.Find("Nameplate").localPosition.y >= helmetSr.transform.localPosition.y+helmetSr.sprite.bounds.max.y+.19f,"Nameplate overlaps worn helmet");
