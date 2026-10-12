@@ -31,6 +31,10 @@ const MY_BASE = (process.env.CHANNEL_BASES || '').split(',')[INDEX] || '';
 const PUBLIC_PATH = (process.env.PUBLIC_PATH || '').replace(/\/+$/, '');
 //Cloudflare Worker 가 origin 호스트로 넘겨주면 Host 가 브라우저 Origin 과 달라진다 → 공개 호스트를 허용 목록으로 받는다
 const PUBLIC_HOSTS = (process.env.PUBLIC_HOSTS || '').split(',').filter(Boolean);
+//포트폴리오(1bit.kr, GitHub Pages)에서 런처가 game-origin.1bit.kr 로 API·빌드·WS 를 직접 부른다.
+//쿠키를 상위 도메인에 걸어야 하위 도메인 요청에도 실린다. 비우면 host-only(직결 배포용)
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '';
+const cookieAttrs = () => COOKIE_DOMAIN ? `; Domain=${COOKIE_DOMAIN}` : '';
 
 /* ---------- 접속자 ---------- */
 const players = new Map(); //ws -> { id, name, level, snapshot }
@@ -261,7 +265,7 @@ async function issueSession(req, res, account) {
   if (redis) await redis.set('session:' + token, data, { EX: SESSION_SEC });
   else { sessions.set(token, data); setTimeout(() => sessions.delete(token), SESSION_SEC * 1000).unref(); }
   const secure = AUTH_REQUIRED || req.headers['x-forwarded-proto'] === 'https';
-  res.setHeader('Set-Cookie', `game_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SEC}${secure ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `game_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SEC}${secure ? '; Secure' : ''}${cookieAttrs()}`);
 }
 
 function validAccount(name, id, pw) {
@@ -453,6 +457,15 @@ const server = http.createServer(async (req, res) => {
   if (PUBLIC_PATH && rawPath === PUBLIC_PATH) { res.writeHead(301, { location: PUBLIC_PATH + '/' }).end(); return; } //슬래시 없으면 상대경로가 루트로 샌다
   const urlPath = stripBase(rawPath);
   if (!sameOrigin(req)) { res.writeHead(403).end(); return; }
+  //허용된 공개 호스트에서 온 교차 출처 요청: 쿠키 포함 CORS. 빌드 파일(.data/.wasm)도 여기 걸린다
+  if (req.headers.origin && req.headers.origin !== `https://${req.headers.host}`) {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600' }).end(); return;
+    }
+  }
   const session = await sessionFor(req);
   res.setHeader('Cache-Control', 'no-store');
   if (urlPath === '/account/me') {
@@ -462,7 +475,7 @@ const server = http.createServer(async (req, res) => {
   if (urlPath === '/account/logout' && req.method === 'POST') {
     const token = cookieToken(req);
     if (token) { if (redis) await redis.del('session:' + token); else sessions.delete(token); }
-    res.setHeader('Set-Cookie', 'game_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+    res.setHeader('Set-Cookie', `game_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${cookieAttrs()}`);
     res.writeHead(204).end(); return;
   }
   if (urlPath === '/version') {

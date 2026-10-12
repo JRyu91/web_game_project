@@ -1,6 +1,16 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let signup = false, account = null, instance = null;
+// 게임 서버 주소. 포트폴리오(1bit.kr/game/, GitHub Pages)에 올린 index.html 은 meta 로 game-origin 을 가리킨다
+const API = new URL(document.querySelector('meta[name="game-api"]')?.content || '.', location.href);
+if (API.origin !== location.origin) {
+  // Unity 의 UnityWebRequest(/save)는 fetch 기본값(same-origin)이라 교차 출처에 쿠키를 안 싣는다 → 게임 서버행만 include
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
+    return nativeFetch(input, url.origin === API.origin && !init.credentials ? { ...init, credentials: 'include' } : init);
+  };
+}
 function fitGame() {
   const viewport = window.visualViewport;
   if (viewport && viewport.scale !== 1) return; // Keep browser pinch zoom available.
@@ -15,7 +25,7 @@ window.visualViewport?.addEventListener('resize', fitGame);
 window.visualViewport?.addEventListener('scroll', fitGame);
 fitGame();
 async function api(path, body) {
-  const res = await fetch(path, body === undefined ? {cache:'no-store'} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const res = await fetch(new URL(path, API), body === undefined ? {cache:'no-store',credentials:'include'} : {method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const data = res.status === 204 ? {} : await res.json();
   if (!res.ok || data.err) throw new Error(data.err || '요청에 실패했습니다');
   return data;
@@ -75,11 +85,11 @@ $('play').onclick = async () => {
   $('play').disabled = true; $('status').textContent = '';
   try {
     const current = (await api('account/me')).ok;
-    const wsUrl = new URL($('channels').value || '.', location.href);
+    const wsUrl = new URL($('channels').value || '.', API);
     wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     window.gameSession = {...current, wsUrl:wsUrl.href};
     const build = await api('web/build.json');
-    for (const k in build) build[k] = build[k].replace(/^\//, ''); // WebBuild.cs 가 /web/... 절대경로로 쓴다 → /game 아래에서도 찾게 상대로
+    for (const k in build) build[k] = new URL(build[k].replace(/^\//, ''), API).href; // WebBuild.cs 가 /web/... 절대경로로 쓴다 → 게임 서버 기준으로
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
     instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.11',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
