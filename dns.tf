@@ -23,3 +23,13 @@ resource "google_dns_record_set" "a" {
   ttl          = 300
   rrdatas      = [google_compute_global_address.ip.address]
 }
+
+#Cloudflare Worker 가 게임 원본으로 부르는 호스트. 1bit.kr 루트는 Worker 가 포트폴리오(GitHub Pages)로 돌리므로
+#게임 LB 는 이 이름으로 따로 인증서를 받는다. A 레코드는 Cloudflare DNS 에 DNS only(회색)로 둔다.
+resource "google_compute_managed_ssl_certificate" "origin" {
+  name = "web-game-origin-cert"
+
+  managed {
+    domains = ["game-origin.1bit.kr."]
+  }
+}

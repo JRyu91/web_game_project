@@ -24,7 +24,7 @@ async function showAccount(user) {
   account = user;
   $('auth').hidden = true; $('ready').hidden = false;
   $('greeting').textContent = `${user.name}, 모험을 시작하세요`;
-  const result = await api('/channels');
+  const result = await api('channels');
   const channels = result.channels.length ? result.channels : [{index:result.me,base:'',full:false,draining:false}];
   $('channels').replaceChildren();
   for (const ch of channels.filter(c => !c.draining)) {
@@ -47,13 +47,13 @@ $('auth').onsubmit = async event => {
   event.preventDefault(); $('submit').disabled = true; $('status').textContent = '';
   const body = Object.fromEntries(new FormData(event.target));
   try {
-    if (signup) await api('/account/signup', body);
-    await showAccount((await api('/account/login', {id:body.id,pw:body.pw})).ok);
+    if (signup) await api('account/signup', body);
+    await showAccount((await api('account/login', {id:body.id,pw:body.pw})).ok);
     event.target.elements.pw.value = '';
   } catch (e) { $('status').textContent = e.message; }
   finally { $('submit').disabled = false; }
 };
-$('logout').onclick = async () => { await api('/account/logout', {}); location.reload(); };
+$('logout').onclick = async () => { await api('account/logout', {}); location.reload(); };
 $('exit').onclick = async () => { if (instance) await instance.Quit(); location.reload(); };
 function expandGame() {
   const expanded = $('game').classList.toggle('expanded');
@@ -74,11 +74,12 @@ document.addEventListener('fullscreenchange', () => {
 $('play').onclick = async () => {
   $('play').disabled = true; $('status').textContent = '';
   try {
-    const current = (await api('/account/me')).ok;
-    const wsUrl = new URL($('channels').value || '/', location.origin);
+    const current = (await api('account/me')).ok;
+    const wsUrl = new URL($('channels').value || '.', location.href);
     wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     window.gameSession = {...current, wsUrl:wsUrl.href};
-    const build = await api('/web/build.json');
+    const build = await api('web/build.json');
+    for (const k in build) build[k] = build[k].replace(/^\//, ''); // WebBuild.cs 가 /web/... 절대경로로 쓴다 → /game 아래에서도 찾게 상대로
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
     instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.11',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
@@ -119,4 +120,4 @@ $('chat-input').addEventListener('keydown', e => {
 });
 $('chat-send').onclick = () => { sendChat(); $('chat-input').focus(); };
 $('chat-potion').onclick = () => instance?.SendMessage('GameUI', 'Toggle', 'chat');
-api('/account/me').then(data => showAccount(data.ok)).catch(() => {});
+api('account/me').then(data => showAccount(data.ok)).catch(() => {});

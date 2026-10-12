@@ -39,7 +39,11 @@ spec:
               valueFrom:
                 secretKeyRef: { name: game-admin-credentials, key: ADMIN_PASSWORD }
             - name: CHANNEL_BASES
-              value: "/ch0,/ch1,/ch2,/ch3,/ch4"
+              value: "/game/ch0,/game/ch1,/game/ch2,/game/ch3,/game/ch4"
+            - name: PUBLIC_PATH
+              value: "/game" #공개 주소 1bit.kr/game. 루트는 Cloudflare Worker 가 GitHub Pages(포트폴리오)로 보낸다
+            - name: PUBLIC_HOSTS
+              value: "1bit.kr" #Worker 가 origin 호스트로 넘겨도 브라우저 Origin(1bit.kr) 을 허용
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             periodSeconds: 5

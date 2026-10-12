@@ -27,6 +27,10 @@ const INDEX = Number((CHANNEL_ID.match(/(\d+)$/) || [, 0])[1]);
 //밖에서 이 채널이 어떤 주소로 보이는지. 파드는 자기 외부 주소를 모르니 환경변수로 받는다.
 //쉼표로 나눠서 채널 번호로 골라 쓴다. 예: "/ch0,/ch1" 또는 "http://localhost:8080,http://localhost:8081"
 const MY_BASE = (process.env.CHANNEL_BASES || '').split(',')[INDEX] || '';
+//공개 접두어. 1bit.kr/game 처럼 하위 경로에 붙을 때 "/game". 채널 base 가 아닌 요청(/game/launcher.js 등)에서 뗀다
+const PUBLIC_PATH = (process.env.PUBLIC_PATH || '').replace(/\/+$/, '');
+//Cloudflare Worker 가 origin 호스트로 넘겨주면 Host 가 브라우저 Origin 과 달라진다 → 공개 호스트를 허용 목록으로 받는다
+const PUBLIC_HOSTS = (process.env.PUBLIC_HOSTS || '').split(',').filter(Boolean);
 
 /* ---------- 접속자 ---------- */
 const players = new Map(); //ws -> { id, name, level, snapshot }
@@ -242,7 +246,7 @@ const AUTH_REQUIRED = !!DATABASE_URL;
 const cookieToken = req => (req.headers.cookie || '').match(/(?:^|;\s*)game_session=([a-f0-9]{64})(?:;|$)/)?.[1];
 function sameOrigin(req) {
   if (!req.headers.origin) return true;
-  try { return new URL(req.headers.origin).host === req.headers.host; } catch { return false; }
+  try { const host = new URL(req.headers.origin).host; return host === req.headers.host || PUBLIC_HOSTS.includes(host); } catch { return false; }
 }
 async function sessionFor(req) {
   const token = cookieToken(req);
@@ -412,7 +416,8 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon'
 };
 function stripBase(urlPath) {
-  if (MY_BASE && (urlPath === MY_BASE || urlPath.startsWith(MY_BASE + '/'))) return urlPath.slice(MY_BASE.length) || '/';
+  for (const base of [MY_BASE, PUBLIC_PATH]) //긴 쪽(/game/ch0) 먼저
+    if (base.startsWith('/') && (urlPath === base || urlPath.startsWith(base + '/'))) return urlPath.slice(base.length) || '/';
   return urlPath;
 }
 function serveStatic(urlPath, res) {
@@ -444,7 +449,9 @@ function serveStatic(urlPath, res) {
 const server = http.createServer(async (req, res) => {
   try {
   if (closing) { res.writeHead(503).end('closing'); return; }
-  const urlPath = stripBase(req.url.split('?')[0]);
+  const rawPath = req.url.split('?')[0];
+  if (PUBLIC_PATH && rawPath === PUBLIC_PATH) { res.writeHead(301, { location: PUBLIC_PATH + '/' }).end(); return; } //슬래시 없으면 상대경로가 루트로 샌다
+  const urlPath = stripBase(rawPath);
   if (!sameOrigin(req)) { res.writeHead(403).end(); return; }
   const session = await sessionFor(req);
   res.setHeader('Cache-Control', 'no-store');
