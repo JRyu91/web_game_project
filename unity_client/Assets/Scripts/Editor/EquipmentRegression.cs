@@ -132,7 +132,8 @@ public static class EquipmentRegression {
             var file=gender == "male" ? MaleAssets : FemaleAssets;Require(file!=null,"Replacement manifest missing");
             bool identityGpu=gender == "female" || Environment.GetCommandLineArgs().Contains("--male-identity-gpu");
             bool slotReview=gender == "female" && Environment.GetCommandLineArgs().Contains("--female-slot-review");
-            bool reviewStdout=slotReview || gender == "female" && Environment.GetCommandLineArgs().Contains("--female-review-stdout");
+            bool hairReview=gender == "female" && Environment.GetCommandLineArgs().Contains("--female-hair-review");
+            bool reviewStdout=slotReview || hairReview || gender == "female" && Environment.GetCommandLineArgs().Contains("--female-review-stdout");
             string output=Path.GetFullPath(Path.Combine(Application.dataPath,"../../unity_review/stage3/team_v6/f_round/code/final"));
             Shader.SetGlobalVector("_CharGrade",Vector4.zero);Shader.SetGlobalColor("_ActorOutline",new Color(.035f,.025f,.05f,1));
             var loadouts=new List<(int h,int a)>{(-1,2),(-1,5),(-1,21)};
@@ -155,13 +156,19 @@ public static class EquipmentRegression {
             if(slotReview) {
                 loadouts.Clear();loadouts.AddRange(new[]{(33,33),(33,-1),(-1,33),(34,34),(34,-1),(-1,34),(35,34),(33,34),(34,33)});
             }
+            if(hairReview) {
+                loadouts.Clear();
+                foreach(int tier in new[]{0,2,5,15,16,17,18,19,20,21,24,30,32,33,34,35,36}) {
+                    loadouts.Add((-1,tier));loadouts.Add((tier,-1));loadouts.Add((tier,tier));
+                }
+            }
             foreach(var loadout in loadouts) {
                 var actors=new List<PlayerController>();var cam=new GameObject("MaleRepresentativeCamera").AddComponent<Camera>();
                 const int cell=256,cols=14,rows=5;var rt=new RenderTexture(cell*cols,cell*rows,24);
                 Texture2D texture=null;var active=RenderTexture.active;
                 try {
                     cam.orthographic=true;cam.orthographicSize=cell*rows/80f;cam.transform.position=new Vector3(cell*cols/80f,cell*rows/80f,-10);
-                    cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=identityGpu?Color.clear:new Color(.13f,.12f,.16f);cam.targetTexture=rt;
+                    cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=identityGpu&&!hairReview?Color.clear:new Color(.13f,.12f,.16f);cam.targetTexture=rt;
                     string kind=loadout.a>=21||loadout.h>=21?"staff":"sword";int index=0;
                     foreach(int face in new[]{1,-1})foreach(var pose in Frames(gender == "male" ? "main_m" : "main_f")) {
                         var p=Player(gender);actors.Add(p);p.ApplySave(Loadout(kind,10,loadout.h,loadout.a));
@@ -173,7 +180,7 @@ public static class EquipmentRegression {
                     texture.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);texture.Apply();
                     if(identityGpu) {
                         var equipped=texture.GetPixels32();
-                        if(reviewStdout && (slotReview || loadout.h == loadout.a && new[]{0,2,5,15,16,20,21,24,30,36}.Contains(loadout.h) ||
+                        if(reviewStdout && (slotReview || hairReview || loadout.h == loadout.a && new[]{0,2,5,15,16,20,21,24,30,36}.Contains(loadout.h) ||
                             loadout.h == 36 && (loadout.a == -1 || loadout.a == 16) || loadout.h == -1 && loadout.a == 36))
                             Debug.Log("FEMALE_WEAR_REVIEW_JPEG h"+loadout.h+"_a"+loadout.a+" "+Convert.ToBase64String(texture.EncodeToJPG(85)));
                         foreach(var p in actors) {Part(p,"Helmet").enabled=false;Part(p,"Armor").enabled=false;}

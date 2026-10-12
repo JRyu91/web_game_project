@@ -15,12 +15,93 @@ from bake_male_paperdoll import RES, face_opening, grip_mask, head_mask, identit
 POSES = [p for p in json.loads((RES / 'Config/wearable_manifest.json').read_text())['poses'] if p['gender'] == 'main_f']
 MANIFEST = RES / 'Config/female_wearable_manifest.json'
 NATIVE_TIERS = (0, 2, 5, 15, 21, 24, 30, *range(16, 21), *range(32, 37))
+# Confirmed opaque hair/extra-arm pixels in the previous release must stay absent.
+HAIR_REGRESSION = {(0, 4): (64, 66), (2, 13): (80, 72), (18, 13): (85, 72),
+                   (18, 23): (98, 64), (18, 33): (72, 95), (20, 14): (37, 90),
+                   (20, 32): (29, 80), (32, 27): (53, 74)}
 
 
 def family_tier(tier):
     if tier in (*range(16, 21), *range(32, 37)):
         return tier
     return 0 if tier < 2 else 2 if tier < 5 else 5 if tier < 15 else 15 if tier < 21 else 21 if tier < 24 else 24 if tier < 30 else 30
+
+
+def clear_helmet_hair(p, head):
+    original = source(p, True)
+    a = np.asarray(head).copy(); rgb = a[:, :, :3].astype(int)
+    d = pose_data(p['gender'], p['clip'], p['frame'], original)
+    yy, xx = np.indices(a.shape[:2]); cx, cy = d['head']; nx, ny = d['neck']
+    back = 1 if d['skull'][0] > cx else -1
+    tail = ((xx-nx)*back >= 9) & (yy >= ny-4)
+    if d['lying']:
+        tail = (xx <= cx-12) & (yy <= cy+3)
+    source_head = np.asarray(parts(p, original)[0])[:, :, 3] > 0
+    colored = (a[:, :, 3] > 0) & (rgb.max(2)-rgb.min(2) > 30)
+    near_head, near_color = np.zeros_like(source_head), np.zeros_like(source_head)
+    for mask, radius, dest in ((source_head, 2, near_head), (colored, 4, near_color)):
+        padded = np.pad(mask, radius)
+        for dy in range(radius*2+1):
+            for dx in range(radius*2+1):
+                dest |= padded[dy:dy+a.shape[0], dx:dx+a.shape[1]]
+    neutral = (rgb.max(2) <= 140) & (abs(rgb[:, :, 0]-rgb[:, :, 2]) <= 25) & (rgb.max(2)-rgb.min(2) <= 60)
+    a[tail & neutral & ~near_head & ~near_color] = 0
+    return Image.fromarray(a)
+
+
+def clear_body_hair(p, body, tier):
+    original = source(p, True)
+    a = np.asarray(body).copy(); rgb = a[:, :, :3].astype(int)
+    d = pose_data(p['gender'], p['clip'], p['frame'], original)
+    yy, xx = np.indices(a.shape[:2]); cx, cy = d['head']; nx, ny = d['neck']
+    source_body = np.asarray(parts(p, original)[1])[:, :, 3] > 0
+    # Native cloth colours and nearby outlines remain outside the source silhouette.
+    colored = (a[:, :, 3] > 0) & (rgb.max(2) > 50) & ((abs(rgb[:, :, 0] - rgb[:, :, 2]) > 25) |
+              (rgb[:, :, 1] > rgb[:, :, 0] * 1.25) | (rgb[:, :, 0] > rgb[:, :, 2] * 1.4))
+    if tier == 33:
+        colored |= (a[:, :, 3] > 0) & (rgb.max(2) > 30) & (rgb[:, :, 2] > rgb[:, :, 0] * 1.1) & (rgb[:, :, 2] > rgb[:, :, 1] * 1.3)
+    near_body, near_color = np.zeros_like(source_body), np.zeros_like(source_body)
+    for mask, radius, dest in ((source_body, 2, near_body), (colored, 4 if tier == 33 else 1, near_color)):
+        padded = np.pad(mask, radius)
+        for dy in range(radius * 2 + 1):
+            for dx in range(radius * 2 + 1):
+                dest |= padded[dy:dy+a.shape[0], dx:dx+a.shape[1]]
+    neutral = (rgb.max(2) <= 140) & (abs(rgb[:, :, 0] - rgb[:, :, 2]) <= 25) & (rgb.max(2) - rgb.min(2) <= 60)
+    around_head = (xx-cx)**2 + (yy-cy)**2 <= 60**2
+    remove = neutral & around_head & ~near_body & ~near_color
+    remove |= head_mask(p, original) & neutral & ~near_color
+    if tier in (*range(5), *range(24, 32)) and not d['lying']:
+        back = 1 if d['skull'][0] > cx else -1
+        rear = ((xx-nx)*back >= 9) & ((xx-nx)*back <= 30) & (yy >= ny-4) & (yy <= d['waist'][1]-5)
+        remove |= rear & neutral
+    # These detached native tails sit beside coloured wings or touch the shoulder outline.
+    tail_box = {(20, 'attack', 7): (32, 82, 43, 98),
+                (20, 'dead', 5): (23, 73, 36, 87),
+                (32, 'hurt', 0): (52, 58, 62, 83)}.get((tier, p['clip'], p['frame']))
+    if tail_box:
+        x0, y0, x1, y1 = tail_box
+        remove |= neutral & (xx >= x0) & (xx < x1) & (yy >= y0) & (yy < y1)
+    protect = d['arms'] | d['skin'] | d['feet'] | grip_mask(p)
+    remove &= ~protect & ~colored
+    if tier not in (20, 33, 34, 36):
+        remaining = set(zip(*np.nonzero((a[:, :, 3] > 0) & ~remove)))
+        while remaining:
+            seed = remaining.pop(); component, pending = [seed], [seed]
+            while pending:
+                y, x = pending.pop()
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        neighbor = (y+dy, x+dx)
+                        if neighbor in remaining:
+                            remaining.remove(neighbor); component.append(neighbor); pending.append(neighbor)
+            y, x = np.asarray(component).T
+            # Floating generated hair and extra limbs have no body attachment.
+            if not np.any(near_body[y, x] | protect[y, x]):
+                remove[y, x] = True
+    before = a.copy(); a[remove] = 0
+    assert np.array_equal(a[protect], before[protect]), (p['key'], 'hair cleanup changed exposed body')
+    assert np.array_equal(a[colored & near_body], before[colored & near_body]), (p['key'], 'hair cleanup changed attached native colours')
+    return Image.fromarray(a)
 
 
 def native_ownership(p, head, body, keep_halo):
@@ -89,6 +170,8 @@ def registered_parts(p, generated, tier, head_generated=None, armor_generated=No
         assert np.array_equal(np.asarray(Image.alpha_composite(body, head))[opening], np.asarray(original)[opening]), (tier, p['key'], 'face opening changed')
     if tier == 36:
         head, body = native_ownership(p, head, body, keep_halo=False)
+    head = clear_helmet_hair(p, head)
+    body = clear_body_hair(p, body, tier)
     return head, body
 
 
@@ -138,12 +221,22 @@ def build(source_dir, tiers, families=False):
                     armor_generated = raw.convert('RGBA')
                 hashes[armor_path.name] = hashlib.sha256(armor_path.read_bytes()).hexdigest()
             head, body = registered_parts(p, generated, tier, head_generated, armor_generated)
+            if base_tier == 21 and tier != base_tier:
+                body = material(body, tier, base_tier, p)
+            if (tier, i) in HAIR_REGRESSION:
+                x, y = HAIR_REGRESSION[tier, i]
+                assert np.asarray(body)[y, x, 3] == 0, (tier, p['key'], 'generated hair returned')
             original = source(p, True)
+            if i == 32:
+                assert not np.any(np.asarray(parts(p, original)[1])[62:79, 74:100, 3]), 'Fallen head remains in original body'
             excluded_head = head_mask(p, original)
             if armor_generated is not None:
                 excluded_head &= np.asarray(original)[:, :, 3] > 0
                 ornaments = head_mask(p, original) & ~(np.asarray(original)[:, :, 3] > 0) & ~face_opening(p, original) & ~grip_mask(p)
-                assert np.array_equal(np.asarray(body)[ornaments], np.asarray(armor_generated)[ornaments]), (tier, p['key'], 'independent armour ornaments changed')
+                native = np.asarray(armor_generated)
+                chroma = native[:, :, :3].max(2).astype(int) - native[:, :, :3].min(2).astype(int)
+                ornament_colors = ornaments & (chroma > 60)
+                assert np.array_equal(np.asarray(body)[ornament_colors], native[ornament_colors]), (tier, p['key'], 'native fan/halo colours changed')
             assert not np.any(np.asarray(body)[:, :, 3][excluded_head]), (tier, p['key'], 'head in armor')
             assert not np.any(np.asarray(head)[:, :, 3][grip_mask(p)]), (tier, p['key'], 'helmet covers grip')
             assert np.array_equal(np.asarray(body)[grip_mask(p)], np.asarray(original)[grip_mask(p)]), (tier, p['key'], 'grip changed')
@@ -180,7 +273,9 @@ def build(source_dir, tiers, families=False):
                       poseKeys=[p['key'] for p in POSES])
     provenance.setdefault('sourceSHA256', {}).update(hashes)
     provenance.update(independentHelmetTiers=[33], independentArmorTiers=[33, 34],
-                      independentArmorOwnership='Tier33 native four-fan armour separate from feather hood; tier33/34 native armour ornaments retained in original transparent head space; original opaque head, face opening, grip and floor remain protected')
+                      independentArmorOwnership='Tier33 four-fan armour and tier34 halo retained; generated hair removed from armour, native ornament colours and adjacent outlines retained; original full head/ponytail, face opening, grip and floor remain protected',
+                      hairOwnership='Full original female hair belongs to head; native neutral hair remnants and detached extra limbs removed from armour; helmet tails clipped outside original hair and native ornaments',
+                      correctedHeadAnchor={'main_f/dead/frame_05': [94, 82]})
     if families:
         provenance['processing'] = provenance['processing'].replace('no palette tint', 'Native identities unchanged; family variants selectively recolored')
         provenance.update(nativeIdentityTiers=list(range(16, 21)) + list(range(32, 37)),

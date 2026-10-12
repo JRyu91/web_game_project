@@ -47,7 +47,41 @@ def head_mask(p, im):
     local_y = (xx-cx)*(ax-cx) + (yy-cy)*(ay-cy)
     mask &= ~(d['skin'] & ~d['face'] & (local_y >= -3))
     mask &= ~grip_mask(p)
+    if p['gender'] == 'main_f':
+        mask |= female_hair_extension(p, im, mask)
     return mask
+
+
+def female_hair_extension(p, original, original_head):
+    """Original ponytail pixels outside the old jaw mask, never generated hair."""
+    a = np.asarray(original)
+    rgb = a[:, :, :3].astype(int)
+    d = pose_data(p['gender'], p['clip'], p['frame'], original)
+    yy, xx = np.indices(a.shape[:2])
+    cx, cy = d['head']; nx, ny = d['neck']
+    # Above the shoulders, or down the rear edge of an upright head; lying
+    # frames deliberately have no downward extension into the fallen torso.
+    region = (xx >= cx - 45) & (xx <= cx + 18) & (yy >= cy - 45)
+    upper = (yy <= ny - 5) | ((yy <= ny + 1) & (rgb.max(2) <= 140) & (rgb.max(2) - rgb.min(2) <= 50))
+    if d['lying']:
+        upper = (yy <= cy - 3) & ~((xx < cx - 14) & (yy > cy - 13))
+    lower = (xx <= nx - 12) & (yy <= ny + 14) & (p['clip'] in ('idle', 'hurt'))
+    # The upper ponytail includes warmer highlight pixels and black contours.
+    # Only the descending tail needs a palette gate beside the white sleeve.
+    lower &= (rgb.max(2) <= 140) & (rgb.max(2) - rgb.min(2) <= 50)
+    region &= upper | lower
+    candidate = region & (a[:, :, 3] > 0) & ~d['arms'] & ~d['skin'] & ~grip_mask(p)
+    connected = candidate & original_head
+    while True:
+        padded = np.pad(connected, 1)
+        grown = connected.copy()
+        for dy in range(3):
+            for dx in range(3):
+                grown |= padded[dy:dy+a.shape[0], dx:dx+a.shape[1]] & candidate
+        if np.array_equal(grown, connected):
+            break
+        connected = grown
+    return connected & ~original_head
 
 
 def parts(p, im):
@@ -253,11 +287,18 @@ def material(im, tier, base_tier, p, head=False, target_color=None):
     color = DESIGNS[tier][1] if target_color is None else target_color
     target = np.array([int(color[i:i+2], 16) for i in (1, 3, 5)])
     chroma = rgb / np.maximum(rgb.sum(axis=2, keepdims=True), 1)
-    base_chroma = robe_material_chroma() if base_tier == 21 and not head else base / base.sum()
+    female_robe = base_tier == 21 and not head and p['gender'] == 'main_f'
+    base_chroma = base / base.sum()
+    if base_tier == 21 and not head:
+        # Female native cloth is cyan; the male native reference is navy.
+        base_chroma = np.array([.06, .43, .51]) if female_robe else robe_material_chroma()
     # Tint only the family material; preserve contrasting trim and source skin.
     selected = np.linalg.norm(chroma - base_chroma, axis=2) <= .16
     if base_tier == 21 and not head:
-        selected &= (chroma[:, :, 2] - chroma[:, :, 0] >= .06) & (chroma[:, :, 2] - chroma[:, :, 1] >= .04)
+        if female_robe:
+            selected &= (chroma[:, :, 1] - chroma[:, :, 0] >= .12) & (chroma[:, :, 2] - chroma[:, :, 0] >= .15)
+        else:
+            selected &= (chroma[:, :, 2] - chroma[:, :, 0] >= .06) & (chroma[:, :, 2] - chroma[:, :, 1] >= .04)
     material_shadow = (base_tier == 21 and not head) & (value >= 25) & ((rgb.max(axis=2) - rgb.min(axis=2)) >= 15)
     selected &= ((rgb.max(axis=2) > 65) | material_shadow) & (rgb.min(axis=2) < 190) & (a[:, :, 3] > 0)
     original = source(p, True)
