@@ -44,6 +44,16 @@ spec:
               value: "/game" #공개 주소 1bit.kr/game. 루트는 Cloudflare Worker 가 GitHub Pages(포트폴리오)로 보낸다
             - name: PUBLIC_HOSTS
               value: "1bit.kr" #Worker 가 origin 호스트로 넘겨도 브라우저 Origin(1bit.kr) 을 허용
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: google-oauth, key: GOOGLE_CLIENT_ID }
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: google-oauth, key: GOOGLE_CLIENT_SECRET }
+            - name: OAUTH_REDIRECT_URI
+              value: "https://game-origin.1bit.kr/game/auth/google/callback"
+            - name: GOOGLE_RETURN_URL
+              value: "https://1bit.kr/game/" #콜백이 끝나면 런처(Pages)로 돌려보낸다
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             periodSeconds: 5

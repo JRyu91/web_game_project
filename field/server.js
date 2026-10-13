@@ -35,6 +35,12 @@ const PUBLIC_HOSTS = (process.env.PUBLIC_HOSTS || '').split(',').filter(Boolean)
 //쿠키를 상위 도메인에 걸어야 하위 도메인 요청에도 실린다. 비우면 host-only(직결 배포용)
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || '';
 const cookieAttrs = () => COOKIE_DOMAIN ? `; Domain=${COOKIE_DOMAIN}` : '';
+//Google 로그인. 세 값이 다 있어야 켜진다. 콜백은 game-origin 으로 오고, 끝나면 런처(1bit.kr/game/)로 돌려보낸다
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || '';
+const GOOGLE_RETURN_URL = process.env.GOOGLE_RETURN_URL || PUBLIC_PATH + '/';
+const GOOGLE_TOKEN_URL = process.env.GOOGLE_TOKEN_URL || 'https://oauth2.googleapis.com/token'; //테스트에서 가짜 토큰 서버로 바꾼다
 
 /* ---------- 접속자 ---------- */
 const players = new Map(); //ws -> { id, name, level, snapshot }
@@ -265,13 +271,77 @@ async function issueSession(req, res, account) {
   if (redis) await redis.set('session:' + token, data, { EX: SESSION_SEC });
   else { sessions.set(token, data); setTimeout(() => sessions.delete(token), SESSION_SEC * 1000).unref(); }
   const secure = AUTH_REQUIRED || req.headers['x-forwarded-proto'] === 'https';
-  res.setHeader('Set-Cookie', `game_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SEC}${secure ? '; Secure' : ''}${cookieAttrs()}`);
+  res.setHeader('Set-Cookie', [...[].concat(res.getHeader('Set-Cookie') || []), `game_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SEC}${secure ? '; Secure' : ''}${cookieAttrs()}`]);
+}
+
+/* ---------- Google 로그인 ----------
+   구글 계정은 user_id = 'g_' + sub 로 accounts 에 들어간다. 컬럼 추가 없이 sub 하나로 찾고,
+   pw_hash 는 '' 라서 아이디/비번 로그인으로는 절대 열리지 않는다(verifyPw 가 salt 없으면 false).
+   처음 온 사람은 캐릭터 이름·성별이 없으니 sub 를 10분짜리 임시 표(google_pending)에 맡겨 두고 런처에서 마저 받는다. */
+const PENDING_SEC = 600;
+const cookieValue = (req, name) => (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${name}=([a-f0-9]{64})(?:;|$)`))?.[1];
+function setCookie(req, res, name, value, maxAge) {
+  const secure = AUTH_REQUIRED || req.headers['x-forwarded-proto'] === 'https';
+  const cookie = `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? '; Secure' : ''}${cookieAttrs()}`;
+  res.setHeader('Set-Cookie', [...[].concat(res.getHeader('Set-Cookie') || []), cookie]);
+}
+async function pendingPut(sub) {
+  const token = crypto.randomBytes(32).toString('hex');
+  if (redis) await redis.set('gpending:' + token, sub, { EX: PENDING_SEC });
+  else { sessions.set('gpending:' + token, sub); setTimeout(() => sessions.delete('gpending:' + token), PENDING_SEC * 1000).unref(); }
+  return token;
+}
+async function pendingTake(token) {
+  if (!token) return null;
+  const sub = redis ? await redis.get('gpending:' + token) : sessions.get('gpending:' + token);
+  if (redis) await redis.del('gpending:' + token); else sessions.delete('gpending:' + token);
+  return sub || null;
+}
+//code → id_token. 구글 토큰 엔드포인트와 TLS 로 직접 주고받은 값이라 서명 검증은 생략해도 된다(구글 OIDC 문서). aud·iss·exp 만 본다
+async function googleSub(code) {
+  const res = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, redirect_uri: OAUTH_REDIRECT_URI, grant_type: 'authorization_code' }),
+  });
+  if (!res.ok) return null;
+  const { id_token } = await res.json();
+  const claims = JSON.parse(Buffer.from(String(id_token).split('.')[1] || '', 'base64url').toString() || 'null');
+  if (!claims || claims.aud !== GOOGLE_CLIENT_ID || !['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss)) return null;
+  if (!(claims.exp * 1000 > Date.now()) || !/^\d{1,40}$/.test(claims.sub)) return null;
+  return claims.sub;
+}
+async function googleAccount(sub) {
+  const id = 'g_' + sub;
+  if (!db) { const row = localAccounts.get(id); if (!row) return null; const { pw_hash, ...a } = row; return a; }
+  const r = await db.query('SELECT user_id, name, gender, role FROM accounts WHERE user_id = $1', [id]);
+  const row = r.rows[0];
+  return row && { id: row.user_id, name: row.name, gender: row.gender, role: row.role };
+}
+async function googleSignup(sub, name, gender) {
+  if (typeof name !== 'string' || name.length < 1 || name.length > 10) return { err: '캐릭터 이름은 1~10자로 정한다' };
+  const account = { id: 'g_' + sub, name, gender: gender === 'female' ? 'female' : 'male', role: 'user' };
+  if (!db) {
+    if ([...localAccounts.values()].some(a => a.name === name)) return { err: '이미 있는 캐릭터 이름이다' };
+    localAccounts.set(account.id, { ...account, pw_hash: '' });
+    return { ok: account };
+  }
+  try {
+    const dup = await db.query('SELECT 1 FROM accounts WHERE user_id = $1 OR name = $2', [account.id, name]);
+    if (dup.rowCount) return { err: '이미 있는 캐릭터 이름이다' };
+    await db.query("INSERT INTO accounts (user_id, name, pw_hash, gender) VALUES ($1, $2, '', $3)", [account.id, name, account.gender]);
+    return { ok: account };
+  } catch (e) {
+    console.error('[google signup]', e.message);
+    return { err: '가입 실패' };
+  }
 }
 
 function validAccount(name, id, pw) {
   if (typeof name !== 'string' || name.length < 1 || name.length > 10) return '캐릭터 이름은 1~10자로 정한다';
   if (typeof id !== 'string' || id.length < 3 || id.length > 64) return '아이디는 3자 이상이어야 한다';
   if (!/^[a-zA-Z0-9_]+$/.test(id)) return '아이디는 영문·숫자·밑줄만 쓸 수 있다';
+  if (id.startsWith('g_')) return 'g_ 로 시작하는 아이디는 쓸 수 없다'; //Google 계정 자리
   if (typeof pw !== 'string' || pw.length < 4 || pw.length > 128) return '비밀번호는 4자 이상이어야 한다';
   return null;
 }
@@ -428,7 +498,7 @@ function serveStatic(urlPath, res) {
   let rel;
   try { rel = decodeURIComponent(urlPath).replace(/^\/+/, '') || 'index.html'; }
   catch { res.writeHead(400).end(); return; }
-  if (rel !== 'index.html' && rel !== 'launcher.js' && rel !== 'launcher.css' && !rel.startsWith('web/')) {
+  if (rel !== 'index.html' && rel !== 'launcher.js' && rel !== 'launcher.css' && rel !== 'privacy.html' && rel !== 'terms.html' && !rel.startsWith('web/')) {
     res.writeHead(404).end('not found'); return;
   }
   const file = path.resolve(__dirname, rel);
@@ -542,6 +612,44 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(405).end();
     return;
+  }
+
+  //Google 로그인: 런처 버튼 → 여기서 구글로 → 콜백 → 런처로 복귀. state 쿠키로 남이 만든 콜백 링크를 막는다
+  if (urlPath === '/auth/google' && req.method === 'GET') {
+    if (!GOOGLE_CLIENT_ID) { res.writeHead(404).end(); return; }
+    const state = crypto.randomBytes(32).toString('hex');
+    setCookie(req, res, 'oauth_state', state, PENDING_SEC);
+    const q = new URLSearchParams({ client_id: GOOGLE_CLIENT_ID, redirect_uri: OAUTH_REDIRECT_URI, response_type: 'code', scope: 'openid', state, prompt: 'select_account' });
+    res.writeHead(302, { location: 'https://accounts.google.com/o/oauth2/v2/auth?' + q }).end(); return;
+  }
+  if (urlPath === '/auth/google/callback' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const state = cookieValue(req, 'oauth_state');
+    setCookie(req, res, 'oauth_state', '', 0);
+    let to = GOOGLE_RETURN_URL + '#google-error';
+    try {
+      const sub = GOOGLE_CLIENT_ID && state && q.get('state') === state && q.get('code') && await googleSub(q.get('code'));
+      if (sub) {
+        if (DATABASE_URL && !db) throw Error('DB 연결 안 됨');
+        const account = await googleAccount(sub);
+        if (account) { await issueSession(req, res, account); to = GOOGLE_RETURN_URL; }
+        else { setCookie(req, res, 'google_pending', await pendingPut(sub), PENDING_SEC); to = GOOGLE_RETURN_URL + '#google-signup'; }
+      }
+    } catch (e) { console.error('[google callback]', e.message); }
+    res.writeHead(302, { location: to }).end(); return;
+  }
+  if (urlPath === '/account/google/finish' && req.method === 'POST') {
+    const body = await readJson(req);
+    if (!body) { res.writeHead(400).end('bad json'); return; }
+    const token = cookieValue(req, 'google_pending');
+    const sub = await pendingTake(token);
+    const r = sub ? await googleSignup(sub, body.name, body.gender) : { err: 'Google 로그인을 다시 해 주세요' };
+    if (r.ok) { setCookie(req, res, 'google_pending', '', 0); await issueSession(req, res, r.ok); }
+    else if (sub) { //이름 중복 등으로 실패하면 다시 고를 수 있게 같은 sub 로 표를 새로 끊는다
+      setCookie(req, res, 'google_pending', await pendingPut(sub), PENDING_SEC);
+    }
+    res.writeHead(r.err ? 400 : 200, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(r)); return;
   }
 
   //계정 가입/로그인. DB 한 곳에 두니 세이브랑 마찬가지로 어느 채널 파드·어느 기기로 접속해도 같다.

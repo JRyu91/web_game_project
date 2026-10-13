@@ -32,7 +32,7 @@ async function api(path, body) {
 }
 async function showAccount(user) {
   account = user;
-  $('auth').hidden = true; $('ready').hidden = false;
+  $('auth').hidden = true; $('google').hidden = true; $('ready').hidden = false;
   $('greeting').textContent = `${user.name}, 모험을 시작하세요`;
   const result = await api('channels');
   const channels = result.channels.length ? result.channels : [{index:result.me,base:'',full:false,draining:false}];
@@ -63,6 +63,12 @@ $('auth').onsubmit = async event => {
   } catch (e) { $('status').textContent = e.message; }
   finally { $('submit').disabled = false; }
 };
+$('google').onclick = () => { location.href = new URL('auth/google', API).href; };
+$('google-signup').onsubmit = async event => {
+  event.preventDefault(); $('status').textContent = '';
+  try { await showAccount((await api('account/google/finish', Object.fromEntries(new FormData(event.target)))).ok); $('google-signup').hidden = true; history.replaceState(null, '', location.pathname); }
+  catch (e) { $('status').textContent = e.message; }
+};
 $('logout').onclick = async () => { await api('account/logout', {}); location.reload(); };
 $('exit').onclick = async () => { if (instance) await instance.Quit(); location.reload(); };
 function expandGame() {
@@ -92,7 +98,7 @@ $('play').onclick = async () => {
     for (const k in build) build[k] = new URL(build[k].replace(/^\//, ''), API).href; // WebBuild.cs 가 /web/... 절대경로로 쓴다 → 게임 서버 기준으로
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
-    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.11',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
+    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.12',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
     window.gameInstance = instance;
     try { $('chat').hidden = localStorage.chatHidden === '1'; } catch { $('chat').hidden = false; }
     $('loading').textContent = ''; $('unity-canvas').focus();
@@ -130,4 +136,8 @@ $('chat-input').addEventListener('keydown', e => {
 });
 $('chat-send').onclick = () => { sendChat(); $('chat-input').focus(); };
 $('chat-potion').onclick = () => instance?.SendMessage('GameUI', 'Toggle', 'chat');
-api('account/me').then(data => showAccount(data.ok)).catch(() => {});
+api('account/me').then(data => showAccount(data.ok)).catch(() => {
+  // Google 콜백이 #google-signup(첫 가입)이나 #google-error 를 붙여 돌려보낸다
+  if (location.hash === '#google-signup') { $('auth').hidden = true; $('google').hidden = true; $('google-signup').hidden = false; }
+  else if (location.hash === '#google-error') { $('status').textContent = 'Google 로그인에 실패했습니다. 다시 시도해 주세요'; history.replaceState(null, '', location.pathname); }
+});
