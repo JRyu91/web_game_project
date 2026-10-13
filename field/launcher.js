@@ -46,10 +46,13 @@ function buildZone(z) {
   $('world').append(el);
   return zoneEls[z] = el;
 }
-let zone = 'A', rotateTimer = 0;
+let zone = 'A', rotateTimer = 0, zTop = 0, hideTimer = 0;
 function showZone(z, cam) {
-  zone = z; const el = buildZone(z);
-  for (const k in zoneEls) zoneEls[k].classList.toggle('on', k === z);
+  const prev = zoneEls[zone]; zone = z; const el = buildZone(z);
+  // 새 존을 위에 올려 페이드인, 옛 존은 밑에서 그대로 있다가 페이드가 끝나면 내린다(둘 다 반투명해 탁해지는 프레임 방지)
+  el.style.zIndex = ++zTop; el.classList.add('on');
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => { for (const k in zoneEls) if (k !== zone) zoneEls[k].classList.remove('on'); }, prev && prev !== el ? 1300 : 0);
   if (cam !== undefined) el.style.setProperty('--cam', cam + 'px');
   $('cast').style.setProperty('--foot', ZONES[z].foot + 'px');
 }
@@ -69,25 +72,27 @@ function actor(g, left, big) {
 const narrow = matchMedia('(max-width: 760px)');
 // 장면: login(숲 A, 남녀 둘) · create(숲 A 안쪽, 고른 성별 2배) · lobby(A→B→C 순환, 내 캐릭터 + 이름)
 let lastScene = ['login', {}];
-narrow.addEventListener('change', () => { const z = zone; scene(...lastScene); if (lastScene[0] === 'lobby') showZone(z, 0); }); // 브레이크포인트가 바뀌면 배우 위치만 다시
+narrow.addEventListener('change', () => scene(...lastScene)); // 브레이크포인트가 바뀌면 배우 위치만 다시
+// 배경: 어느 화면이든 A 에서 시작해 5초마다 A → B → C 순환(1.2초 교차 페이드)
+function rotate(cam) {
+  clearInterval(rotateTimer); showZone('A', cam);
+  rotateTimer = setInterval(() => { const order = ['A', 'B', 'C']; showZone(order[(order.indexOf(zone) + 1) % 3], cam); }, 5000);
+}
+addEventListener('load', () => { buildZone('B'); buildZone('C'); }); // 첫 화면(A)이 뜬 뒤에 나머지 존을 받아 둔다
 function scene(name, opts = {}) {
   clearInterval(rotateTimer); document.body.dataset.scene = name; lastScene = [name, opts];
   const cast = $('cast'); cast.replaceChildren();
   if (name === 'login') {
-    showZone('A', 600);
+    rotate(600);
     cast.append(actor('m', narrow.matches ? '18%' : 'max(4vw, 80px)'), actor('f', narrow.matches ? '48%' : 'calc(max(4vw, 80px) + 96px)'));
   } else if (name === 'create') {
-    showZone('A', 1700);
+    rotate(1700);
     cast.append(actor(opts.g || 'm', narrow.matches ? 'calc(50% - 88px)' : 'calc(34vw - 176px)', true));
   } else if (name === 'lobby') {
-    showZone('A', 0);
+    rotate(0);
     const left = narrow.matches ? 'calc(50% - 88px)' : 'max(14vw, 120px)';
     cast.append(actor(opts.g || 'm', left));
     const plate = document.createElement('div'); plate.className = 'nameplate'; plate.textContent = opts.name || ''; plate.style.left = `calc(${left} + 88px)`; cast.append(plate);
-    if (!still.matches) { // 항상 A 부터 시작해 15초마다 B → C → A
-      const order = ['A', 'B', 'C']; buildZone('B'); buildZone('C');
-      rotateTimer = setInterval(() => showZone(order[(order.indexOf(zone) + 1) % 3], 0), 15000);
-    }
   }
 }
 function previewGender(g) {

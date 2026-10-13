@@ -80,7 +80,7 @@ body.launcher .legal a{color:#fff;text-shadow:0 1px 0 var(--wood),1px 0 0 var(--
   body.launcher .legal a{color:var(--ink-soft);text-shadow:none}
   .actor.big{width:176px;height:176px;bottom:var(--foot,76px)}.actor.big.f{width:172px;height:172px}
 }
-@media (prefers-reduced-motion:reduce){.layer,.zone,.actor,.nameplate,#veil,body.launcher{transition:none!important}.layer.clouds{animation:none}}
+@media (prefers-reduced-motion:reduce){.layer,.actor,.nameplate,#veil,body.launcher{transition:none!important}.layer.clouds{animation:none}}
 body.launcher.playing #world,body.launcher.playing #cast,body.launcher.playing #veil{display:none}
 #channel-list button[aria-checked=true]{outline:3px solid var(--gold);outline-offset:-6px}#channel-list button[aria-checked=true] span::before{content:"▶ ";color:#b8862a}
 .board{word-break:keep-all;overflow-wrap:anywhere}
