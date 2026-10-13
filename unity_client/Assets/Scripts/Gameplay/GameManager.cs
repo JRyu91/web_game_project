@@ -71,7 +71,7 @@ public class GameManager : MonoBehaviour {
     void BindNetwork(NetworkClient net) {
         net.OnSpawn += SpawnRegistered;
         net.OnConnecting += () => { _dropFeedback.Clear(); ClearGhosts(); _spawns.Clear(); _player.PendingKillRewards = false; _resumeState = null; SetGameplayReady(false); Loading = true; _systemMsg = "서버 접속 중 — 플레이 일시정지"; };
-        net.OnWelcome += m => { SetGameplayReady(false); Loading = true; _systemMsg = $"채널 {net.Channel} 접속 — 저장 상태 확인 중"; };
+        net.OnWelcome += m => { SetGameplayReady(false); Loading = true; _systemMsg = $"채널 {net.Index + 1} 접속 — 저장 상태 확인 중"; };
         net.OnInv += m => {
             if (m.req == "kill") ResolveKill(m);
             if (m.state != null && Enum.TryParse<Game.Rendering.Zone>(m.state.zone, out var zone)) {
@@ -90,7 +90,7 @@ public class GameManager : MonoBehaviour {
             SetGameplayReady(!m.state.HasPendingDrop);
             Loading = false;
             foreach (var monster in Spawner.Alive) RegisterMonster(monster);
-            _systemMsg = $"채널 {net.Channel} 접속 (정원 {net.Cap}명)";
+            _systemMsg = $"채널 {net.Index + 1} 접속 (정원 {net.Cap}명)";
         };
         net.OnSystem += t => _systemMsg = t;
         net.OnChat += (who, text) => { _chatLog.Add($"{who}: {text}"); if (_chatLog.Count > 8) _chatLog.RemoveAt(0); };

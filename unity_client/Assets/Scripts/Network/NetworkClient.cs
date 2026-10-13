@@ -23,6 +23,7 @@ public class NetworkClient : MonoBehaviour {
     public string Channel { get; private set; }
     public int Index { get; private set; }
     public int Cap { get; private set; }
+    public int Count { get; private set; } // 채널 접속자 수(봇 포함, 정원 계산과 같은 기준)
 
     public event Action<WelcomeMsg> OnWelcome;
     public event Action OnConnecting;
@@ -181,13 +182,14 @@ public class NetworkClient : MonoBehaviour {
             case "welcome": {
                 var m = JsonUtility.FromJson<WelcomeMsg>(text);
                 Joined = false;
-                Me = m.id; Channel = m.channel; Index = m.index; Cap = m.cap;
+                Me = m.id; Channel = m.channel; Index = m.index; Cap = m.cap; Count = m.roster?.Length ?? 0;
                 OnWelcome?.Invoke(m);
                 if (m.roster != null) OnRoster?.Invoke(m.roster);
                 break;
             }
             case "roster": {
                 var m = JsonUtility.FromJson<RosterMsg>(text);
+                if (m.roster != null) Count = m.roster.Length;
                 if (m.roster != null) OnRoster?.Invoke(m.roster);
                 break;
             }

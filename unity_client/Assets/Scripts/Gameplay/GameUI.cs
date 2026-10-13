@@ -106,7 +106,7 @@ public class GameUI : MonoBehaviour {
         _growthDot = Label(_menus[4].transform, "●", new Vector2(-6, -2), new Vector2(12, 16), TextAnchor.MiddleCenter, new Vector2(1, 1));
         _growthDot.color = Color.red; _growthDot.gameObject.SetActive(false);
         BuildHud();
-        _channel = Label(_root, "", new Vector2(-10 - menu.Length * 78, -10), new Vector2(120, BtnH), TextAnchor.MiddleRight, new Vector2(1, 1), true); // 채널: 메뉴 왼쪽
+        _channel = Label(_root, "", new Vector2(-10 - menu.Length * 78, -10), new Vector2(150, BtnH), TextAnchor.MiddleRight, new Vector2(1, 1), true); // 채널: 메뉴 왼쪽
         _versionLabel = Label(_root, $"v{Application.version}", new Vector2(-10, 10), new Vector2(100, 20), TextAnchor.MiddleRight, new Vector2(1, 0), true);
         _toast = Label(_root, "", new Vector2(0, -64), new Vector2(600, 24), TextAnchor.MiddleCenter, new Vector2(0.5f, 1), true); // 상단 중앙, 보스 HP 바(위 8px + 48px) 아래
 
@@ -637,7 +637,7 @@ public class GameUI : MonoBehaviour {
         _expText.text = $"{100.0 * _pl.Exp / Mathf.Max(1, need):0.0}%";
         _goldText.text = $"{_pl.Gold:N0}";
         _potText.text = $"x{_pl.PotionCount}";
-        _channel.text = Online ? $"채널 {_net.Channel}" : _net != null && _net.Connected ? "접속 중" : "오프라인";
+        _channel.text = Online ? $"채널 {_net.Index + 1} · {_net.Count}/{_net.Cap}" : _net != null && _net.Connected ? "접속 중" : "오프라인";
     }
 
     void CaptureLayout() {
