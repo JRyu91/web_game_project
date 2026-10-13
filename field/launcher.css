@@ -11,18 +11,18 @@ body.playing #game{position:fixed;inset:auto;top:var(--game-top,0px);left:var(--
 /* ===== 입장 화면 리디자인: 실제 게임 존(web/ui) 위에 인게임 나무 패널·양피지 버튼을 그대로 쓴다. body.launcher 에만 적용 ===== */
 @font-face{font-family:Galmuri11;src:url(https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11.woff2) format('woff2');font-display:swap}
 @font-face{font-family:Galmuri11;font-weight:700;src:url(https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11-Bold.woff2) format('woff2');font-display:swap}
-body.launcher{--ink:#3c2414;--ink-soft:#6b4a2e;--wood:#422720;--edge:#5c372d;--paper:#f5e8cd;--gold:#f6c248;--sky:#68a0e2;display:block;min-height:100vh;min-height:100dvh;margin:0;background:var(--sky);font-family:Galmuri11,system-ui,sans-serif;overflow-x:hidden;transition:background-color 1.2s}
-body.launcher.playing{background:#101a17}
+body.launcher{--ink:#3c2414;--ink-soft:#6b4a2e;--wood:#422720;--edge:#5c372d;--paper:#f5e8cd;--gold:#f6c248;--earth:#241812;display:block;min-height:100vh;min-height:100dvh;margin:0;background:var(--earth);font-family:Galmuri11,system-ui,sans-serif;overflow-x:hidden}
+body.launcher.playing{background:var(--earth)}
 /* 세계: 존마다 720px 띠를 바닥에 붙이고, 위쪽은 하늘 맨 윗색으로 채운다(정수 배율 1x 고정) */
 #world{position:fixed;inset:0;overflow:hidden;z-index:0}
 .zone{position:absolute;inset:0;opacity:0;transition:opacity 1.2s;background:var(--top)}
 .zone.on{opacity:1}
-.layer{position:absolute;left:0;right:0;bottom:0;height:720px;background-repeat:repeat-x;background-size:3200px 720px;background-position:calc(var(--cam,0px) * var(--p) * -1) 0;image-rendering:pixelated;transition:background-position .7s cubic-bezier(.4,0,.2,1)}
+.layer{position:absolute;left:0;right:0;bottom:var(--lift,0px);height:720px;background-repeat:repeat-x;background-size:3200px 720px;background-position:calc(var(--cam,0px) * var(--p) * -1) 0;image-rendering:pixelated;transition:background-position .7s cubic-bezier(.4,0,.2,1)}
 .layer.sky{background-repeat:no-repeat;background-size:100% 100%;image-rendering:auto;transition:none}
 .layer.clouds{animation:drift 400s linear infinite}
 @keyframes drift{to{background-position:calc(var(--cam,0px) * -.05 - 3200px) 0}}
 /* 배우: 프레임 바닥에서 발까지 26px. --foot = 720 - 존 지면선 - 26 */
-#cast{position:fixed;left:0;right:0;bottom:0;height:720px;z-index:1;pointer-events:none}
+#cast{position:fixed;left:0;right:0;bottom:var(--lift,0px);height:720px;z-index:1;pointer-events:none}
 .actor{position:absolute;bottom:var(--foot,76px);width:176px;height:176px;image-rendering:pixelated;transition:bottom .6s,left .7s cubic-bezier(.4,0,.2,1),opacity .4s}
 .actor.big{width:352px;height:352px;bottom:calc(var(--foot,76px) - 26px)}
 .actor.f{width:172px;height:172px}.actor.big.f{width:344px;height:344px}
@@ -38,9 +38,9 @@ body.launcher .version{color:#fff;font-size:11px;letter-spacing:0;margin-top:6px
 .board>*{image-rendering:auto}
 .board h2{margin:0 0 6px;font:700 22px/1.3 Galmuri11,sans-serif;color:var(--ink)}
 .board .hint{margin:0 0 6px;font-size:14px;line-height:1.5;color:var(--ink-soft)}
-body.launcher label{display:block;margin:12px 0;font-size:14px;color:var(--ink-soft)}
-body.launcher input{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:10px 12px;font:16px Galmuri11,sans-serif;color:var(--ink);background:var(--paper);border:2px solid var(--edge);border-radius:0}
-body.launcher input:focus-visible,body.launcher button:focus-visible,.board a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+#entry label{display:block;margin:12px 0;font-size:14px;color:var(--ink-soft)}
+#entry input{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:10px 12px;font:16px Galmuri11,sans-serif;color:var(--ink);background:var(--paper);border:2px solid var(--edge);border-radius:0}
+#entry input:focus-visible,body.launcher button:focus-visible,.board a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 /* 양피지 버튼: 인게임 ui_btn_* 3상태. 모서리 12px 를 2배로 */
 body.launcher .board button{display:block;box-sizing:border-box;width:100%;min-height:52px;margin-top:10px;padding:4px 20px;border:24px solid transparent;border-image:url(web/ui/btn.png) 12 fill/24px round;background:none;color:var(--ink);font:700 16px Galmuri11,sans-serif;cursor:pointer;image-rendering:pixelated;line-height:1}
 body.launcher .board button:active,body.launcher .board button[aria-pressed=true]{border-image-source:url(web/ui/btn_pressed.png)}
@@ -65,20 +65,37 @@ body.launcher .legal{grid-column:1;align-self:end;margin:0 0 20px;font-size:12px
 body.launcher .legal a{color:#fff;text-shadow:0 1px 0 var(--wood),1px 0 0 var(--wood),-1px 0 0 var(--wood)}
 #veil{position:fixed;inset:0;z-index:5;background:#101a17;opacity:0;pointer-events:none;transition:opacity .4s}
 #veil.on{opacity:1}
-/* 모바일: 로고 축소, 패널은 위쪽 하늘에, 배우는 아래 지면에 */
+/* 모바일: 패널은 하단 시트, 세계(지면+캐릭터)는 시트 위로 들어 올린다(--lift = 시트 높이 - 흙 90px, JS 가 잼) */
 @media (max-width:760px){
-  body.launcher #entry{display:block;padding:16px 12px 0}
+  body.launcher #entry{display:block;min-height:0;padding:12px 12px 0}
   #hero{display:flex;align-items:center;gap:10px}
   #hero img{width:80px;height:48px}
   body.launcher h1{font-size:22px;margin:0}
   body.launcher .intro,body.launcher .version{display:none}
-  .board{margin:4px -4px 0;padding:6px 10px 6px;border-width:24px;border-image-width:24px}
+  .board{position:fixed;left:0;right:0;bottom:0;max-height:72vh;overflow:auto;margin:0;padding:2px 8px calc(26px + env(safe-area-inset-bottom));border-width:24px;border-image-width:24px;z-index:3}
   .board h2{font-size:18px}
-  body.launcher label{margin:8px 0}
+  #entry label{margin:8px 0}
   body.launcher .board button{min-height:46px;margin-top:8px}
-  body.launcher .legal{position:fixed;left:12px;bottom:8px;margin:0}
+  body.launcher .legal{position:fixed;left:0;right:0;bottom:calc(28px + env(safe-area-inset-bottom));margin:0;text-align:center;font-size:11px;z-index:4}
+  body.launcher .legal a{color:var(--ink-soft);text-shadow:none}
+  .actor.big{width:176px;height:176px;bottom:var(--foot,76px)}.actor.big.f{width:172px;height:172px}
 }
 @media (prefers-reduced-motion:reduce){.layer,.zone,.actor,.nameplate,#veil,body.launcher{transition:none!important}.layer.clouds{animation:none}}
 body.launcher.playing #world,body.launcher.playing #cast,body.launcher.playing #veil{display:none}
 #channel-list button[aria-checked=true]{outline:3px solid var(--gold);outline-offset:-6px}#channel-list button[aria-checked=true] span::before{content:"▶ ";color:#b8862a}
 .board{word-break:keep-all;overflow-wrap:anywhere}
+body.launcher #toolbar{color:var(--paper)}
+body.launcher #toolbar button,body.launcher #chat-row button{border:12px solid transparent;border-image:url(web/ui/btn.png) 12 fill/12px round;background:none;color:var(--ink);font:700 13px Galmuri11,sans-serif;padding:2px 8px;image-rendering:pixelated}
+body.launcher #toolbar button:active,body.launcher #chat-row button:active{border-image-source:url(web/ui/btn_pressed.png)}
+body.launcher #chat-input{background:#1c130e;color:var(--paper);border:2px solid var(--edge);font:16px Galmuri11,sans-serif}
+body.launcher #chat-input::placeholder{color:#a08a6e}
+/* 약관·개인정보 페이지: 같은 흙색 바탕 + 양피지 패널 */
+body.legal-page{--ink:#3c2414;--ink-soft:#6b4a2e;display:block;margin:0;padding:24px 12px 48px;background:#241812;font-family:Galmuri11,system-ui,sans-serif;color:var(--ink)}
+body.legal-page #entry.doc{box-sizing:border-box;width:min(720px,100%);margin:0 auto;padding:16px 24px;background:none;border:40px solid transparent;border-image:url(web/ui/panel.png) 20 fill/40px round;image-rendering:pixelated;box-shadow:none;color:var(--ink);word-break:keep-all}
+body.legal-page .doc>*{image-rendering:auto}
+body.legal-page .doc h1{margin:4px 0 8px;font:700 26px/1.3 Galmuri11,sans-serif;color:var(--ink)}
+body.legal-page .doc h2{margin:24px 0 8px;font:700 17px/1.4 Galmuri11,sans-serif;color:var(--ink)}
+body.legal-page .doc p,body.legal-page .doc .intro{font-size:14px;line-height:1.8;color:var(--ink);margin:0 0 8px}
+body.legal-page .version{color:var(--ink-soft);font-size:12px;letter-spacing:0}
+body.legal-page .legal a,body.legal-page .doc a{color:#7a3e12}
+@media (max-width:600px){body.legal-page{padding:8px 4px 32px}body.legal-page .doc{border-width:24px;border-image-width:24px;padding:8px 10px}body.legal-page .doc h1{font-size:21px}}
