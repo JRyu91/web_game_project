@@ -8,3 +8,77 @@ body.playing{display:block;min-height:0;overflow:hidden}#game{height:100vh;heigh
 
 /* Safari browser bars and IME change the visible viewport independently of 100vh. */
 body.playing #game{position:fixed;inset:auto;top:var(--game-top,0px);left:var(--game-left,0px);width:var(--game-width,100%);height:var(--game-height,100dvh)}
+/* ===== 입장 화면 리디자인: 실제 게임 존(web/ui) 위에 인게임 나무 패널·양피지 버튼을 그대로 쓴다. body.launcher 에만 적용 ===== */
+@font-face{font-family:Galmuri11;src:url(https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11.woff2) format('woff2');font-display:swap}
+@font-face{font-family:Galmuri11;font-weight:700;src:url(https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11-Bold.woff2) format('woff2');font-display:swap}
+body.launcher{--ink:#3c2414;--ink-soft:#6b4a2e;--wood:#422720;--edge:#5c372d;--paper:#f5e8cd;--gold:#f6c248;--sky:#68a0e2;display:block;min-height:100vh;min-height:100dvh;margin:0;background:var(--sky);font-family:Galmuri11,system-ui,sans-serif;overflow-x:hidden;transition:background-color 1.2s}
+body.launcher.playing{background:#101a17}
+/* 세계: 존마다 720px 띠를 바닥에 붙이고, 위쪽은 하늘 맨 윗색으로 채운다(정수 배율 1x 고정) */
+#world{position:fixed;inset:0;overflow:hidden;z-index:0}
+.zone{position:absolute;inset:0;opacity:0;transition:opacity 1.2s;background:var(--top)}
+.zone.on{opacity:1}
+.layer{position:absolute;left:0;right:0;bottom:0;height:720px;background-repeat:repeat-x;background-size:3200px 720px;background-position:calc(var(--cam,0px) * var(--p) * -1) 0;image-rendering:pixelated;transition:background-position .7s cubic-bezier(.4,0,.2,1)}
+.layer.sky{background-repeat:no-repeat;background-size:100% 100%;image-rendering:auto;transition:none}
+.layer.clouds{animation:drift 400s linear infinite}
+@keyframes drift{to{background-position:calc(var(--cam,0px) * -.05 - 3200px) 0}}
+/* 배우: 프레임 바닥에서 발까지 26px. --foot = 720 - 존 지면선 - 26 */
+#cast{position:fixed;left:0;right:0;bottom:0;height:720px;z-index:1;pointer-events:none}
+.actor{position:absolute;bottom:var(--foot,76px);width:176px;height:176px;image-rendering:pixelated;transition:bottom .6s,left .7s cubic-bezier(.4,0,.2,1),opacity .4s}
+.actor.big{width:352px;height:352px;bottom:calc(var(--foot,76px) - 26px)}
+.actor.f{width:172px;height:172px}.actor.big.f{width:344px;height:344px}
+.nameplate{position:absolute;bottom:calc(var(--foot,76px) + 140px);transform:translateX(-50%);color:#fff;font:700 14px Galmuri11,sans-serif;text-shadow:0 2px 0 var(--wood),2px 0 0 var(--wood),-2px 0 0 var(--wood),0 -2px 0 var(--wood);white-space:nowrap;transition:bottom .6s,left .7s}
+/* 진입 레이아웃: 왼쪽 = 로고, 오른쪽 = 나무 표지판 패널 */
+body.launcher #entry{position:relative;z-index:2;width:100%;max-width:none;min-height:100vh;min-height:100dvh;padding:56px clamp(20px,6vw,96px) 0;background:none;border:0;box-shadow:none;display:grid;grid-template-columns:1fr minmax(340px,420px);grid-template-rows:auto 1fr;column-gap:40px;align-items:start;color:var(--ink)}
+#hero{grid-column:1;text-align:left}
+#hero img{display:block;width:320px;height:192px;image-rendering:pixelated}
+body.launcher h1{margin:8px 0 4px;font:700 33px/1.2 Galmuri11,sans-serif;color:#fff;letter-spacing:0;text-shadow:0 3px 0 var(--wood),3px 0 0 var(--wood),-3px 0 0 var(--wood),0 -3px 0 var(--wood)}
+body.launcher .intro{margin:0;color:#fff;font-size:14px;text-shadow:0 2px 0 var(--wood),2px 0 0 var(--wood),-2px 0 0 var(--wood),0 -2px 0 var(--wood)}
+body.launcher .version{color:#fff;font-size:11px;letter-spacing:0;margin-top:6px;opacity:.85;text-shadow:0 1px 0 var(--wood)}
+.board{grid-column:2;grid-row:1/3;align-self:start;box-sizing:border-box;padding:24px 32px 4px;border:40px solid transparent;border-image:url(web/ui/panel.png) 20 fill/40px round;image-rendering:pixelated;margin:0}
+.board>*{image-rendering:auto}
+.board h2{margin:0 0 6px;font:700 22px/1.3 Galmuri11,sans-serif;color:var(--ink)}
+.board .hint{margin:0 0 6px;font-size:14px;line-height:1.5;color:var(--ink-soft)}
+body.launcher label{display:block;margin:12px 0;font-size:14px;color:var(--ink-soft)}
+body.launcher input{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:10px 12px;font:16px Galmuri11,sans-serif;color:var(--ink);background:var(--paper);border:2px solid var(--edge);border-radius:0}
+body.launcher input:focus-visible,body.launcher button:focus-visible,.board a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+/* 양피지 버튼: 인게임 ui_btn_* 3상태. 모서리 12px 를 2배로 */
+body.launcher .board button{display:block;box-sizing:border-box;width:100%;min-height:52px;margin-top:10px;padding:4px 20px;border:24px solid transparent;border-image:url(web/ui/btn.png) 12 fill/24px round;background:none;color:var(--ink);font:700 16px Galmuri11,sans-serif;cursor:pointer;image-rendering:pixelated;line-height:1}
+body.launcher .board button:active,body.launcher .board button[aria-pressed=true]{border-image-source:url(web/ui/btn_pressed.png)}
+body.launcher .board button:disabled{border-image-source:url(web/ui/btn_disabled.png);color:#4a4a4a;opacity:1;cursor:not-allowed}
+body.launcher .board button.busy{cursor:wait}
+body.launcher .board .secondary{min-height:44px;padding:4px 8px;border-width:12px;border-image-width:12px;font-weight:400;font-size:14px;white-space:nowrap}
+.row{display:flex;gap:8px}.row>button{flex:1}
+/* 성별: 라디오를 버튼처럼. 실제 값은 name=gender 라디오가 들고 있다 */
+.gender{display:flex;gap:8px;margin:12px 0 0;padding:0;border:0}
+.gender legend{padding:0;margin-bottom:6px;font-size:14px;color:var(--ink-soft)}
+.gender label{flex:1;margin:0;position:relative}
+.gender input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.gender span{display:block;text-align:center;padding:10px 0;border:2px solid var(--edge);background:var(--paper);color:var(--ink);font-weight:700}
+.gender input:checked+span{background:var(--gold);box-shadow:inset 0 -3px 0 #b8862a}
+.gender input:focus-visible+span{outline:3px solid var(--gold);outline-offset:2px}
+/* 채널: 숨은 select 가 실제 값, 버튼 목록은 그 표시 */
+#channel-list{display:grid;gap:0;margin-top:4px}
+#channel-list button{display:flex;justify-content:space-between;align-items:center;text-align:left}
+#channel-list small{font:400 14px Galmuri11,sans-serif;color:var(--ink-soft)}
+body.launcher #status{min-height:20px;margin:12px 0 0;font-size:14px;color:#9a2c1c}
+body.launcher .legal{grid-column:1;align-self:end;margin:0 0 20px;font-size:12px;position:relative;z-index:3}
+body.launcher .legal a{color:#fff;text-shadow:0 1px 0 var(--wood),1px 0 0 var(--wood),-1px 0 0 var(--wood)}
+#veil{position:fixed;inset:0;z-index:5;background:#101a17;opacity:0;pointer-events:none;transition:opacity .4s}
+#veil.on{opacity:1}
+/* 모바일: 로고 축소, 패널은 위쪽 하늘에, 배우는 아래 지면에 */
+@media (max-width:760px){
+  body.launcher #entry{display:block;padding:16px 12px 0}
+  #hero{display:flex;align-items:center;gap:10px}
+  #hero img{width:80px;height:48px}
+  body.launcher h1{font-size:22px;margin:0}
+  body.launcher .intro,body.launcher .version{display:none}
+  .board{margin:4px -4px 0;padding:6px 10px 6px;border-width:24px;border-image-width:24px}
+  .board h2{font-size:18px}
+  body.launcher label{margin:8px 0}
+  body.launcher .board button{min-height:46px;margin-top:8px}
+  body.launcher .legal{position:fixed;left:12px;bottom:8px;margin:0}
+}
+@media (prefers-reduced-motion:reduce){.layer,.zone,.actor,.nameplate,#veil,body.launcher{transition:none!important}.layer.clouds{animation:none}}
+body.launcher.playing #world,body.launcher.playing #cast,body.launcher.playing #veil{display:none}
+#channel-list button[aria-checked=true]{outline:3px solid var(--gold);outline-offset:-6px}#channel-list button[aria-checked=true] span::before{content:"▶ ";color:#b8862a}
+.board{word-break:keep-all;overflow-wrap:anywhere}
