@@ -40,7 +40,7 @@ function buildZone(z) {
   for (const [file, p] of ZONES[z].layers) {
     const l = document.createElement('div'); l.className = 'layer' + (p === 0 ? ' sky' : '') + (file === 'clouds' ? ' clouds' : '');
     l.style.backgroundImage = `url(${UI(z + '/' + file + '.png')})`; l.style.setProperty('--p', p);
-    if (p === 0) { l.style.bottom = ZONES[z].sky[0] + 'px'; l.style.height = ZONES[z].sky[1] + 'px'; }
+    if (p === 0) { l.style.bottom = `calc(var(--lift, 0px) + ${ZONES[z].sky[0]}px)`; l.style.height = ZONES[z].sky[1] + 'px'; }
     el.append(l);
   }
   $('world').append(el);
@@ -51,7 +51,6 @@ function showZone(z, cam) {
   zone = z; const el = buildZone(z);
   for (const k in zoneEls) zoneEls[k].classList.toggle('on', k === z);
   if (cam !== undefined) el.style.setProperty('--cam', cam + 'px');
-  document.body.style.backgroundColor = ZONES[z].top;
   $('cast').style.setProperty('--foot', ZONES[z].foot + 'px');
 }
 // 스프라이트: idle 4프레임·walk 8프레임, 인게임 FrameAnimator 기본 10fps 와 같은 100ms
@@ -79,7 +78,7 @@ function scene(name, opts = {}) {
     cast.append(actor('m', narrow.matches ? '18%' : 'max(4vw, 80px)'), actor('f', narrow.matches ? '48%' : 'calc(max(4vw, 80px) + 96px)'));
   } else if (name === 'create') {
     showZone('A', 1700);
-    cast.append(actor(opts.g || 'm', narrow.matches ? 'calc(50% - 176px)' : 'calc(34vw - 176px)', true));
+    cast.append(actor(opts.g || 'm', narrow.matches ? 'calc(50% - 88px)' : 'calc(34vw - 176px)', true));
   } else if (name === 'lobby') {
     showZone('A', 0);
     const left = narrow.matches ? 'calc(50% - 88px)' : 'max(14vw, 120px)';
@@ -96,6 +95,9 @@ function previewGender(g) {
   a.dataset.g = g; a.className = `actor ${g} big`; tick = -1; // 고르면 idle 첫 프레임부터
 }
 for (const f of [$('auth'), $('google-signup')]) f.addEventListener('change', e => { if (e.target.name === 'gender') previewGender(e.target.value === 'female' ? 'f' : 'm'); });
+// 모바일 시트 높이만큼 세계를 올려서 캐릭터가 시트 위 지면에 보이게
+new ResizeObserver(() => document.body.style.setProperty('--lift', narrow.matches ? Math.max(0, document.querySelector('.board').offsetHeight - 90) + 'px' : '0px')).observe(document.querySelector('.board'));
+narrow.addEventListener('change', () => document.body.style.setProperty('--lift', '0px'));
 const title = t => { $('board-title').textContent = t; };
 async function api(path, body) {
   const res = await fetch(new URL(path, API), body === undefined ? {cache:'no-store',credentials:'include'} : {method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
