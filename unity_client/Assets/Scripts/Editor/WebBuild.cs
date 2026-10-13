@@ -18,6 +18,7 @@ public static class WebBuild {
             PlayerSettings.WebGL.initialMemorySize = 128;
             PlayerSettings.WebGL.maximumMemorySize = 2048;
             var output = Path.GetFullPath(Path.Combine(Application.dataPath, "../../field/web"));
+            if (Directory.Exists(output + "/Build")) Directory.Delete(output + "/Build", true); //해시 파일명이라 지난 빌드가 남으면 아래 GetFiles[0] 가 옛 파일을 집는다
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions {
                 scenes = new[] { "Assets/Scenes/Main.unity" }, locationPathName = output,
                 target = BuildTarget.WebGL, options = BuildOptions.None
