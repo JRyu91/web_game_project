@@ -98,7 +98,7 @@ $('play').onclick = async () => {
     for (const k in build) build[k] = new URL(build[k].replace(/^\//, ''), API).href; // WebBuild.cs 가 /web/... 절대경로로 쓴다 → 게임 서버 기준으로
     await new Promise((resolve,reject) => {const script = document.createElement('script');script.src=build.loaderUrl;script.onload=resolve;script.onerror=()=>reject(new Error('게임 파일을 불러오지 못했습니다'));document.body.append(script);});
     $('entry').hidden = true; $('game').hidden = false; document.body.classList.add('playing');
-    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.12',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
+    instance = await createUnityInstance($('unity-canvas'), {...build,companyName:'1bit',productName:'시간 낭비의 숲',productVersion:'3.0.13',devicePixelRatio:1}, progress => {$('loading').textContent=`게임 준비 중 ${Math.round(progress*100)}%`;});
     window.gameInstance = instance;
     try { $('chat').hidden = localStorage.chatHidden === '1'; } catch { $('chat').hidden = false; }
     $('loading').textContent = ''; $('unity-canvas').focus();
