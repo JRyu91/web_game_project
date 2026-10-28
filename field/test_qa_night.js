@@ -217,6 +217,7 @@ process.exitCode=failures?1:0;
  const fn=source.slice(source.indexOf('async function initDb() {'),source.indexOf('/* ---------- 계정 (Cloud SQL) ---------- */'));
  class Pool {on(){} async query(sql){queries.push(sql);return {rows:[],rowCount:0};}}
  const context={Pool,DATABASE_URL:'mock-only',db:null,process:{env:{}},console:{log(){},error(){}}};vm.createContext(context);vm.runInContext(fn+';globalThis.init=initDb;',context);await context.init();
+ assert.ok(queries.includes('ALTER TABLE accounts ADD COLUMN IF NOT EXISTS quiz_progress jsonb'));
  const migration=queries.find(sql=>sql.includes('DO $$'));assert.ok(migration);
  assert.ok(queries[1].includes('CREATE TABLE IF NOT EXISTS saves') && queries[2]===migration);
  assert.ok(migration.indexOf('LOCK TABLE saves IN SHARE ROW EXCLUSIVE MODE')<migration.indexOf('IF NOT EXISTS'));

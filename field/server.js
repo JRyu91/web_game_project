@@ -10,6 +10,7 @@ const { createClient } = require('redis');
 const { Pool } = require('pg');
 const C = require('./core.js');
 const I = require('./items.js');
+const Quiz = require('./quiz-progress.js');
 
 const PORT = Number(process.env.PORT) || 8080;
 const CHANNEL_ID = process.env.CHANNEL_ID || 'channel-0';
@@ -221,6 +222,7 @@ async function initDb() {
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
   await pool.query('CREATE INDEX IF NOT EXISTS chats_user_time_idx ON chats (user_id, created_at DESC)');
+  await pool.query('ALTER TABLE accounts ADD COLUMN IF NOT EXISTS quiz_progress jsonb');
   db = pool;
   console.log('[db] Cloud SQL 연결, accounts·saves·chats 테이블 준비');
   if (process.env.ADMIN_PASSWORD) await ensureAdmin();
@@ -470,12 +472,12 @@ async function putSave(id, data) {
 }
 
 //요청 본문을 JSON 으로 읽는다. 16KB 넘으면 자른다(세이브가 그것보다 클 일이 없다).
-function readJson(req) {
+function readJson(req, limit = 16384) {
   return new Promise(resolve => {
     let buf = '';
     req.on('data', c => {
       buf += c;
-      if (buf.length > 16384) { buf = ''; req.destroy(); resolve(null); }
+      if (buf.length > limit) { buf = ''; req.destroy(); resolve(null); }
     });
     req.on('end', () => { try { resolve(JSON.parse(buf)); } catch { resolve(null); } });
     req.on('error', () => resolve(null));
@@ -538,6 +540,23 @@ const server = http.createServer(async (req, res) => {
   }
   const session = await sessionFor(req);
   res.setHeader('Cache-Control', 'no-store');
+  if (urlPath === '/quiz/progress') {
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    if (!session) { res.writeHead(401).end(JSON.stringify({ err: '로그인이 필요해' })); return; }
+    if (DATABASE_URL && !db) { res.writeHead(503).end(JSON.stringify({ err: '저장 서버에 연결할 수 없어' })); return; }
+    if (req.method === 'GET') {
+      res.end(JSON.stringify({ accountId: session.id, ...await Quiz.load(db, session.id) })); return;
+    }
+    if (req.method !== 'POST') { res.writeHead(405).end(); return; }
+    const body = await readJson(req, 131072);
+    if (!body || body.accountId !== session.id) { res.writeHead(403).end(JSON.stringify({ err: '로그인 계정이 변경됐어. 새로고침해 줘' })); return; }
+    if (!Number.isSafeInteger(body.revision) || body.revision < 0 || body.revision >= Number.MAX_SAFE_INTEGER || !Quiz.validState(body.state)) {
+      res.writeHead(400).end(JSON.stringify({ err: '올바른 퀴즈 진도가 아니야' })); return;
+    }
+    const saved = await Quiz.save(db, session.id, body.revision, body.state);
+    if (!saved) { res.writeHead(409).end(JSON.stringify({ err: '다른 기기에서 진도가 바뀌었어. 현재 진도를 백업한 뒤 서버 진도를 불러와 줘' })); return; }
+    res.end(JSON.stringify({ revision: saved.revision })); return;
+  }
   if (urlPath === '/account/me') {
     res.writeHead(session ? 200 : 401, { 'content-type': 'application/json' });
     res.end(JSON.stringify(session ? { ok: { id: session.id, name: session.name, gender: session.gender, role: session.role } } : { err: '로그인이 필요합니다' })); return;
