@@ -1,7 +1,7 @@
-# Graph Report - web_game_project  (2026-10-28)
+# Graph Report - web_game_project  (2026-10-29)
 
 ## Corpus Check
-- 892 files · ~794,643 words
+- 892 files · ~794,788 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6084 file(s) not represented in the graph (top: .meta 5925, .asset 28, .log 23)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `da3ef300`
+- Built from commit: `dc5b99e4`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1538,7 +1538,7 @@ Nodes (3): [designer s3 2026-10-03] 수석 디자이너 수작업 키 (PixelLab 
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `PlayerController` connect `PlayerController` to `unityengine`, `GameUI`, `NetworkClient`, `Random`, `SpriteRenderer`, `Sprite`, `.XpToLevel`, `InvState`, `SkillFeedback`, `Stage3Capture`, `GearAttachment`, `GameManager`, `MonsterSpawner`?**
-  _High betweenness centrality (0.073) - this node is a cross-community bridge._
+  _High betweenness centrality (0.072) - this node is a cross-community bridge._
 - **What connects `MaleAssets`, `FemaleAssets`, `Online` to the rest of the system?**
   _84 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `pil` be split into smaller, more focused modules?**
