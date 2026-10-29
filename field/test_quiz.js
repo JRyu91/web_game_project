@@ -18,6 +18,13 @@ async function login(id) {
 (async () => {
   await new Promise((resolve, reject) => { const timeout = setTimeout(() => reject(Error('server startup timeout')), 10000); child.stdout.on('data', b => { if (String(b).includes('대기 중')) { clearTimeout(timeout); resolve(); } }); });
   assert.equal((await request('/quiz/progress')).status, 401);
+  const signup = { id: 'quizCode', name: 'quizCode', pw: 'test-pass-123' };
+  assert.equal((await request('/quiz/signup', '', signup)).status, 403);
+  assert.equal((await request('/quiz/signup', '', { ...signup, code: 'wrong' })).status, 403);
+  assert.equal((await request('/account/login', '', { id: signup.id, pw: signup.pw })).status, 400, 'invalid code cannot create account');
+  assert.equal((await request('/quiz/signup', '', { ...signup, code: 'ktcloud', pw: 'tiny' })).status, 400);
+  assert.equal((await request('/quiz/signup', '', { ...signup, code: 'ktcloud' })).status, 200);
+  assert.equal((await request('/account/login', '', { id: signup.id, pw: signup.pw })).status, 200);
   const a = await login('quizA'), b = await login('quizB');
   assert.equal((await request('/save/quizA', a, { potionThreshold: 40 })).status, 204);
   const gameBefore = await (await request('/save/quizA', a)).json();

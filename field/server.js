@@ -540,6 +540,19 @@ const server = http.createServer(async (req, res) => {
   }
   const session = await sessionFor(req);
   res.setHeader('Cache-Control', 'no-store');
+  if (urlPath === '/quiz/signup') {
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    if (req.method !== 'POST') { res.writeHead(405).end(); return; }
+    const body = await readJson(req);
+    if (!body || typeof body.code !== 'string' || body.code.trim() !== 'ktcloud') {
+      res.writeHead(403).end(JSON.stringify({ err: '가입코드가 올바르지 않습니다.' })); return;
+    }
+    if (typeof body.pw !== 'string' || body.pw.length < 8) {
+      res.writeHead(400).end(JSON.stringify({ err: '비밀번호는 8자 이상으로 입력하세요.' })); return;
+    }
+    const result = await accountSignup(body.name, body.id, body.pw, 'male');
+    res.writeHead(result.err ? 400 : 200).end(JSON.stringify(result)); return;
+  }
   if (urlPath === '/quiz/progress') {
     res.setHeader('content-type', 'application/json; charset=utf-8');
     if (!session) { res.writeHead(401).end(JSON.stringify({ err: '로그인이 필요해' })); return; }
