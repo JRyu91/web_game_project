@@ -5,7 +5,6 @@ resource "google_project_service" "apis" { # GCP는 프로젝트마다 API를 �
     "artifactregistry.googleapis.com",      # 컨테이너 이미지 저장소
     "servicenetworking.googleapis.com",     # VPC 피어링(Cloud SQL 프라이빗 연결)
     "sqladmin.googleapis.com",              # Cloud SQL 인스턴스 관리
-    "dns.googleapis.com",                   # Cloud DNS 존·레코드
     "iam.googleapis.com",                   # 서비스 계정·IAM 역할
     "iamcredentials.googleapis.com",        # 서비스 계정 impersonation(WIF)
     "sts.googleapis.com",                   # 토큰 교환(GitHub OIDC → GCP, WIF)

@@ -33,8 +33,8 @@ resource "google_container_node_pool" "web_game_node_pool" {
   cluster  = google_container_cluster.web_game_cluster.name
 
   autoscaling {
-    min_node_count = 2 # 접속자 없으면 스팟 노드는 0대 = 공짜
-    max_node_count = 3 # E2_CPUS 쿼터가 16이라 4는 못 간다. core(2×2) + spot(3×4=12) = 16 딱 맞춤
+    min_node_count = 0 # 접속자 없으면 스팟 노드는 0대 = 공짜
+    max_node_count = 1 # CPUS_ALL_REGIONS 쿼터 12(무료 체험). core 최대 4 + spot 4 + 업그레이드 서지 여유. 채널 파드는 100m 라 1대로 충분
   }
 
   node_config {

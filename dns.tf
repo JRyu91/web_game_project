@@ -1,31 +1,10 @@
-resource "google_dns_managed_zone" "root" {
-  name        = "web-game-zone"
-  dns_name    = "1bit.kr."
-  description = "1bit.kr 루트 도메인"
-}
-
+# 게임 LB 고정 IP. k8s/ingress.yaml 이 이름(web-game-static-ip)으로 붙잡는다.
 resource "google_compute_global_address" "ip" {
   name = "web-game-static-ip"
 }
 
-resource "google_compute_managed_ssl_certificate" "cert" {
-  name = "web-game-cert"
-
-  managed {
-    domains = ["1bit.kr."]
-  }
-}
-
-resource "google_dns_record_set" "a" {
-  name         = google_dns_managed_zone.root.dns_name
-  managed_zone = google_dns_managed_zone.root.name
-  type         = "A"
-  ttl          = 300
-  rrdatas      = [google_compute_global_address.ip.address]
-}
-
-#Cloudflare Worker 가 게임 원본으로 부르는 호스트. 1bit.kr 루트는 Worker 가 포트폴리오(GitHub Pages)로 돌리므로
-#게임 LB 는 이 이름으로 따로 인증서를 받는다. A 레코드는 Cloudflare DNS 에 DNS only(회색)로 둔다.
+# 1bit.kr DNS 는 Cloudflare(DNS only). 게임 API 는 game-origin.1bit.kr → 이 IP 로 A 레코드를 둔다.
+# 루트(1bit.kr)는 GitHub Pages 라 여기서 인증서를 받지 않는다.
 resource "google_compute_managed_ssl_certificate" "origin" {
   name = "web-game-origin-cert"
 
