@@ -37,7 +37,7 @@ spec:
                     values: ["spot"]
       containers:
         - name: channel
-          image: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game:v3.0.4
+          image: asia-northeast3-docker.pkg.dev/web-game-project-514814/web-game-images/web-game:v3.0.13-752c5723595a
           ports:
             - containerPort: 8080
           env:
@@ -60,6 +60,8 @@ spec:
               value: "/game" #공개 주소 1bit.kr/game. 루트는 Cloudflare Worker 가 GitHub Pages(포트폴리오)로 보낸다
             - name: PUBLIC_HOSTS
               value: "1bit.kr" #Worker 가 origin 호스트로 넘겨도 브라우저 Origin(1bit.kr) 을 허용
+            - name: COOKIE_DOMAIN
+              value: "1bit.kr" #퀴즈(1bit.kr)와 게임 API(game-origin)가 로그인 쿠키를 같이 쓴다
             - name: GOOGLE_CLIENT_ID
               valueFrom:
                 secretKeyRef: { name: google-oauth, key: GOOGLE_CLIENT_ID }

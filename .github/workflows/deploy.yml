@@ -14,7 +14,7 @@ concurrency:
 
 env:
   REGION: asia-northeast3
-  IMAGE_BASE: asia-northeast3-docker.pkg.dev/personal-webgame-project/web-game-images/web-game
+  IMAGE_BASE: asia-northeast3-docker.pkg.dev/web-game-project-514814/web-game-images/web-game
 
 jobs:
   deploy:
@@ -46,7 +46,7 @@ jobs:
         with:
           # vars.* 는 비밀 아닌 값(Secrets 탭 아님). 프로바이더 경로라 노출돼도 무해.
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: wif-service-account@personal-webgame-project.iam.gserviceaccount.com
+          service_account: wif-service-account@web-game-project-514814.iam.gserviceaccount.com
 
       - uses: google-github-actions/setup-gcloud@v2
 

@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "personal-webgame-project-tfstate"
+    bucket = "web-game-project-514814-tfstate"
     prefix = "terraform/state"
   }
 }

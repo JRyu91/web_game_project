@@ -26,7 +26,7 @@ metadata:
     #이 구식 어노테이션은 그 리소스 없이도 GKE 컨트롤러가 인식한다. 이게 없으면 컨트롤러가 인그레스를 무시해서 ADDRESS 가 영영 안 붙는다.
     kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.global-static-ip-name: "web-game-static-ip" #이 줄 없으면 Ingress 가 새 IP 를 뽑아버려서 A레코드랑 어긋나고 인증서가 영영 안 나온다
-    ingress.gcp.kubernetes.io/pre-shared-cert: "web-game-cert,web-game-origin-cert" #dns.tf 가 만든 인증서를 이름으로 빌려 쓴다. origin 은 Cloudflare Worker 용
+    ingress.gcp.kubernetes.io/pre-shared-cert: "web-game-origin-cert" #dns.tf 가 만든 인증서를 이름으로 빌려 쓴다. origin 은 Cloudflare Worker 용
     kubernetes.io/ingress.allow-http: "true" #끄지 말 것. 인증서 검증 경로에 영향을 줄 수 있다
 spec:
   rules:
